@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>Mats Test</title>
+    <style>
+        body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; }
+        #log { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 5px; font-size: 14px; max-width: 80%; }
+    </style>
+</head>
+<body>
+
+<div id="log">Status: Laddar Three.js...</div>
+
+<script type="importmap">
+    { 
+        "imports": { 
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        } 
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const logEl = document.getElementById('log');
+    function print(msg) {
+        console.log(msg);
+        logEl.innerHTML += "<br>" + msg;
+    }
+
+    // 1. Skapa Scen, Kamera och Renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x333333);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 3, 10);
+    camera.lookAt(0, 2, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 2. Starkt ljus från alla håll
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // En enkel plattform att stå på
+    const grid = new THREE.GridHelper(20, 20);
+    scene.add(grid);
+
+    // 3. Ladda mats.glb
+    print("Försöker hämta ./mats.glb...");
+    const loader = new GLTFLoader();
+
+    let matsMesh = null;
+
+    loader.load(
+        './mats.glb',
+        (gltf) => {
+            print("<b style='color:#00ff00;'>LYCKADES! mats.glb laddades in.</b>");
+            matsMesh = gltf.scene;
+
+            // Nollställ position & räkna ut storlek
+            matsMesh.position.set(0, 0, 0);
+            
+            const box = new THREE.Box3().setFromObject(matsMesh);
+            const size = box.getSize(new THREE.Vector3());
+            print(`Modellens storlek i filen: X=${size.x.toFixed(2)}, Y=${size.y.toFixed(2)}, Z=${size.z.toFixed(2)}`);
+
+            // Om den är väldigt liten eller stor, skala till ca 4 enheter hög
+            if (size.y > 0) {
+                const scale = 4 / size.y;
+                matsMesh.scale.setScalar(scale);
+                print(`Automatisk skala satt till: ${scale.toFixed(2)}`);
+            }
+
+            // Tvinga materialet att synas från båda håll (om ytnormalerna var vända fel)
+            matsMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.side = THREE.DoubleSide;
+                }
+            });
+
+            scene.add(matsMesh);
+        },
+        (xhr) => {
+            if (xhr.total > 0) {
+                const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                print(`Laddar: ${percent}%`);
+            }
+        },
+        (error) => {
+            print("<b style='color:#ff0000;'>FEL! Kunde inte ladda mats.glb.</b>");
+            print("Kontrollera att filen heter exakt 'mats.glb' och ligger i samma mapp.");
+            console.error(error);
+        }
+    );
+
+    // 4. Renderings-loop (roterar modellen om den laddats)
+    function animate() {
+        requestAnimationFrame(animate);
+        if (matsMesh) {
+            matsMesh.rotation.y += 0.01;
+        }
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
