@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mower Simulator - Restore & Enhance</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Press Start 2P', monospace; }
+        canvas { display: block; }
+        
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0a0015 0%, #200033 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white; z-index: 200; text-align: center;
+            border: 8px solid #ff00ff; box-sizing: border-box;
+            box-shadow: inset 0 0 50px #00ffff;
+        }
+        
+        #game-title {
+            font-size: 26px; color: #ffff00; text-shadow: 4px 4px #ff0055, 8px 8px #00ffff;
+            margin-bottom: 25px; line-height: 1.4; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+
+        #hud { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; display: none; justify-content: space-between; align-items: flex-start; z-index: 10; }
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.8); border: 4px solid #ff00ff; box-shadow: 4px 4px 0px #00ffff;
+            color: #ffffff; padding: 15px 20px; font-size: 14px; text-shadow: 2px 2px #ff00ff;
+        }
+        #timer { color: #ffff00; text-shadow: 2px 2px #ff0000; }
+        #hud-stars { font-size: 16px; color: #444; margin-top: 8px; letter-spacing: 4px; }
+        .star-earned { color: #ffff00; text-shadow: 0 0 10px #ff00ff; }
+
+        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 100; }
+        #go-panel { 
+            background: #110022; padding: 30px; border: 6px solid #00ffff; box-shadow: 8px 8px 0px #ff00ff; text-align: center; max-width: 480px; width: 90%;
+        }
+        #go-title { font-size: 20px; margin: 0 0 20px 0; color: #ffff00; text-shadow: 3px 3px #ff0000; }
+        .go-stat { font-size: 11px; margin: 12px 0; color: #00ffff; }
+        .go-stat strong { color: #ffffff; }
+        #go-stars { font-size: 24px; margin: 15px 0; color: #444; letter-spacing: 6px; }
+
+        #level-select-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,0,15,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 160; }
+        .level-panel { background: #1a0033; border: 6px solid #ffff00; box-shadow: 8px 8px 0px #ff00ff; padding: 30px; width: 90%; max-width: 550px; text-align: center; }
+        .level-btn { width: 100%; margin: 10px 0; background: #330066; border: 3px solid #00ffff; color: white; padding: 15px; font-family: 'Press Start 2P', monospace; font-size: 11px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+        .level-btn:hover { background: #440088; }
+
+        #shop-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,0,15,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 150; }
+        #shop-panel { background: #1a0033; border: 6px solid #ff00ff; box-shadow: 8px 8px 0px #00ffff; padding: 30px; width: 90%; max-width: 600px; text-align: center; max-height: 90vh; overflow-y: auto; }
+        .shop-item { background: #2a0055; border: 3px solid #00ffff; padding: 15px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; text-align: left; }
+        .shop-info h3 { margin: 0 0 5px 0; color: #ffff00; font-size: 11px; }
+        .shop-info p { margin: 0; color: #00ffff; font-size: 7px; }
+        
+        .arcade-btn { 
+            background: #ff00ff; color: white; border: 4px solid #ffffff; padding: 12px 20px; 
+            font-family: 'Press Start 2P', monospace; font-size: 10px; cursor: pointer; 
+            box-shadow: 4px 4px 0px #00ffff; pointer-events: auto; margin-top: 10px;
+        }
+        .arcade-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #00ffff; }
+        .arcade-btn:disabled { background: #555; border-color: #775577; box-shadow: none; cursor: not-allowed; color: #aaa; }
+
+        #joystick-zone { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; background: rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.5); border-radius: 50%; touch-action: none; display: none; z-index: 10; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        @media (max-width: 768px) { #joystick-zone { display: block; } }
+    </style>
+</head>
+<body>
+
+<div id="start-screen">
+    <h1 id="game-title">MOWER<br>SIMULATOR</h1>
+    <p style="color: #00ffff; font-size: 9px; margin-bottom: 25px; text-shadow: 2px 2px #ff00ff;">RESTORED EDITION</p>
+    <button class="arcade-btn" onclick="openLevelSelect()">STARTA SPEL</button>
+</div>
+
+<div id="level-select-screen">
+    <div class="level-panel">
+        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">VÄLJ BANA</h1>
+        <div id="level-list"></div>
+        <button class="arcade-btn" style="background: #3498db; width: 100%; margin-top: 15px;" onclick="openShopFromMenu()">GÅ TILL SHOPPEN</button>
+    </div>
+</div>
+
+<div id="hud">
+    <div class="hud-panel">
+        KLIPPT: <span id="progress" style="color: #00ff00;">0</span>%
+        <div id="hud-stars">★★★★★</div>
+    </div>
+    <div class="hud-panel" id="timer">01:30</div>
+</div>
+
+<div id="game-over">
+    <div id="go-panel">
+        <h1 id="go-title">TIDEN ÄR UTE!</h1>
+        <div class="go-stat">YTA KLIPPT: <strong id="go-progress">0%</strong></div>
+        <div class="go-stat">TJÄNAT IDAG: <strong id="go-money" style="color: #00ff00;">0 KR</strong></div>
+        <div id="go-stat-total" class="go-stat">TOTALA PENGAR: <strong id="go-total-money" style="color: #ffff00;">0 KR</strong></div>
+        <div id="go-stars">★★★★★</div>
+        <p id="go-msg" style="color: #ff0055; font-size: 9px; line-height: 1.6; margin: 15px 0;"></p>
+        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button class="arcade-btn" onclick="openShop()">SHOPPEN</button>
+            <button class="arcade-btn" style="background: #27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
+        </div>
+    </div>
+</div>
+
+<div id="shop-screen">
+    <div id="shop-panel">
+        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">MASKIN-SHOPPEN</h1>
+        <p style="color: #00ffff; font-size: 9px; margin-bottom: 20px;">Dina pengar: <span id="shop-wallet" style="color: #00ff00;">0 KR</span></p>
+        
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>STANDARD (Handjagare)</h3>
+                <p>Standardmaskin. Ingår från start.</p>
+            </div>
+            <button class="arcade-btn" id="btn-standard" onclick="selectMower('standard')">VÄLJ</button>
+        </div>
+
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>KLIPPO (Motorgräsklippare)</h3>
+                <p>Klassisk röd bensindriven maskin. Bredare.</p>
+            </div>
+            <button class="arcade-btn" id="btn-klippo" onclick="buyOrSelect('klippo', 10000)">10 000 KR</button>
+        </div>
+
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>HUSQVARNA TS 112</h3>
+                <p>Smidig orange/svart åkgräsklippare. Snabb & bred!</p>
+            </div>
+            <button class="arcade-btn" id="btn-ts112" onclick="buyOrSelect('ts112', 20000)">20 000 KR</button>
+        </div>
+
+        <button class="arcade-btn" style="background: #3498db; width: 100%; margin-top: 20px;" onclick="openLevelSelect()">← TILLBAKA TILL BANVAL</button>
+    </div>
+</div>
+
+<div id="joystick-zone"><div id="joystick-knob"></div></div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const gltfLoader = new GLTFLoader();
+
+    let scene, camera, renderer, lawn;
+    let mower, leftLeg, rightLeg, cuttingCylinder, mowerWheelL, mowerWheelR;
+    let soccerPlayers = [];
+    let cars = [];
+    let birds = [];
+    const clock = new THREE.Clock();
+    
+    let lawnTexture, lawnCanvas, lawnContext;
+    let bgLawnTexture, bgLawnCanvas, bgLawnContext;
+    const lawnTexResolution = 512;
+    let lawnWorldSize = 100;
+
+    const mowerStats = {
+        speed: 0, acceleration: 0.03, deceleration: 0.90, maxSpeed: 0.45,
+        turnSpeed: 0.04, rotation: Math.PI, 
+        cutWidth: 7, radius: 2.5, distanceTraveled: 0
+    };
+
+    const inputs = { up: false, down: false, left: false, right: false, joyX: 0, joyY: 0 };
+
+    let gameStarted = false;
+    let gameActive = false;
+    let timeLeft = 90; 
+    let currentProgress = 0;
+    let currentStars = 0;
+    let lastCheckTime = 0;
+    let timerInterval = null;
+
+    let totalMoney = parseInt(localStorage.getItem('mower_money')) || 0;
+    let ownedMowers = JSON.parse(localStorage.getItem('mower_owned')) || ['standard'];
+    let selectedMower = localStorage.getItem('mower_selected') || 'standard';
+    let currentLevel = 1;
+
+    initThree();
+    animate();
+
+    function initThree() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 80, 250); 
+
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(6, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffdf22 }));
+        sun.position.set(50, 100, -150); scene.add(sun);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.copy(sun.position); dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
+        setupJoystick(); window.addEventListener('resize', onWindowResize);
+    }
+
+    window.openLevelSelect = function() {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('shop-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('level-select-screen').style.display = 'flex';
+        
+        const listEl = document.getElementById('level-list');
+        listEl.innerHTML = '';
+
+        const levels = [
+            { id: 1, name: "Bana 1: Villatomten" },
+            { id: 2, name: "Bana 2: Fotbollsstadion" }
+        ];
+
+        levels.forEach(lvl => {
+            const btn = document.createElement('button');
+            btn.className = `level-btn`;
+            btn.innerHTML = `<span>${lvl.name}</span> <span>★</span>`;
+            btn.onclick = () => startLevel(lvl.id);
+            listEl.appendChild(btn);
+        });
+    }
+
+    window.openShopFromMenu = function() {
+        document.getElementById('level-select-screen').style.display = 'none';
+        openShop();
+    }
+
+    window.openShop = function() {
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('shop-screen').style.display = 'flex';
+        document.getElementById('shop-wallet').innerText = totalMoney + ' KR';
+        updateShopButtons();
+    }
+
+    function updateShopButtons() {
+        ['standard', 'klippo', 'ts112'].forEach(id => {
+            const btn = document.getElementById('btn-' + id);
+            const prices = { standard: 0, klippo: 10000, ts112: 20000 };
+            
+            if (selectedMower === id) {
+                btn.innerText = "VALD"; btn.disabled = true; btn.style.background = "#27ae60";
+            } else if (ownedMowers.includes(id)) {
+                btn.innerText = "VÄLJ"; btn.disabled = false; btn.style.background = "#ff00ff";
+            } else if (totalMoney >= prices[id]) {
+                btn.innerText = prices[id].toLocaleString() + " KR"; btn.disabled = false; btn.style.background = "#ff00ff";
+            } else {
+                btn.innerText = prices[id].toLocaleString() + " KR"; btn.disabled = true; btn.style.background = "#555";
+            }
+        });
+    }
+
+    window.buyOrSelect = function(id, price) {
+        if (!ownedMowers.includes(id) && totalMoney >= price) {
+            totalMoney -= price;
+            ownedMowers.push(id);
+            localStorage.setItem('mower_money', totalMoney);
+            localStorage.setItem('mower_owned', JSON.stringify(ownedMowers));
+        }
+        if (ownedMowers.includes(id)) {
+            selectedMower = id;
+            localStorage.setItem('mower_selected', selectedMower);
+        }
+        openShop();
+    }
+
+    window.selectMower = function(id) {
+        if (ownedMowers.includes(id)) {
+            selectedMower = id;
+            localStorage.setItem('mower_selected', selectedMower);
+            openShop();
+        }
+    }
+
+    window.startLevel = function(levelId) {
+        currentLevel = levelId;
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'flex';
+
+        scene.children = scene.children.filter(obj => obj.isLight);
+        soccerPlayers = [];
+        cars = [];
+        birds = [];
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(6, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffdf22 }));
+        sun.position.set(50, 100, -150); scene.add(sun);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.copy(sun.position); dirLight.castShadow = true; scene.add(dirLight);
+
+        if (currentLevel === 1) {
+            lawnWorldSize = 100;
+            buildVillaLevel();
+        } else if (currentLevel === 2) {
+            lawnWorldSize = 120;
+            buildStadiumLevel();
+        }
+
+        buildMowerForSelected();
+
+        timeLeft = 90;
+        gameStarted = true;
+        gameActive = true;
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function buildVillaLevel() {
+        const half = lawnWorldSize / 2;
+        const world = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x245419 }));
+        world.rotation.x = -Math.PI / 2; world.position.y = -0.1; world.receiveShadow = true; scene.add(world);
+
+        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
+        lawnContext = lawnCanvas.getContext('2d');
+        lawnContext.fillStyle = '#389e38'; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
+        
+        lawnTexture = new THREE.CanvasTexture(lawnCanvas); 
+        lawn = new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize), new THREE.MeshStandardMaterial({ map: lawnTexture }));
+        lawn.rotation.x = -Math.PI / 2; lawn.receiveShadow = true; scene.add(lawn);
+
+        const houseGroup = new THREE.Group();
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xcc4444 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x5c3a2a });
+        const walls = new THREE.Mesh(new THREE.BoxGeometry(22, 12, 12), wallMat); walls.position.y = 6; walls.castShadow = true; houseGroup.add(walls);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(16, 7, 4), roofMat); roof.rotation.y = Math.PI/4; roof.position.y = 12 + 3.5; roof.castShadow = true; houseGroup.add(roof);
+        houseGroup.position.set(0, 0, -half - 10); scene.add(houseGroup);
+
+        const street = new THREE.Mesh(new THREE.PlaneGeometry(200, 15), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+        street.rotation.x = -Math.PI / 2; street.position.set(0, 0.05, -half - 25); scene.add(street);
+
+        // Grannhus (30% större, tätare)
+        for(let i = 0; i < 4; i++) {
+            if(i === 2) continue; // Plats för ditt hus
+            const neighbor = houseGroup.clone();
+            neighbor.scale.setScalar(1.3); // 30% större
+            neighbor.position.set(-60 + i * 30, 0, -half - 12);
+            scene.add(neighbor);
+        }
+
+        ['./suv.glb', './taxi.glb'].forEach((path, idx) => {
+            gltfLoader.load(path, (gltf) => {
+                const car = gltf.scene; car.scale.setScalar(2.0); car.position.set(-80 + idx * 160, 0, -half - 25);
+                car.userData = { dir: idx === 0 ? 1 : -1, speed: 0.3 + Math.random() * 0.2 }; scene.add(car); cars.push(car);
+            }, undefined, () => {});
+        });
+
+        // Häck mot grannarna (långsidorna)
+        const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x2d5c2a });
+        [-half, half].forEach(x => { 
+            const hedge = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, lawnWorldSize), hedgeMat); 
+            hedge.position.set(x, 0.7, 0); hedge.castShadow = true; scene.add(hedge); 
+        });
+
+        // White Picket Fence (Baksidan)
+        const fenceGroup = new THREE.Group();
+        const fenceMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        for(let x = -half; x <= half; x += 1.5) {
+            const picket = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 0.1), fenceMat);
+            picket.position.set(x, 0.6, -half);
+            fenceGroup.add(picket);
+        }
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(lawnWorldSize, 0.2, 0.1), fenceMat);
+        rail.position.set(0, 0.8, -half); fenceGroup.add(rail);
+        scene.add(fenceGroup);
+    }
+
+    function buildStadiumLevel() {
+        const world = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x113311 }));
+        world.rotation.x = -Math.PI / 2; world.position.y = -0.1; world.receiveShadow = true; scene.add(world);
+
+         lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
+         lawnContext = lawnCanvas.getContext('2d');
+         lawnContext.fillStyle = '#4a754a'; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
+         
+         const stripeH = 32;
+         for(let y = 0; y < lawnTexResolution; y += stripeH) {
+             lawnContext.fillStyle = (y / stripeH) % 2 === 0 ? '#7CFC00' : '#55bb22';
+             lawnContext.fillRect(0, y, lawnTexResolution, stripeH);
+         }
+         lawnContext.strokeStyle = '#ffffff'; lawnContext.lineWidth = 4;
+         lawnContext.strokeRect(40, 40, lawnTexResolution - 80, lawnTexResolution - 80);
+         lawnContext.beginPath(); lawnContext.moveTo(40, lawnTexResolution/2); lawnContext.lineTo(lawnTexResolution - 40, lawnTexResolution/2); lawnContext.stroke();
+         lawnContext.beginPath(); lawnContext.arc(lawnTexResolution/2, lawnTexResolution/2, 50, 0, Math.PI*2); lawnContext.stroke();
+
+        lawnTexture = new THREE.CanvasTexture(lawnCanvas); 
+        lawn = new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize), new THREE.MeshStandardMaterial({ map: lawnTexture, transparent: true }));
+        lawn.rotation.x = -Math.PI / 2; lawn.receiveShadow = true; scene.add(lawn);
+
+        const concreteMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+        for(let i = 0; i < 6; i++) {
+            const stepHeight = 2 + i*1.2;
+            const step = new THREE.Mesh(new THREE.BoxGeometry(lawnWorldSize + 20, stepHeight, 4), concreteMat);
+            step.position.set(0, stepHeight / 2, -lawnWorldSize / 2 - 10 - i * 3.5); step.castShadow = true; scene.add(step);
+        }
+    }
+
+    function buildMowerForSelected() {
+        mower = new THREE.Group();
+
+        if (selectedMower === 'standard') {
+            mowerStats.cutWidth = 7;
+            const handjagare = new THREE.Group();
+            const wheelGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.4, 16); wheelGeo.rotateZ(Math.PI/2); 
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            mowerWheelL = new THREE.Mesh(wheelGeo, wheelMat); mowerWheelL.position.set(-2.2, 1.0, 0); handjagare.add(mowerWheelL);
+            mowerWheelR = new THREE.Mesh(wheelGeo, wheelMat); mowerWheelR.position.set(2.2, 1.0, 0); handjagare.add(mowerWheelR);
+
+            const cylGeo = new THREE.CylinderGeometry(0.8, 0.8, 4.0, 32); cylGeo.rotateZ(Math.PI/2);
+            cuttingCylinder = new THREE.Mesh(cylGeo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa })); 
+            cuttingCylinder.position.set(0, 0.8, 0); handjagare.add(cuttingCylinder);
+
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x5c3a2a });
+            const hL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.5), handleMat); hL.position.set(-1.6, 3.2, -1.8); hL.lookAt(-1.6, 5.0, -3.5); hL.rotateX(Math.PI/2); handjagare.add(hL);
+            const hR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.5), handleMat); hR.position.set(1.6, 3.2, -1.8); hR.lookAt(1.6, 5.0, -3.5); hR.rotateX(Math.PI/2); handjagare.add(hR);
+            mower.add(handjagare);
+        } else if (selectedMower === 'klippo') {
+            mowerStats.cutWidth = 11;
+            const klippoGroup = new THREE.Group();
+            const wGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.6, 16); wGeo.rotateZ(Math.PI/2);
+            mowerWheelL = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); mowerWheelL.position.set(-3.2, 1.2, 1.5); klippoGroup.add(mowerWheelL);
+            mowerWheelR = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); mowerWheelR.position.set(3.2, 1.2, 1.5); klippoGroup.add(mowerWheelR);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(6, 1.5, 5), new THREE.MeshStandardMaterial({ color: 0xee4444 })); body.position.y = 1.0; body.castShadow = true; klippoGroup.add(body);
+            const engine = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 2.0, 16), new THREE.MeshStandardMaterial({ color: 0x444444 })); engine.position.y = 2.2; klippoGroup.add(engine);
+            const hL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 5), new THREE.MeshStandardMaterial({ color: 0x5c3a2a })); hL.position.set(-2.5, 3.5, -3.0); hL.rotation.x = -0.3; klippoGroup.add(hL);
+            const hR = hL.clone(); hR.position.x = 2.5; klippoGroup.add(hR);
+            mower.add(klippoGroup);
+        } else if (selectedMower === 'ts112') {
+            mowerStats.cutWidth = 16;
+            const tsGroup = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 7), new THREE.MeshStandardMaterial({ color: 0xff8800 })); body.position.y = 1.5; body.castShadow = true; tsGroup.add(body);
+            const deck = new THREE.Mesh(new THREE.BoxGeometry(8, 1.2, 4), new THREE.MeshStandardMaterial({ color: 0x222222 })); deck.position.set(0, 0.8, 4.5); tsGroup.add(deck);
+            mower.add(tsGroup);
+        }
+
+        scene.add(mower);
+        buildGubbe(mower);
+    }
+
+    function buildGubbe(parent) {
+        const shirtMat = new THREE.MeshStandardMaterial({ color: 0xff6666 });
+        const pantsMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
+        const gubbe = new THREE.Group(); gubbe.position.set(0, 0, -3.2); 
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.0, 1.2), shirtMat); torso.position.y = 4.5; gubbe.add(torso);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6), new THREE.MeshStandardMaterial({ color: 0xffccaa })); head.position.y = 6.4; head.castShadow = true; gubbe.add(head);
+        const legGeo = new THREE.BoxGeometry(0.8, 3.0, 0.8);
+        leftLeg = new THREE.Mesh(legGeo, pantsMat); leftLeg.position.set(-0.6, 1.5, 0); gubbe.add(leftLeg);
+        rightLeg = new THREE.Mesh(legGeo, pantsMat); rightLeg.position.set(0.6, 1.5, 0); gubbe.add(rightLeg);
+        parent.add(gubbe);
+    }
+
+    function updateTimer() {
+        if (!gameStarted || !gameActive) return;
+        timeLeft--;
+        const mins = Math.floor(timeLeft / 60); const secs = timeLeft % 60;
+        document.getElementById('timer').innerText = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        if (timeLeft <= 0) endGame();
+    }
+
+    function calculateProgress() {
+        const imageData = lawnContext.getImageData(0, 0, lawnTexResolution, lawnTexResolution).data;
+        let total = 0, cut = 0;
+        for (let i = 3; i < imageData.length; i += 4) { total++; if (imageData[i] < 50) cut++; }
+        currentProgress = Math.floor((cut / total) * 100);
+        document.getElementById('progress').innerText = currentProgress;
+        currentStars = Math.min(5, Math.floor(currentProgress / 20));
+        renderStars('hud-stars', currentStars);
+    }
+
+    function renderStars(elementId, count) {
+        let starHTML = '';
+        for (let i = 1; i <= 5; i++) starHTML += i <= count ? '<span class="star-earned">★</span>' : '★';
+        document.getElementById(elementId).innerHTML = starHTML;
+    }
+
+    function endGame() {
+        gameActive = false; clearInterval(timerInterval); calculateProgress();
+        const earnedMoney = currentProgress * 100; totalMoney += earnedMoney; localStorage.setItem('mower_money', totalMoney);
+        document.getElementById('game-over').style.display = 'flex';
+        document.getElementById('go-progress').innerText = currentProgress + '%';
+        document.getElementById('go-money').innerText = earnedMoney + ' KR';
+        document.getElementById('go-total-money').innerText = totalMoney + ' KR';
+        renderStars('go-stars', currentStars);
+        document.getElementById('go-msg').innerText = currentStars >= 3 ? "BANAN KLARAD!" : "DU BEHÖVER 3 STJÄRNOR (60%).";
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (gameStarted && gameActive) {
+            let turnInput = 0; if (inputs.left) turnInput = 1; if (inputs.right) turnInput = -1; if (inputs.joyX !== 0) turnInput = -inputs.joyX;
+            mowerStats.rotation += mowerStats.turnSpeed * turnInput; mower.rotation.y = mowerStats.rotation;
+            let forwardInput = 0; if (inputs.up) forwardInput = 1; if (inputs.down) forwardInput = -1; if (inputs.joyY !== 0) forwardInput = -inputs.joyY;
+            if (forwardInput !== 0) mowerStats.speed += mowerStats.acceleration * forwardInput;
+            else mowerStats.speed *= mowerStats.deceleration;
+            mowerStats.speed = THREE.MathUtils.clamp(mowerStats.speed, -mowerStats.maxSpeed / 2, mowerStats.maxSpeed);
+            let newX = mower.position.x + Math.sin(mowerStats.rotation) * mowerStats.speed;
+            let newZ = mower.position.z + Math.cos(mowerStats.rotation) * mowerStats.speed;
+            const half = lawnWorldSize / 2;
+            
+            // Kollisionsdetektering (återställd)
+            if (currentLevel === 1) { 
+                // Begränsa rörligheten till gräsmattan (-2.5 för att klipparen inte ska gå igenom häcken)
+                if (newX > -half + 2.5 && newX < half - 2.5 && newZ > -half + 2.5 && newZ < half - 2.5) { mower.position.x = newX; mower.position.z = newZ; } 
+                else mowerStats.speed = 0;
+            } else { mower.position.x = newX; mower.position.z = newZ; } 
+
+            const uvX = (mower.position.x + half) / lawnWorldSize; 
+            const uvY = (mower.position.z + half) / lawnWorldSize;
+            lawnContext.globalCompositeOperation = 'destination-out';
+            lawnContext.beginPath();
+            lawnContext.arc(uvX * lawnTexResolution, uvY * lawnTexResolution, (mowerStats.cutWidth / lawnWorldSize) * lawnTexResolution / 2, 0, Math.PI * 2);
+            lawnContext.fill();
+            lawnTexture.needsUpdate = true;
+            camera.position.lerp(new THREE.Vector3(mower.position.x - Math.sin(mowerStats.rotation) * 20, 16, mower.position.z - Math.cos(mowerStats.rotation) * 20), 0.1);
+            camera.lookAt(mower.position.x, 2, mower.position.z);
+            if (Math.abs(mowerStats.speed) > 0.01) {
+                mowerStats.distanceTraveled += mowerStats.speed;
+                if (leftLeg) { const cycle = mowerStats.distanceTraveled * 2.0; leftLeg.rotation.x = Math.sin(cycle) * 0.55; rightLeg.rotation.x = Math.sin(cycle + Math.PI) * 0.55; }
+                if (cuttingCylinder) cuttingCylinder.rotation.x += mowerStats.speed * 1.5;
+                if (mowerWheelL) { mowerWheelL.rotation.x += mowerStats.speed; mowerWheelR.rotation.x += mowerStats.speed; }
+            }
+            if (Date.now() - lastCheckTime > 500) { calculateProgress(); lastCheckTime = Date.now(); }
+        }
+        birds.forEach(b => { const t = clock.getElapsedTime() * b.userData.speed + b.userData.phase; b.position.set(b.userData.cx + Math.cos(t) * b.userData.radius, b.userData.height + Math.sin(t * 2.3) * 2, b.userData.cz + Math.sin(t) * b.userData.radius); b.rotation.y = -t + Math.PI / 2; });
+        cars.forEach(car => { car.position.x += car.userData.dir * car.userData.speed; if (car.position.x > 100) car.position.x = -100; if (car.position.x < -100) car.position.x = 100; });
+        renderer.render(scene, camera);
+    }
+    function handleKeyDown(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = true; break; case 's': case 'arrowdown': inputs.down = true; break; case 'a': case 'arrowleft': inputs.left = true; break; case 'd': case 'arrowright': inputs.right = true; break; } }
+    function handleKeyUp(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = false; break; case 's': case 'arrowdown': inputs.down = false; break; case 'a': case 'arrowleft': inputs.left = false; break; case 'd': case 'arrowright': inputs.right = false; break; } }
+    function setupJoystick() {
+        const zone = document.getElementById('joystick-zone'), knob = document.getElementById('joystick-knob');
+        let active = false, centerX, centerY, maxRadius;
+        zone.addEventListener('touchstart', (e) => { active = true; const rect = zone.getBoundingClientRect(); centerX = rect.left + rect.width / 2; centerY = rect.top + rect.height / 2; maxRadius = rect.width / 2; updateKnobPosition(e.touches[0]); });
+        zone.addEventListener('touchmove', (e) => { if (active) updateKnobPosition(e.touches[0]); });
+        zone.addEventListener('touchend', () => { active = false; knob.style.transform = `translate(-50%, -50%)`; inputs.joyX = 0; inputs.joyY = 0; });
+        function updateKnobPosition(touch) {
+            let dx = touch.clientX - centerX, dy = touch.clientY - centerY;
+            let distance = Math.sqrt(dx*dx + dy*dy);
+            if (distance > maxRadius) { dx *= maxRadius / distance; dy *= maxRadius / distance; }
+            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; inputs.joyX = dx / maxRadius; inputs.joyY = dy / maxRadius; 
+        }
+    }
+    function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+</script>
+</body>
+</html>
