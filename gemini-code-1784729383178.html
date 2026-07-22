@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mower Simulator - Mats Fix Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: 'Press Start 2P', monospace; }
+        canvas { display: block; }
+        
+        /* NY STARTSKÄRM MED BILD */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('./startbild.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Tryck ner innehållet till botten */
+            align-items: center;
+            z-index: 200;
+            padding-bottom: 50px; /* Avstånd från botten för knappen */
+            box-sizing: border-box;
+        }
+
+        #hud { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; display: none; justify-content: space-between; align-items: flex-start; z-index: 10; }
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.8); border: 4px solid #ff00ff; box-shadow: 4px 4px 0px #00ffff;
+            color: #ffffff; padding: 15px 20px; font-size: 14px; text-shadow: 2px 2px #ff00ff;
+        }
+        #timer { color: #ffff00; text-shadow: 2px 2px #ff0000; }
+        #hud-stars { font-size: 16px; color: #444; margin-top: 8px; letter-spacing: 4px; }
+        .star-earned { color: #ffff00; text-shadow: 0 0 10px #ff00ff; }
+
+        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 100; }
+        #go-panel { 
+            background: #110022; padding: 30px; border: 6px solid #00ffff; box-shadow: 8px 8px 0px #ff00ff; text-align: center; max-width: 480px; width: 90%;
+        }
+        #go-title { font-size: 20px; margin: 0 0 20px 0; color: #ffff00; text-shadow: 3px 3px #ff0000; }
+        .go-stat { font-size: 11px; margin: 12px 0; color: #00ffff; }
+        .go-stat strong { color: #ffffff; }
+        #go-stars { font-size: 24px; margin: 15px 0; color: #444; letter-spacing: 6px; }
+
+        #level-select-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,0,15,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 160; }
+        .level-panel { background: #1a0033; border: 6px solid #ffff00; box-shadow: 8px 8px 0px #ff00ff; padding: 30px; width: 90%; max-width: 550px; text-align: center; }
+        .level-btn { width: 100%; margin: 10px 0; background: #330066; border: 3px solid #00ffff; color: white; padding: 15px; font-family: 'Press Start 2P', monospace; font-size: 11px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+        .level-btn:hover { background: #440088; }
+
+        #shop-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,0,15,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 150; }
+        #shop-panel { background: #1a0033; border: 6px solid #ff00ff; box-shadow: 8px 8px 0px #00ffff; padding: 30px; width: 90%; max-width: 600px; text-align: center; max-height: 90vh; overflow-y: auto; }
+        .shop-item { background: #2a0055; border: 3px solid #00ffff; padding: 15px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; text-align: left; }
+        .shop-info h3 { margin: 0 0 5px 0; color: #ffff00; font-size: 11px; }
+        .shop-info p { margin: 0; color: #00ffff; font-size: 7px; }
+        
+        .arcade-btn { 
+            background: #ff00ff; color: white; border: 4px solid #ffffff; padding: 15px 25px; 
+            font-family: 'Press Start 2P', monospace; font-size: 12px; cursor: pointer; 
+            box-shadow: 4px 4px 0px #00ffff; pointer-events: auto; 
+            text-shadow: 2px 2px #000;
+        }
+        .arcade-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #00ffff; }
+        .arcade-btn:disabled { background: #555; border-color: #775577; box-shadow: none; cursor: not-allowed; color: #aaa; }
+
+        #joystick-zone { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; background: rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.5); border-radius: 50%; touch-action: none; display: none; z-index: 10; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        @media (max-width: 768px) { #joystick-zone { display: block; } }
+    </style>
+</head>
+<body>
+
+<!-- Startskärm med bild som bakgrund -->
+<div id="start-screen">
+    <button class="arcade-btn" onclick="openLevelSelect()">STARTA SPELET</button>
+</div>
+
+<!-- Banväljare (Meny) -->
+<div id="level-select-screen">
+    <div class="level-panel">
+        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">VÄLJ BANA</h1>
+        <div id="level-list"></div>
+        <button class="arcade-btn" style="background: #3498db; width: 100%; margin-top: 15px;" onclick="openShopFromMenu()">GÅ TILL SHOPPEN</button>
+    </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+    <div class="hud-panel">
+        KLIPPT: <span id="progress" style="color: #00ff00;">0</span>%
+        <div id="hud-stars">★★★★★</div>
+    </div>
+    <div class="hud-panel" id="timer">01:30</div>
+</div>
+
+<!-- Game Over / Resultat -->
+<div id="game-over">
+    <div id="go-panel">
+        <h1 id="go-title">TIDEN ÄR UTE!</h1>
+        <div class="go-stat">YTA KLIPPT: <strong id="go-progress">0%</strong></div>
+        <div class="go-stat">TJÄNAT IDAG: <strong id="go-money" style="color: #00ff00;">0 KR</strong></div>
+        <div class="go-stat">TOTALA PENGAR: <strong id="go-total-money" style="color: #ffff00;">0 KR</strong></div>
+        <div id="go-stars">★★★★★</div>
+        <p id="go-msg" style="color: #ff0055; font-size: 9px; line-height: 1.6; margin: 15px 0;"></p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button class="arcade-btn" onclick="openShop()">SHOPPEN</button>
+            <button class="arcade-btn" style="background: #27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
+        </div>
+    </div>
+</div>
+
+<!-- SHOP MENY -->
+<div id="shop-screen">
+    <div id="shop-panel">
+        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">MASKIN-SHOPPEN</h1>
+        <p style="color: #00ffff; font-size: 9px; margin-bottom: 20px;">Dina pengar: <span id="shop-wallet" style="color: #00ff00;">0 KR</span></p>
+        
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>STANDARD (Handjagare)</h3>
+                <p>Standardmaskin. Ingår från start.</p>
+            </div>
+            <button class="arcade-btn" id="btn-standard" onclick="selectMower('standard')">VÄLJ</button>
+        </div>
+
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>KLIPPO (Motorgräsklippare)</h3>
+                <p>Klassisk bensindriven pålitlig maskin.</p>
+            </div>
+            <button class="arcade-btn" id="btn-klippo" onclick="buyOrSelect('klippo', 10000)">10 000 KR</button>
+        </div>
+
+        <div class="shop-item">
+            <div class="shop-info">
+                <h3>HUSQVARNA TS 112</h3>
+                <p>Smidig åkgräsklippare för stora villatomter.</p>
+            </div>
+            <button class="arcade-btn" id="btn-ts112" onclick="buyOrSelect('ts112', 20000)">20 000 KR</button>
+        </div>
+
+        <button class="arcade-btn" style="background: #3498db; width: 100%; margin-top: 20px;" onclick="openLevelSelect()">← TILLBAKA TILL BANVAL</button>
+    </div>
+</div>
+
+<div id="joystick-zone"><div id="joystick-knob"></div></div>
+
+<script type="importmap">
+    { 
+        "imports": { 
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        } 
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const gltfLoader = new GLTFLoader();
+
+    let scene, camera, renderer, lawn;
+    let mower, cuttingCylinder, mowerWheelL, mowerWheelR;
+    let matsModel = null;
+    let cars = [];
+    let neighborNPC;
+    const clock = new THREE.Clock();
+    
+    const COLOR_UNCUT = '#389e38'; 
+    const COLOR_CUT = '#7CFC00';
+
+    let lawnTexture, lawnCanvas, lawnContext;
+    const lawnTexResolution = 512;
+    const lawnWorldSize = 100;
+
+    const mowerStats = {
+        speed: 0, acceleration: 0.03, deceleration: 0.90, maxSpeed: 0.45,
+        turnSpeed: 0.04, rotation: Math.PI, 
+        cutWidth: 7,
+        radius: 2.5, distanceTraveled: 0
+    };
+
+    const inputs = { up: false, down: false, left: false, right: false, joyX: 0, joyY: 0 };
+
+    let gameStarted = false;
+    let gameActive = false;
+    let timeLeft = 90; 
+    let currentProgress = 0;
+    let currentStars = 0;
+    let lastCheckTime = 0;
+    let timerInterval = null;
+
+    let totalMoney = parseInt(localStorage.getItem('mower_money')) || 0;
+    let ownedMowers = JSON.parse(localStorage.getItem('mower_owned')) || ['standard'];
+    let selectedMower = localStorage.getItem('mower_selected') || 'standard';
+
+    preloadModels();
+    init();
+    animate();
+
+    function preloadModels() {
+        gltfLoader.load('./mats.glb', (gltf) => {
+            matsModel = gltf.scene;
+            
+            const box = new THREE.Box3().setFromObject(matsModel);
+            const size = box.getSize(new THREE.Vector3());
+
+            matsModel.traverse(c => { 
+                if (c.isMesh) { 
+                    c.castShadow = true; 
+                    c.receiveShadow = true;
+                    if (c.material) c.material.side = THREE.DoubleSide; 
+                } 
+            });
+
+            const targetHeight = 4.5;
+            if (size.y > 0) {
+                const autoScale = targetHeight / size.y;
+                matsModel.scale.setScalar(autoScale);
+            } else {
+                matsModel.scale.setScalar(1.0);
+            }
+
+            if (mower && !mower.userData.mats) {
+                attachMatsToMower();
+            }
+        }, undefined, (err) => {
+            console.error("Fel vid laddning av mats.glb:", err);
+        });
+
+        ['./suv.glb', './taxi.glb'].forEach((path, idx) => {
+            gltfLoader.load(path, (gltf) => {
+                const car = gltf.scene;
+                car.scale.setScalar(2.2);
+                car.position.set(-150 + idx * 100, 0, 62);
+                car.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                car.userData = { dir: idx === 0 ? 1 : -1, speed: 0.6 + Math.random() * 0.3 };
+                scene.add(car);
+                cars.push(car);
+            }, undefined, () => {});
+        });
+    }
+
+    function attachMatsToMower() {
+        if (!matsModel || !mower) return;
+        const matsInstance = matsModel.clone();
+        
+        const box = new THREE.Box3().setFromObject(matsInstance);
+        matsInstance.position.set(0, -box.min.y, -3.8);
+        
+        mower.add(matsInstance);
+        mower.userData.mats = matsInstance;
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 80, 250); 
+
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sun = new THREE.Mesh(new THREE.SphereGeometry(6, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffdf22 }));
+        sun.position.set(50, 100, -150); scene.add(sun);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.copy(sun.position); dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const world = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x245419 }));
+        world.rotation.x = -Math.PI / 2; world.position.y = -0.1; world.receiveShadow = true; scene.add(world);
+
+        const street = new THREE.Mesh(new THREE.PlaneGeometry(1000, 24), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+        street.rotation.x = -Math.PI / 2; street.position.set(0, 0.05, 62); street.receiveShadow = true; scene.add(street);
+
+        function createPanelMaterial(colorStr) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d');
+            ctx.fillStyle = colorStr; ctx.fillRect(0,0,256,256); ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            for(let i=0; i<256; i+=16) ctx.fillRect(i, 0, 2, 256);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 12, 256); ctx.fillRect(244, 0, 12, 256);
+            const tex = new THREE.CanvasTexture(c); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 2);
+            return new THREE.MeshStandardMaterial({ map: tex });
+        }
+
+        function buildYardFence(offsetX, offsetZ) {
+            const fenceMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const picketGeo = new THREE.BoxGeometry(0.5, 3, 0.2); picketGeo.translate(0, 1.5, 0); 
+            const railGeo = new THREE.BoxGeometry(lawnWorldSize, 0.3, 0.3);
+            function buildSide(x, z, rotation) {
+                const sideGroup = new THREE.Group();
+                const r1 = new THREE.Mesh(railGeo, fenceMat); r1.position.set(0, 1.0, 0); sideGroup.add(r1);
+                const r2 = new THREE.Mesh(railGeo, fenceMat); r2.position.set(0, 2.2, 0); sideGroup.add(r2);
+                for(let i = -lawnWorldSize / 2; i <= lawnWorldSize / 2; i += 1.5) {
+                    const p = new THREE.Mesh(picketGeo, fenceMat); p.position.set(i, 0, 0.1); sideGroup.add(p); 
+                }
+                sideGroup.position.set(x, 0, z); sideGroup.rotation.y = rotation; scene.add(sideGroup);
+            }
+            buildSide(offsetX, offsetZ - lawnWorldSize/2, 0); buildSide(offsetX, offsetZ + lawnWorldSize/2, 0); 
+            buildSide(offsetX - lawnWorldSize/2, offsetZ, Math.PI/2); buildSide(offsetX + lawnWorldSize/2, offsetZ, Math.PI/2); 
+        }
+
+        function buildHouse(x, z, colorStr, rotationY = 0) {
+            const house = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(78, 32.5, 52), createPanelMaterial(colorStr));
+            body.position.y = 16.25; body.castShadow = true; body.receiveShadow = true; house.add(body);
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(58, 20, 4), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }));
+            roof.position.y = 42.5; roof.rotation.y = Math.PI / 4; roof.castShadow = true; house.add(roof);
+            house.position.set(x, 0, z); house.rotation.y = rotationY; scene.add(house);
+        }
+
+        buildHouse(0, -35, '#cc4444'); buildYardFence(0, 0);
+        buildHouse(-lawnWorldSize, -35, '#34568B'); buildYardFence(-lawnWorldSize, 0);
+        buildHouse(lawnWorldSize, -35, '#e8d9b5'); buildYardFence(lawnWorldSize, 0);
+
+        const oppZ = 124;
+        buildHouse(0, oppZ + 35, '#2e6b30', Math.PI); buildYardFence(0, oppZ);
+        buildHouse(-lawnWorldSize, oppZ + 35, '#ffffff', Math.PI); buildYardFence(-lawnWorldSize, oppZ);
+        buildHouse(lawnWorldSize, oppZ + 35, '#d6c8b2', Math.PI); buildYardFence(lawnWorldSize, oppZ);
+
+        neighborNPC = new THREE.Group();
+        const npcBody = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 2), new THREE.MeshStandardMaterial({ color: 0x0000cd }));
+        npcBody.position.y = 4; neighborNPC.add(npcBody);
+        neighborNPC.position.set(lawnWorldSize, 0, 10); scene.add(neighborNPC);
+
+        // Gräsmatta
+        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
+        lawnContext = lawnCanvas.getContext('2d', { willReadFrequently: true });
+        lawnContext.fillStyle = COLOR_UNCUT; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
+        lawnTexture = new THREE.CanvasTexture(lawnCanvas);
+        lawn = new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize), new THREE.MeshStandardMaterial({ map: lawnTexture }));
+        lawn.rotation.x = -Math.PI / 2; lawn.receiveShadow = true; scene.add(lawn);
+
+        buildMower();
+
+        window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp);
+        setupJoystick(); window.addEventListener('resize', onWindowResize);
+    }
+
+    function buildMower() {
+        if (mower) scene.remove(mower);
+        mower = new THREE.Group();
+
+        const handjagare = new THREE.Group();
+        const wheelGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.4, 16); wheelGeo.rotateZ(Math.PI/2); 
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        mowerWheelL = new THREE.Mesh(wheelGeo, wheelMat); mowerWheelL.position.set(-2.2, 1.0, 0); handjagare.add(mowerWheelL);
+        mowerWheelR = new THREE.Mesh(wheelGeo, wheelMat); mowerWheelR.position.set(2.2, 1.0, 0); handjagare.add(mowerWheelR);
+
+        const cylGeo = new THREE.CylinderGeometry(0.8, 0.8, 4.0, 32); cylGeo.rotateZ(Math.PI/2);
+        cuttingCylinder = new THREE.Mesh(cylGeo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8 })); 
+        cuttingCylinder.position.set(0, 0.8, 0); handjagare.add(cuttingCylinder);
+
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+        const stickGeo = new THREE.CylinderGeometry(0.08, 0.08, 5.5);
+        const hL = new THREE.Mesh(stickGeo, handleMat); hL.position.set(-1.6, 3.2, -1.8); hL.lookAt(-1.6, 5.0, -3.5); hL.rotateX(Math.PI/2); handjagare.add(hL);
+        const hR = new THREE.Mesh(stickGeo, handleMat); hR.position.set(1.6, 3.2, -1.8); hR.lookAt(1.6, 5.0, -3.5); hR.rotateX(Math.PI/2); handjagare.add(hR);
+        mower.add(handjagare);
+
+        attachMatsToMower();
+
+        mower.position.set(0, 0, 20); mower.rotation.y = mowerStats.rotation;
+        scene.add(mower);
+    }
+
+    // NY MENYLOGIK
+    window.openLevelSelect = function() {
+        document.getElementById('start-screen').style.display = 'none'; // Göm startbilden
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('shop-screen').style.display = 'none';
+        document.getElementById('level-select-screen').style.display = 'flex'; // Visa menyn
+        
+        const listEl = document.getElementById('level-list');
+        listEl.innerHTML = '';
+        const levels = [
+            { id: 1, name: "Bana 1: Villakvarteret" },
+            { id: 2, name: "Bana 2: Stora Fotbollsplanen" }
+        ];
+
+        levels.forEach(lvl => {
+            const btn = document.createElement('button');
+            btn.className = `level-btn`;
+            btn.innerHTML = `<span>${lvl.name}</span> <span>★</span>`;
+            btn.onclick = () => startLevel(lvl.id);
+            listEl.appendChild(btn);
+        });
+    }
+
+    window.openShopFromMenu = function() {
+        document.getElementById('level-select-screen').style.display = 'none';
+        openShop();
+    }
+
+    window.startLevel = function(levelId) {
+        document.getElementById('level-select-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'flex';
+        
+        timeLeft = 90;
+        currentProgress = 0;
+        document.getElementById('progress').innerText = "0";
+        
+        gameStarted = true;
+        gameActive = true;
+        
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function updateTimer() {
+        if (!gameStarted || !gameActive) return;
+        timeLeft--;
+        const mins = Math.floor(timeLeft / 60); const secs = timeLeft % 60;
+        document.getElementById('timer').innerText = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        if (timeLeft <= 0) endGame();
+    }
+
+    function calculateProgress() {
+        const imageData = lawnContext.getImageData(0, 0, lawnTexResolution, lawnTexResolution).data;
+        let cutPixels = 0, totalGrassPixels = 0;
+        const startY = Math.floor(lawnTexResolution * 0.4); 
+        
+        for (let y = startY; y < lawnTexResolution; y++) {
+            for (let x = 0; x < lawnTexResolution; x++) {
+                const index = (y * lawnTexResolution + x) * 4;
+                totalGrassPixels++;
+                if (imageData[index] > 100) cutPixels++;
+            }
+        }
+
+        currentProgress = Math.floor((cutPixels / totalGrassPixels) * 100);
+        document.getElementById('progress').innerText = currentProgress;
+        
+        let stars = Math.min(5, Math.floor(currentProgress / 18));
+        currentStars = stars;
+        renderStars('hud-stars', currentStars);
+    }
+
+    function renderStars(elementId, count) {
+        let starHTML = '';
+        for (let i = 1; i <= 5; i++) starHTML += i <= count ? '<span class="star-earned">★</span>' : '★';
+        document.getElementById(elementId).innerHTML = starHTML;
+    }
+
+    function endGame() {
+        gameActive = false;
+        clearInterval(timerInterval);
+        calculateProgress();
+
+        const earnedMoney = currentProgress * 100;
+        totalMoney += earnedMoney;
+        localStorage.setItem('mower_money', totalMoney);
+
+        document.getElementById('game-over').style.display = 'flex';
+        document.getElementById('go-progress').innerText = currentProgress + '%';
+        document.getElementById('go-money').innerText = earnedMoney + ' KR';
+        document.getElementById('go-total-money').innerText = totalMoney + ' KR';
+        renderStars('go-stars', currentStars);
+
+        const msgEl = document.getElementById('go-msg');
+        msgEl.innerText = currentStars >= 3 ? "BANAN KLARAD!" : "DU BEHÖVER 3 STJÄRNOR.";
+    }
+
+    window.openShop = function() {
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('shop-screen').style.display = 'flex';
+        updateShopUI();
+    }
+
+    function updateShopUI() {
+        document.getElementById('shop-wallet').innerText = totalMoney + ' KR';
+        updateShopButton('standard', 0);
+        updateShopButton('klippo', 10000);
+        updateShopButton('ts112', 20000);
+    }
+
+    function updateShopButton(id, price) {
+        const btn = document.getElementById('btn-' + id);
+        if (selectedMower === id) {
+            btn.innerText = "VALD";
+            btn.disabled = true;
+            btn.style.background = "#27ae60";
+        } else if (ownedMowers.includes(id)) {
+            btn.innerText = "VÄLJ";
+            btn.disabled = false;
+            btn.style.background = "#ff00ff";
+        } else if (totalMoney >= price) {
+            btn.innerText = price.toLocaleString() + " KR";
+            btn.disabled = false;
+        } else {
+            btn.innerText = price.toLocaleString() + " KR";
+            btn.disabled = true;
+        }
+    }
+
+    window.buyOrSelect = function(id, price) {
+        if (!ownedMowers.includes(id) && totalMoney >= price) {
+            totalMoney -= price;
+            ownedMowers.push(id);
+            localStorage.setItem('mower_money', totalMoney);
+            localStorage.setItem('mower_owned', JSON.stringify(ownedMowers));
+        }
+        if (ownedMowers.includes(id)) {
+            selectedMower = id;
+            localStorage.setItem('mower_selected', selectedMower);
+        }
+        updateShopUI();
+    }
+
+    window.selectMower = function(id) {
+        selectedMower = id;
+        localStorage.setItem('mower_selected', selectedMower);
+        updateShopUI();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (gameStarted && gameActive) {
+            updateMowerPhysics();
+            animateNeighborhood();
+            paintCutTrail();
+            updateCameraFollow();
+            if (Date.now() - lastCheckTime > 500) {
+                calculateProgress();
+                lastCheckTime = Date.now();
+            }
+        }
+        renderer.render(scene, camera);
+    }
+
+    function animateNeighborhood() {
+        cars.forEach(car => {
+            car.position.x += car.userData.dir * car.userData.speed;
+            if (car.position.x > 250) car.position.x = -250;
+            if (car.position.x < -250) car.position.x = 250;
+        });
+    }
+
+    function canMoveTo(newX, newZ) {
+        const boundary = (lawnWorldSize / 2) - mowerStats.radius;
+        if (newX < -boundary || newX > boundary || newZ < -boundary || newZ > boundary) return false;
+        return true; 
+    }
+
+    function updateMowerPhysics() {
+        let turnInput = 0;
+        if (inputs.left) turnInput = 1; if (inputs.right) turnInput = -1; if (inputs.joyX !== 0) turnInput = -inputs.joyX;
+        mowerStats.rotation += mowerStats.turnSpeed * turnInput; mower.rotation.y = mowerStats.rotation;
+
+        let forwardInput = 0;
+        if (inputs.up) forwardInput = 1; if (inputs.down) forwardInput = -1; if (inputs.joyY !== 0) forwardInput = -inputs.joyY;
+        if (forwardInput !== 0) mowerStats.speed += mowerStats.acceleration * forwardInput;
+        else mowerStats.speed *= mowerStats.deceleration;
+        mowerStats.speed = THREE.MathUtils.clamp(mowerStats.speed, -mowerStats.maxSpeed / 2, mowerStats.maxSpeed);
+
+        let newX = mower.position.x + Math.sin(mowerStats.rotation) * mowerStats.speed;
+        let newZ = mower.position.z + Math.cos(mowerStats.rotation) * mowerStats.speed;
+
+        if (canMoveTo(newX, newZ)) { mower.position.x = newX; mower.position.z = newZ; } 
+        else { mowerStats.speed = 0; }
+
+        if (Math.abs(mowerStats.speed) > 0.01) {
+            mowerStats.distanceTraveled += mowerStats.speed;
+            const rollAmount = mowerStats.speed * 1.5; 
+            if(cuttingCylinder) cuttingCylinder.rotation.x += rollAmount; 
+            if(mowerWheelL) mowerWheelL.rotation.x += rollAmount; 
+            if(mowerWheelR) mowerWheelR.rotation.x += rollAmount;
+
+            if (mower.userData.mats) {
+                const mats = mower.userData.mats;
+                const walkCycle = mowerStats.distanceTraveled * 1.8;
+                mats.rotation.z = Math.sin(walkCycle) * 0.06;
+                mats.position.y = Math.abs(Math.sin(walkCycle * 2)) * 0.15;
+            }
+        }
+    }
+
+    function paintCutTrail() {
+        const uvX = (mower.position.x + lawnWorldSize / 2) / lawnWorldSize; const uvY = (mower.position.z + lawnWorldSize / 2) / lawnWorldSize;
+        const texX = uvX * lawnTexResolution; const texY = uvY * lawnTexResolution;
+        const lastX = lawnCanvas.lastPaintedX || texX; const lastY = lawnCanvas.lastPaintedY || texY;
+        const distMoved = Math.sqrt(Math.pow(texX - lastX, 2) + Math.pow(texY - lastY, 2));
+
+        if (mowerStats.speed !== 0 || distMoved > 1) { 
+            lawnContext.strokeStyle = COLOR_CUT; lawnContext.lineWidth = (mowerStats.cutWidth / lawnWorldSize) * lawnTexResolution;
+            lawnContext.lineCap = 'round'; lawnContext.beginPath(); lawnContext.moveTo(lastX, lastY); lawnContext.lineTo(texX, texY); lawnContext.stroke();
+            lawnCanvas.lastPaintedX = texX; lawnCanvas.lastPaintedY = texY; lawnTexture.needsUpdate = true;
+        }
+    }
+
+    function updateCameraFollow() {
+        const offset = new THREE.Vector3(-Math.sin(mowerStats.rotation) * 20, 16, -Math.cos(mowerStats.rotation) * 20);
+        camera.position.lerp(mower.position.clone().add(offset), 0.1); camera.lookAt(mower.position.x, 2, mower.position.z);
+    }
+
+    function setupJoystick() {
+        const zone = document.getElementById('joystick-zone'), knob = document.getElementById('joystick-knob');
+        let active = false, centerX, centerY, maxRadius;
+        zone.addEventListener('touchstart', (e) => { e.preventDefault(); active = true; const rect = zone.getBoundingClientRect(); centerX = rect.left + rect.width / 2; centerY = rect.top + rect.height / 2; maxRadius = (rect.width / 2) - (knob.offsetWidth / 2); updateKnobPosition(e.touches[0]); }, { passive: false });
+        zone.addEventListener('touchmove', (e) => { e.preventDefault(); if (active) updateKnobPosition(e.touches[0]); }, { passive: false });
+        const resetJoystick = () => { active = false; knob.style.transform = `translate(-50%, -50%)`; inputs.joyX = 0; inputs.joyY = 0; };
+        zone.addEventListener('touchend', resetJoystick); zone.addEventListener('touchcancel', resetJoystick);
+        function updateKnobPosition(touch) {
+            let dx = touch.clientX - centerX, dy = touch.clientY - centerY;
+            let distance = Math.sqrt(dx*dx + dy*dy);
+            if (distance > maxRadius) { const angle = Math.atan2(dy, dx); dx = Math.cos(angle) * maxRadius; dy = Math.sin(angle) * maxRadius; }
+            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; inputs.joyX = dx / maxRadius; inputs.joyY = dy / maxRadius; 
+        }
+    }
+    function handleKeyDown(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = true; break; case 's': case 'arrowdown': inputs.down = true; break; case 'a': case 'arrowleft': inputs.left = true; break; case 'd': case 'arrowright': inputs.right = true; break; } }
+    function handleKeyUp(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = false; break; case 's': case 'arrowdown': inputs.down = false; break; case 'a': case 'arrowleft': inputs.left = false; break; case 'd': case 'arrowright': inputs.right = false; break; } }
+    function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+</script>
+</body>
+</html>
