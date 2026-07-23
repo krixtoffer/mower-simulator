@@ -1,1016 +1,2152 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mower Simulator - Fixed Showroom & Sjötomten</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #000; font-family: 'Press Start 2P', monospace; }
-        canvas { display: block; }
-        
-        /* STARTSKÄRM */
-        #start-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('./startbild.png');
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-            z-index: 200; padding-bottom: 50px; box-sizing: border-box;
-        }
-
-        /* MENYER MED BAKG.JPG */
-        #main-menu-screen, #level-select-screen, #shop-screen, #game-over {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('./bakg.jpg');
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 180;
-        }
-
-        #level-intro-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            display: none; flex-direction: column; justify-content: space-between; align-items: center;
-            z-index: 190; padding: 60px 20px 50px 20px; box-sizing: border-box;
-            background-color: rgba(0,0,0,0.5); background-blend-mode: overlay;
-        }
-
-        #intro-title {
-            font-size: 22px; color: #ffff00; text-shadow: 4px 4px #ff0055, 6px 6px #000;
-            text-align: center; line-height: 1.5; background: rgba(0, 0, 0, 0.85);
-            padding: 20px 30px; border: 4px solid #00ffff; box-shadow: 6px 6px 0px #ff00ff;
-        }
-
-        .menu-panel {
-            background: rgba(26, 0, 51, 0.9); border: 6px solid #ffff00; box-shadow: 8px 8px 0px #ff00ff;
-            padding: 30px; width: 90%; max-width: 550px; text-align: center;
-        }
-
-        .level-btn {
-            width: 100%; margin: 10px 0; background: #330066; border: 3px solid #00ffff;
-            color: white; padding: 15px; font-family: 'Press Start 2P', monospace;
-            font-size: 11px; cursor: pointer; text-align: left;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .level-btn:hover { background: #440088; }
-
-        /* HUD */
-        #hud { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; display: none; justify-content: space-between; align-items: flex-start; z-index: 10; }
-        .hud-panel {
-            background: rgba(0, 0, 0, 0.8); border: 4px solid #ff00ff; box-shadow: 4px 4px 0px #00ffff;
-            color: #ffffff; padding: 15px 20px; font-size: 14px; text-shadow: 2px 2px #ff00ff;
-        }
-        #timer { color: #ffff00; text-shadow: 2px 2px #ff0000; }
-        #hud-stars { font-size: 16px; color: #444; margin-top: 8px; letter-spacing: 4px; }
-        .star-earned { color: #ffff00; text-shadow: 0 0 10px #ff00ff; }
-
-        /* GAME OVER */
-        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 100; }
-        #go-panel { 
-            background: #110022; padding: 30px; border: 6px solid #00ffff; box-shadow: 8px 8px 0px #ff00ff; text-align: center; max-width: 480px; width: 90%;
-        }
-        #go-title { font-size: 20px; margin: 0 0 20px 0; color: #ffff00; text-shadow: 3px 3px #ff0000; }
-        .go-stat { font-size: 11px; margin: 12px 0; color: #00ffff; }
-        .go-stat strong { color: #ffffff; }
-        #go-stars { font-size: 24px; margin: 15px 0; color: #444; letter-spacing: 6px; }
-
-        /* SHOP */
-        #shop-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 150; }
-        #shop-panel { background: rgba(26, 0, 51, 0.95); border: 6px solid #ff00ff; box-shadow: 8px 8px 0px #00ffff; padding: 30px; width: 90%; max-width: 600px; text-align: center; max-height: 90vh; overflow-y: auto; }
-        .shop-item { background: #2a0055; border: 3px solid #00ffff; padding: 15px; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; text-align: left; cursor: pointer; }
-        .shop-item:hover { background: #3a0077; border-color: #ffff00; }
-        .shop-info h3 { margin: 0 0 5px 0; color: #ffff00; font-size: 11px; }
-        .shop-info p { margin: 0; color: #00ffff; font-size: 7px; }
-
-        /* 3D SHOWROOM SCREEN */
-        #showroom-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 0, 20, 0.95); display: none; flex-direction: column;
-            justify-content: space-between; align-items: center; z-index: 160;
-            padding: 30px 20px; box-sizing: border-box;
-        }
-
-        #showroom-canvas-container {
-            width: 100%; height: 45vh; border: 4px solid #00ffff; box-shadow: 0 0 20px #ff00ff;
-            background: radial-gradient(circle, #2a0055 0%, #050010 100%); position: relative;
-        }
-
-        .stat-bar-container { width: 100%; margin: 8px 0; text-align: left; }
-        .stat-label { font-size: 8px; color: #00ffff; margin-bottom: 4px; display: flex; justify-content: space-between; }
-        .stat-bar-bg { width: 100%; height: 12px; background: #110022; border: 2px solid #ff00ff; box-sizing: border-box; }
-        .stat-bar-fill { height: 100%; background: linear-gradient(90deg, #ff00ff, #ffff00); width: 0%; transition: width 0.3s ease; }
-
-        .arcade-btn { 
-            background: #ff00ff; color: white; border: 4px solid #ffffff; padding: 15px 25px; 
-            font-family: 'Press Start 2P', monospace; font-size: 11px; cursor: pointer; 
-            box-shadow: 4px 4px 0px #00ffff; pointer-events: auto; text-shadow: 2px 2px #000;
-        }
-        .arcade-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #00ffff; }
-        .arcade-btn:disabled { background: #555; border-color: #775577; box-shadow: none; cursor: not-allowed; color: #aaa; }
-
-        #joystick-zone { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; background: rgba(255, 255, 255, 0.2); border: 3px solid rgba(255, 255, 255, 0.5); border-radius: 50%; touch-action: none; display: none; z-index: 10; }
-        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
-        @media (max-width: 768px) { #joystick-zone { display: block; } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mower Simulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+  canvas { display: block; }
+  #ui { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  #hud { position: fixed; top: 10px; left: 10px; color: white; text-shadow: 1px 1px 2px black; font-size: 14px; }
+  #progress-bar-container { position: fixed; top: 10px; right: 10px; width: 200px; }
+  #progress-label { color: white; text-shadow: 1px 1px 2px black; font-size: 12px; margin-bottom: 3px; }
+  #progress-bar { width: 100%; height: 16px; background: rgba(0,0,0,0.5); border: 2px solid white; border-radius: 8px; overflow: hidden; }
+  #progress-fill { height: 100%; background: linear-gradient(90deg, #4caf50, #8bc34a); width: 0%; transition: width 0.3s; }
+  #menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: white; pointer-events: all; }
+  #menu h1 { font-size: 48px; margin-bottom: 10px; color: #4caf50; text-shadow: 0 0 20px #4caf50; }
+  #menu p { margin-bottom: 30px; color: #aaa; }
+  .menu-btn { margin: 8px; padding: 12px 30px; font-size: 16px; cursor: pointer; border: 2px solid #4caf50; background: transparent; color: white; border-radius: 6px; transition: all 0.2s; pointer-events: all; min-width: 220px; }
+  .menu-btn:hover { background: #4caf50; color: black; }
+  #shop-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: all; z-index: 100; }
+  #shop-overlay h2 { font-size: 32px; color: #4caf50; margin-bottom: 10px; }
+  #shop-preview { width: 300px; height: 220px; margin: 10px auto; }
+  #shop-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 800px; }
+  .shop-item { border: 2px solid #555; border-radius: 8px; padding: 14px 18px; cursor: pointer; transition: all 0.2s; min-width: 150px; text-align: center; background: rgba(255,255,255,0.05); }
+  .shop-item:hover, .shop-item.selected { border-color: #4caf50; background: rgba(76,175,80,0.15); }
+  .shop-item .item-name { font-weight: bold; font-size: 15px; }
+  .shop-item .item-price { color: #4caf50; font-size: 13px; margin-top: 4px; }
+  .shop-item .item-owned { color: #aaa; font-size: 12px; }
+  #level-select-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: all; z-index: 100; }
+  #level-select-overlay h2 { font-size: 32px; color: #4caf50; margin-bottom: 20px; }
+  .level-btn { margin: 8px; padding: 14px 32px; font-size: 16px; cursor: pointer; border: 2px solid #4caf50; background: transparent; color: white; border-radius: 8px; transition: all 0.2s; min-width: 250px; pointer-events: all; }
+  .level-btn:hover { background: #4caf50; color: black; }
+  .level-btn:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+  #win-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; pointer-events: all; z-index: 200; }
+  #win-overlay h2 { font-size: 48px; color: #4caf50; margin-bottom: 20px; }
+  #money-display { position: fixed; bottom: 10px; right: 10px; color: #4caf50; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 2px black; }
+  #controls-hint { position: fixed; bottom: 10px; left: 10px; color: rgba(255,255,255,0.6); font-size: 12px; }
+</style>
 </head>
 <body>
-
-<div id="start-screen">
-    <button class="arcade-btn" onclick="openMainMenu()">STARTA SPELET</button>
-</div>
-
-<div id="main-menu-screen">
-    <div class="menu-panel">
-        <h1 style="color: #ffff00; font-size: 18px; margin-top: 0; text-shadow: 2px 2px #ff0055;">MENY</h1>
-        <button class="arcade-btn" style="width: 100%; margin: 15px 0; background: #27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
-        <button class="arcade-btn" style="width: 100%; margin: 15px 0; background: #3498db;" onclick="openShop()">SHOPPEN</button>
-    </div>
-</div>
-
-<div id="level-select-screen">
-    <div class="menu-panel">
-        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">VÄLJ BANA</h1>
-        <div id="level-list"></div>
-        <button class="arcade-btn" style="background: #e74c3c; width: 100%; margin-top: 15px;" onclick="openMainMenu()">← TILLBAKA</button>
-    </div>
-</div>
-
-<div id="level-intro-screen">
-    <div id="intro-title">Level 1: Villakvarteret</div>
-    <div style="display: flex; gap: 15px; justify-content: center; width: 100%;">
-        <button class="arcade-btn" style="background: #e74c3c;" onclick="openLevelSelect()">← VÄLJ ANNAN</button>
-        <button class="arcade-btn" style="background: #27ae60;" onclick="confirmStartLevel()">STARTA BANAN</button>
-    </div>
-</div>
+<canvas id="c"></canvas>
 
 <div id="hud">
-    <div class="hud-panel">
-        KLIPPT: <span id="progress" style="color: #00ff00;">0</span>%
-        <div id="hud-stars">★★★★★</div>
-    </div>
-    <div class="hud-panel" id="timer">01:30</div>
+  <div id="hud-level">Level: -</div>
+  <div id="hud-mower">Mower: -</div>
+  <div id="hud-time">Time: 0s</div>
+</div>
+<div id="progress-bar-container">
+  <div id="progress-label">Mowed: 0%</div>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+</div>
+<div id="money-display">💰 $0</div>
+<div id="controls-hint">WASD / Arrow Keys to drive | ESC = Menu</div>
+
+<!-- MAIN MENU -->
+<div id="menu">
+  <h1>🌿 Mower Simulator</h1>
+  <p>Start your lawn mowing career!</p>
+  <button class="menu-btn" onclick="showLevelSelect()">▶ Play</button>
+  <button class="menu-btn" onclick="showShop()">🛒 Shop</button>
 </div>
 
-<div id="game-over">
-    <div id="go-panel">
-        <h1 id="go-title">TIDEN ÄR UTE!</h1>
-        <div class="go-stat">YTA KLIPPT: <strong id="go-progress">0%</strong></div>
-        <div class="go-stat">TJÄNAT IDAG: <strong id="go-money" style="color: #00ff00;">0 KR</strong></div>
-        <div class="go-stat">TOTALA PENGAR: <strong id="go-total-money" style="color: #ffff00;">0 KR</strong></div>
-        <div id="go-stars">★★★★★</div>
-        <p id="go-msg" style="color: #ff0055; font-size: 9px; line-height: 1.6; margin: 15px 0;"></p>
-        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-            <button class="arcade-btn" onclick="openShop()">SHOPPEN</button>
-            <button class="arcade-btn" style="background: #27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
-        </div>
-    </div>
+<!-- LEVEL SELECT -->
+<div id="level-select-overlay">
+  <h2>Select Level</h2>
+  <button class="level-btn" onclick="startLevel(1)">🏘️ Villakvarter (Neighborhood)</button>
+  <button class="level-btn" onclick="startLevel(2)">⚽ Football Stadium</button>
+  <button class="level-btn" onclick="startLevel(3)">⛳ Golf Course</button>
+  <button class="level-btn" disabled>🌊 Seaside (Coming Soon)</button>
+  <br>
+  <button class="menu-btn" onclick="showMenu()">← Back</button>
 </div>
 
 <!-- SHOP -->
-<div id="shop-screen">
-    <div id="shop-panel">
-        <h1 style="color: #ffff00; font-size: 16px; margin-top: 0; text-shadow: 2px 2px #ff0055;">MASKIN-SHOPPEN</h1>
-        <p style="color: #00ffff; font-size: 9px; margin-bottom: 20px;">Dina pengar: <span id="shop-wallet" style="color: #00ff00;">0 KR</span></p>
-        
-        <div class="shop-item" onclick="openShowroom('standard')">
-            <div class="shop-info">
-                <h3>STANDARD (Handjagare)</h3>
-                <p>Klicka för att inspektera i 3D</p>
-            </div>
-            <button class="arcade-btn" id="btn-standard">VISA</button>
-        </div>
-
-        <div class="shop-item" onclick="openShowroom('klippo')">
-            <div class="shop-info">
-                <h3>KLIPPO (Motorgräsklippare)</h3>
-                <p>Klicka för att inspektera i 3D</p>
-            </div>
-            <button class="arcade-btn" id="btn-klippo">VISA</button>
-        </div>
-
-        <div class="shop-item" onclick="openShowroom('ts112')">
-            <div class="shop-info">
-                <h3>HUSQVARNA TS 112</h3>
-                <p>Klicka för att inspektera i 3D</p>
-            </div>
-            <button class="arcade-btn" id="btn-ts112">VISA</button>
-        </div>
-
-        <div class="shop-item" onclick="openShowroom('combine')">
-            <div class="shop-info">
-                <h3>SKÖRDETRÖSKA</h3>
-                <p>Klicka för att inspektera i 3D</p>
-            </div>
-            <button class="arcade-btn" id="btn-combine">VISA</button>
-        </div>
-
-        <button class="arcade-btn" style="background: #e74c3c; width: 100%; margin-top: 20px;" onclick="openMainMenu()">← TILLBAKA TILL MENYN</button>
-    </div>
+<div id="shop-overlay">
+  <h2>🛒 Mower Shop</h2>
+  <canvas id="shop-preview" width="300" height="220"></canvas>
+  <div id="shop-items"></div>
+  <br>
+  <button class="menu-btn" onclick="closeShop()">← Back</button>
 </div>
 
-<!-- 3D SHOWROOM -->
-<div id="showroom-screen">
-    <h2 id="showroom-name" style="color: #ffff00; font-size: 14px; margin: 0; text-shadow: 2px 2px #ff0055;">MASKINNAMN</h2>
-    
-    <div id="showroom-canvas-container"></div>
-
-    <div class="menu-panel" style="width: 100%; max-width: 600px; padding: 15px;">
-        <div class="stat-bar-container">
-            <div class="stat-label"><span>HASTIGHET</span><span id="stat-speed-val">0</span></div>
-            <div class="stat-bar-bg"><div id="stat-speed-bar" class="stat-bar-fill"></div></div>
-        </div>
-        <div class="stat-bar-container">
-            <div class="stat-label"><span>KLIPPBREDD</span><span id="stat-width-val">0</span></div>
-            <div class="stat-bar-bg"><div id="stat-width-bar" class="stat-bar-fill"></div></div>
-        </div>
-        <div class="stat-bar-container">
-            <div class="stat-label"><span>SMIDIGHET</span><span id="stat-turn-val">0</span></div>
-            <div class="stat-bar-bg"><div id="stat-turn-bar" class="stat-bar-fill"></div></div>
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
-            <button class="arcade-btn" style="background: #e74c3c; flex: 1;" onclick="closeShowroom()">← TILLBAKA</button>
-            <button class="arcade-btn" id="showroom-action-btn" style="background: #27ae60; flex: 1;" onclick="actionShowroomMower()">VÄLJ</button>
-        </div>
-    </div>
+<!-- WIN -->
+<div id="win-overlay">
+  <h2>🎉 Level Complete!</h2>
+  <div id="win-details" style="font-size:20px; margin-bottom:20px;"></div>
+  <button class="menu-btn" onclick="showLevelSelect()">Play Again</button>
+  <button class="menu-btn" onclick="showMenu()">Main Menu</button>
 </div>
-
-<div id="joystick-zone"><div id="joystick-knob"></div></div>
 
 <script type="importmap">
-    { 
-        "imports": { 
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-        } 
-    }
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
 </script>
-
 <script type="module">
-    import * as THREE from 'three';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    const gltfLoader = new GLTFLoader();
+// ─── GLOBALS ───────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    let scene, camera, renderer, lawn;
-    let mower, cuttingCylinder, mowerWheelL, mowerWheelR;
-    let loadedMatsMesh = null, loadedKlippoMesh = null, loadedRideMesh = null, loadedCombineMesh = null;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2000);
 
-    // Showroom Three.js variabler
-    let showroomScene, showroomCamera, showroomRenderer, showroomModelGroup;
-    let inspectingMowerId = null;
+let gameActive = false;
+let currentLevel = 0;
+let money = parseInt(localStorage.getItem('mower_money') || '0');
+let ownedMowers = JSON.parse(localStorage.getItem('mower_owned') || '["handjagare"]');
+let selectedMower = localStorage.getItem('mower_selected') || 'handjagare';
+let mowerObj = null;
+let mowerSpeed = 0, mowerRot = 0;
+let elapsedTime = 0;
+let levelObjects = [];    // objects to dispose on level change
+let animatables = [];     // {update(dt)} objects
+let mowGrid = null;       // cutting tracking
+let mowGridW = 0, mowGridH = 0;
+let totalMowable = 0;
+let mowedCount = 0;
+const keys = {};
+let shopRotAngle = 0;
+let shopScene, shopCamera, shopRenderer2D;
+let shopMowerMesh = null;
+let shopAnimId = null;
+const gltfLoader = new GLTFLoader();
 
-    let cars = [];
-    const COLOR_UNCUT = '#389e38'; 
-    const COLOR_CUT = '#7CFC00';
+// GLB paths (from repo)
+const GLB = {
+  ts112:    'models/ts112.glb',
+  klippo:   'models/klippo.glb',
+  combine:  'models/combine_harvester.glb',
+};
 
-    let lawnTexture, lawnCanvas, lawnContext;
-    const lawnTexResolution = 512;
-    let lawnWorldSize = 100;
+const MOWERS = {
+  handjagare: { name: 'Handjagare', price: 0,    speed: 4,  width: 0.6, desc: 'Manual push mower' },
+  ts112:      { name: 'Husqvarna TS112', price: 500, speed: 8,  width: 1.2, desc: 'Ride-on mower', glb: GLB.ts112 },
+  klippo:     { name: 'Klippo', price: 300, speed: 6,  width: 0.9, desc: 'Walk-behind mower', glb: GLB.klippo },
+  combine:    { name: 'Combine Harvester', price: 1200, speed: 12, width: 2.5, desc: 'Massive combine', glb: GLB.combine },
+};
 
-    const mowerData = {
-        'standard': { name: 'STANDARD (Handjagare)', price: 0, speed: 45, width: 30, turn: 80 },
-        'klippo': { name: 'KLIPPO (Motorgräsklippare)', price: 10000, speed: 60, width: 45, turn: 70 },
-        'ts112': { name: 'HUSQVARNA TS 112', price: 20000, speed: 85, width: 70, turn: 50 },
-        'combine': { name: 'SKÖRDETRÖSKA', price: 0, speed: 40, width: 100, turn: 30 }
-    };
+// Update money display
+function saveMoney() {
+  localStorage.setItem('mower_money', money);
+  localStorage.setItem('mower_owned', JSON.stringify(ownedMowers));
+  localStorage.setItem('mower_selected', selectedMower);
+  document.getElementById('money-display').textContent = `💰 $${money}`;
+}
+saveMoney();
 
-    const mowerStats = {
-        speed: 0, acceleration: 0.03, deceleration: 0.90, maxSpeed: 0.45,
-        turnSpeed: 0.04, rotation: Math.PI, 
-        cutWidth: 7, radius: 2.5, distanceTraveled: 0
-    };
+// ─── INPUT ─────────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Escape' && gameActive) pauseToMenu();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-    const inputs = { up: false, down: false, left: false, right: false, joyX: 0, joyY: 0 };
+// ─── RESIZE ────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+renderer.setSize(innerWidth, innerHeight);
 
-    let gameStarted = false, gameActive = false, timeLeft = 90, currentProgress = 0, currentStars = 0, lastCheckTime = 0, timerInterval = null;
-    let totalMoney = parseInt(localStorage.getItem('mower_money')) || 0;
-    let ownedMowers = JSON.parse(localStorage.getItem('mower_owned')) || ['standard', 'combine'];
-    let selectedMower = localStorage.getItem('mower_selected') || 'standard';
-    let currentLevel = 1;
+// ─── MENU FUNCTIONS ────────────────────────────────────────────────────────
+window.showMenu = function() {
+  document.getElementById('menu').style.display = 'flex';
+  document.getElementById('level-select-overlay').style.display = 'none';
+  document.getElementById('shop-overlay').style.display = 'none';
+  document.getElementById('win-overlay').style.display = 'none';
+  gameActive = false;
+};
+window.showLevelSelect = function() {
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('level-select-overlay').style.display = 'flex';
+  document.getElementById('win-overlay').style.display = 'none';
+};
+function pauseToMenu() {
+  gameActive = false;
+  document.getElementById('menu').style.display = 'flex';
+}
 
-    initThree();
-    initShowroomThree();
-    preloadAssets();
-    animate();
+// ─── SHOP ──────────────────────────────────────────────────────────────────
+window.showShop = function() {
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('shop-overlay').style.display = 'flex';
+  buildShopUI();
+  startShopPreview('handjagare');
+};
+window.closeShop = function() {
+  stopShopPreview();
+  document.getElementById('shop-overlay').style.display = 'none';
+  document.getElementById('menu').style.display = 'flex';
+};
 
-    function initThree() {
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); 
-        scene.fog = new THREE.Fog(0x87CEEB, 80, 250); 
+function buildShopUI() {
+  const container = document.getElementById('shop-items');
+  container.innerHTML = '';
+  for (const [id, m] of Object.entries(MOWERS)) {
+    const owned = ownedMowers.includes(id);
+    const sel = selectedMower === id;
+    const div = document.createElement('div');
+    div.className = 'shop-item' + (sel ? ' selected' : '');
+    div.innerHTML = `<div class="item-name">${m.name}</div>
+      <div class="item-price">${owned ? (sel ? '✓ Selected' : 'Owned') : '$' + m.price}</div>
+      <div class="item-owned">${m.desc}</div>`;
+    div.onclick = () => shopItemClick(id);
+    container.appendChild(div);
+  }
+}
 
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
-        document.body.appendChild(renderer.domElement);
-
-        window.addEventListener('keydown', handleKeyDown); 
-        window.addEventListener('keyup', handleKeyUp);
-        setupJoystick(); 
-        window.addEventListener('resize', onWindowResize);
+function shopItemClick(id) {
+  const m = MOWERS[id];
+  const owned = ownedMowers.includes(id);
+  if (!owned) {
+    if (money >= m.price) {
+      money -= m.price;
+      ownedMowers.push(id);
+      saveMoney();
+      alert(`Purchased ${m.name}!`);
+    } else {
+      alert(`Not enough money! Need $${m.price - money} more.`);
+      return;
     }
+  }
+  selectedMower = id;
+  saveMoney();
+  buildShopUI();
+  startShopPreview(id);
+}
 
-    function initShowroomThree() {
-        const container = document.getElementById('showroom-canvas-container');
-        showroomScene = new THREE.Scene();
+// Shop 3D preview using a separate canvas + Three.js scene
+function startShopPreview(mowerId) {
+  stopShopPreview();
+  const previewCanvas = document.getElementById('shop-preview');
+  const w = previewCanvas.width, h = previewCanvas.height;
 
-        showroomCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-        showroomCamera.position.set(0, 2, 7);
-        showroomCamera.lookAt(0, 0, 0);
+  shopScene = new THREE.Scene();
+  shopScene.background = new THREE.Color(0x1a1a2e);
+  shopCamera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
+  shopCamera.position.set(2.5, 1.8, 3);
+  shopCamera.lookAt(0, 0.5, 0);
 
-        showroomRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        showroomRenderer.setSize(container.clientWidth, container.clientHeight);
-        showroomRenderer.shadowMap.enabled = true;
-        container.appendChild(showroomRenderer.domElement);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  shopScene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(3, 5, 3);
+  shopScene.add(dirLight);
 
-        const ambLight = new THREE.AmbientLight(0xffffff, 1.5);
-        showroomScene.add(ambLight);
+  // Ground disc
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(2, 32),
+    new THREE.MeshStandardMaterial({ color: 0x2a4a2a })
+  );
+  disc.rotation.x = -Math.PI / 2;
+  shopScene.add(disc);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-        dirLight.position.set(5, 10, 5);
-        showroomScene.add(dirLight);
+  shopMowerMesh = buildMowerMesh(mowerId);
+  shopScene.add(shopMowerMesh);
 
-        showroomModelGroup = new THREE.Group();
-        showroomScene.add(showroomModelGroup);
+  const shopRenderer = new THREE.WebGLRenderer({ canvas: previewCanvas, antialias: true });
+  shopRenderer.setSize(w, h);
+  shopRenderer.setPixelRatio(1);
+  shopRenderer2D = shopRenderer;
+
+  let angle = 0;
+  function shopLoop() {
+    shopAnimId = requestAnimationFrame(shopLoop);
+    angle += 0.015;
+    if (shopMowerMesh) {
+      shopMowerMesh.rotation.y = angle;
     }
+    shopRenderer.render(shopScene, shopCamera);
+  }
+  shopLoop();
+}
 
-    function setupMeshProps(mesh) {
-        mesh.traverse(c => {
-            if (c.isMesh) {
-                c.castShadow = true; c.receiveShadow = true;
-                if (c.material) c.material.side = THREE.DoubleSide;
-            }
-        });
+function stopShopPreview() {
+  if (shopAnimId) { cancelAnimationFrame(shopAnimId); shopAnimId = null; }
+  if (shopRenderer2D) { shopRenderer2D.dispose(); shopRenderer2D = null; }
+}
+
+// ─── MOWER MESH BUILDERS ───────────────────────────────────────────────────
+function buildMowerMesh(id) {
+  const group = new THREE.Group();
+  switch (id) {
+    case 'handjagare': buildHandjagare(group); break;
+    case 'ts112':      buildGLBMower(group, GLB.ts112); break;
+    case 'klippo':     buildGLBMower(group, GLB.klippo); break;
+    case 'combine':    buildGLBMower(group, GLB.combine); break;
+  }
+  return group;
+}
+
+function buildHandjagare(group) {
+  const mat = {
+    body:   new THREE.MeshStandardMaterial({ color: 0xcc3300 }),
+    wheel:  new THREE.MeshStandardMaterial({ color: 0x222222 }),
+    handle: new THREE.MeshStandardMaterial({ color: 0x888888 }),
+    blade:  new THREE.MeshStandardMaterial({ color: 0xaaaaaa }),
+  };
+
+  // Main body / housing (red dome)
+  const bodyGeo = new THREE.CylinderGeometry(0.35, 0.38, 0.15, 16);
+  const body = new THREE.Mesh(bodyGeo, mat.body);
+  body.position.y = 0.25;
+  group.add(body);
+
+  // Top cover
+  const topGeo = new THREE.SphereGeometry(0.35, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  const top = new THREE.Mesh(topGeo, mat.body);
+  top.position.y = 0.32;
+  group.add(top);
+
+  // 4 Wheels
+  const wGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16);
+  const wheelPos = [
+    [0.3, 0.12, 0.28], [-0.3, 0.12, 0.28],
+    [0.3, 0.12, -0.28], [-0.3, 0.12, -0.28],
+  ];
+  wheelPos.forEach(([x, y, z]) => {
+    const w = new THREE.Mesh(wGeo, mat.wheel);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(x, y, z);
+    group.add(w);
+    // Tire tread
+    const tGeo = new THREE.TorusGeometry(0.12, 0.02, 8, 16);
+    const t = new THREE.Mesh(tGeo, mat.wheel);
+    t.rotation.z = Math.PI / 2;
+    t.position.set(x, y, z);
+    group.add(t);
+  });
+
+  // Handle bars — two side bars + cross grip
+  const hBarGeo = new THREE.CylinderGeometry(0.025, 0.025, 1.1, 8);
+  const hMat = mat.handle;
+  [-0.18, 0.18].forEach(xOff => {
+    const bar = new THREE.Mesh(hBarGeo, hMat);
+    bar.position.set(xOff, 0.75, -0.55);
+    bar.rotation.x = Math.PI / 5;
+    group.add(bar);
+  });
+  // Cross grip
+  const gripGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.45, 8);
+  const grip = new THREE.Mesh(gripGeo, mat.handle);
+  grip.rotation.z = Math.PI / 2;
+  grip.position.set(0, 1.15, -0.88);
+  group.add(grip);
+
+  // Blade (visible underneath)
+  const bladeGeo = new THREE.BoxGeometry(0.65, 0.03, 0.06);
+  const blade = new THREE.Mesh(bladeGeo, mat.blade);
+  blade.position.y = 0.18;
+  group.add(blade);
+
+  // Roller bar (front)
+  const rollerGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.65, 12);
+  const roller = new THREE.Mesh(rollerGeo, mat.handle);
+  roller.rotation.z = Math.PI / 2;
+  roller.position.set(0, 0.1, 0.38);
+  group.add(roller);
+
+  group.position.y = 0;
+  return group;
+}
+
+function buildGLBMower(group, path) {
+  gltfLoader.load(
+    path,
+    (gltf) => {
+      const model = gltf.scene;
+      // Auto-scale to fit in preview
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.5 / maxDim;
+      model.scale.setScalar(scale);
+      // Center
+      box.setFromObject(model);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      model.position.sub(center);
+      model.position.y += size.y * scale / 2;
+      group.add(model);
+    },
+    undefined,
+    (err) => {
+      console.warn('GLB load error:', path, err);
+      // Fallback: colored box
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.6, 1.5),
+        new THREE.MeshStandardMaterial({ color: 0x4caf50 })
+      );
+      mesh.position.y = 0.3;
+      group.add(mesh);
     }
+  );
+}
 
-    function preloadAssets() {
-        gltfLoader.load('./mats-v1.glb', (gltf) => {
-            loadedMatsMesh = gltf.scene; setupMeshProps(loadedMatsMesh);
-            const box = new THREE.Box3().setFromObject(loadedMatsMesh);
-            const size = box.getSize(new THREE.Vector3());
-            if (size.y > 0) loadedMatsMesh.scale.setScalar(4.2 / size.y);
-            if (mower && !mower.userData.mats) attachMats();
-        }, undefined, (e) => {});
+// ─── LEVEL BUILDER ─────────────────────────────────────────────────────────
+window.startLevel = function(n) {
+  document.getElementById('level-select-overlay').style.display = 'none';
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('win-overlay').style.display = 'none';
+  clearScene();
+  currentLevel = n;
+  elapsedTime = 0;
+  mowedCount = 0;
+  totalMowable = 0;
+  gameActive = true;
 
-        gltfLoader.load('./mower2.glb', (gltf) => {
-            loadedKlippoMesh = gltf.scene; setupMeshProps(loadedKlippoMesh);
-            const box = new THREE.Box3().setFromObject(loadedKlippoMesh);
-            const size = box.getSize(new THREE.Vector3());
-            if (size.y > 0) loadedKlippoMesh.scale.setScalar(3.5 / size.y);
-            if (inspectingMowerId === 'klippo') updateShowroomModel();
-        }, undefined, (e) => {});
+  switch (n) {
+    case 1: buildLevel1(); break;
+    case 2: buildLevel2(); break;
+    case 3: buildLevel3(); break;
+  }
 
-        gltfLoader.load('./ride_shaded.glb', (gltf) => {
-            loadedRideMesh = gltf.scene; setupMeshProps(loadedRideMesh);
-            const box = new THREE.Box3().setFromObject(loadedRideMesh);
-            const size = box.getSize(new THREE.Vector3());
-            if (size.y > 0) loadedRideMesh.scale.setScalar(4.5 / size.y);
-            if (inspectingMowerId === 'ts112') updateShowroomModel();
-        }, undefined, (e) => {});
+  document.getElementById('hud-level').textContent = `Level: ${getLevelName(n)}`;
+  document.getElementById('hud-mower').textContent = `Mower: ${MOWERS[selectedMower].name}`;
+  updateProgressUI();
+};
 
-        gltfLoader.load('./combine_shaded.glb', (gltf) => {
-            loadedCombineMesh = gltf.scene; setupMeshProps(loadedCombineMesh);
-            const box = new THREE.Box3().setFromObject(loadedCombineMesh);
-            const size = box.getSize(new THREE.Vector3());
-            if (size.y > 0) loadedCombineMesh.scale.setScalar(8.0 / size.y);
-            if (inspectingMowerId === 'combine') updateShowroomModel();
-        }, undefined, (e) => {});
+function getLevelName(n) {
+  return ['','Villakvarter','Football Stadium','Golf Course'][n] || '?';
+}
+
+function clearScene() {
+  animatables = [];
+  while (scene.children.length) scene.remove(scene.children[0]);
+  if (mowerObj) { mowerObj = null; }
+  mowGrid = null;
+}
+
+// ─── SHARED SKY + ATMOSPHERE ───────────────────────────────────────────────
+function buildSky(skyColor = 0x87ceeb, horizonColor = 0xc8e8ff) {
+  scene.background = new THREE.Color(skyColor);
+  scene.fog = new THREE.Fog(skyColor, 80, 300);
+
+  // Sun
+  const sunGeo = new THREE.SphereGeometry(4, 16, 16);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffee88 });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sun.position.set(60, 80, -80);
+  scene.add(sun);
+  levelObjects.push(sun);
+
+  // Sun halo
+  const haloGeo = new THREE.SphereGeometry(5.5, 16, 16);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.25 });
+  const halo = new THREE.Mesh(haloGeo, haloMat);
+  halo.position.copy(sun.position);
+  scene.add(halo);
+  levelObjects.push(halo);
+
+  // Directional light (sun)
+  const dirLight = new THREE.DirectionalLight(0xfff5cc, 1.4);
+  dirLight.position.set(60, 80, -80);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 500;
+  dirLight.shadow.camera.left = dirLight.shadow.camera.bottom = -100;
+  dirLight.shadow.camera.right = dirLight.shadow.camera.top = 100;
+  scene.add(dirLight);
+  levelObjects.push(dirLight);
+
+  const ambient = new THREE.AmbientLight(0xadd8e6, 0.5);
+  scene.add(ambient);
+  levelObjects.push(ambient);
+
+  // Clouds
+  buildClouds();
+}
+
+function buildClouds() {
+  const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.88 });
+  for (let i = 0; i < 18; i++) {
+    const cloud = new THREE.Group();
+    const numPuffs = 3 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < numPuffs; j++) {
+      const r = 3 + Math.random() * 4;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), cloudMat);
+      puff.position.set(
+        (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 6
+      );
+      cloud.add(puff);
     }
+    cloud.position.set(
+      (Math.random() - 0.5) * 400,
+      40 + Math.random() * 40,
+      (Math.random() - 0.5) * 400
+    );
+    scene.add(cloud);
+    levelObjects.push(cloud);
+    const speed = 0.5 + Math.random() * 1.5;
+    animatables.push({
+      update(dt) {
+        cloud.position.x += speed * dt;
+        if (cloud.position.x > 200) cloud.position.x = -200;
+      }
+    });
+  }
+}
 
-    function attachMats() {
-        if (!loadedMatsMesh || !mower) return;
-        if (mower.userData.mats) mower.remove(mower.userData.mats);
-        const matsInstance = loadedMatsMesh.clone();
-        if (selectedMower === 'combine') matsInstance.position.set(0, 3.2, 0.2);
-        else if (selectedMower === 'ts112') matsInstance.position.set(0, 1.2, -0.6);
-        else matsInstance.position.set(0, 0, -3.8);
-        mower.add(matsInstance); mower.userData.mats = matsInstance;
+// ─── MOW GRID ──────────────────────────────────────────────────────────────
+function initMowGrid(worldW, worldH, cellSize = 0.5) {
+  mowGridW = Math.ceil(worldW / cellSize);
+  mowGridH = Math.ceil(worldH / cellSize);
+  mowGrid = new Uint8Array(mowGridW * mowGridH); // 0=unmowed, 1=mowed, 2=no-mow zone
+  return { w: mowGridW, h: mowGridH, cellSize, worldW, worldH };
+}
+
+function mowGridIdx(gx, gy) { return gy * mowGridW + gx; }
+
+function worldToGrid(wx, wz, gridInfo) {
+  const gx = Math.floor((wx + gridInfo.worldW / 2) / gridInfo.cellSize);
+  const gy = Math.floor((wz + gridInfo.worldH / 2) / gridInfo.cellSize);
+  return { gx, gy };
+}
+
+function markMowed(wx, wz, gridInfo, mowerWidth) {
+  const mwd = MOWERS[selectedMower].width;
+  const halfCells = Math.ceil(mwd / gridInfo.cellSize / 2);
+  const center = worldToGrid(wx, wz, gridInfo);
+  let newMows = 0;
+  for (let dx = -halfCells; dx <= halfCells; dx++) {
+    for (let dz = -halfCells; dz <= halfCells; dz++) {
+      const gx = center.gx + dx;
+      const gy = center.gy + dz;
+      if (gx < 0 || gx >= mowGridW || gy < 0 || gy >= mowGridH) continue;
+      const idx = mowGridIdx(gx, gy);
+      if (mowGrid[idx] === 0) {
+        mowGrid[idx] = 1;
+        newMows++;
+        totalMowable = Math.max(totalMowable, 1); // ensure no div/0
+      }
     }
+  }
+  if (newMows > 0) {
+    mowedCount += newMows;
+    updateProgressUI();
+  }
+}
 
-    function getTerrainHeight(x, z) {
-        if (currentLevel === 3) {
-            const hill1 = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 6.0;
-            const hill2 = Math.sin(x * 0.1 + 1.5) * 2.0;
-            const dist = Math.sqrt(x*x + (z + 50)*(z + 50));
-            return (hill1 + hill2) * (1 - Math.max(0, 1 - dist / 30));
-        } else if (currentLevel === 4) {
-            const normX = (x + lawnWorldSize / 2) / lawnWorldSize;
-            if (normX < 0.22) return 0;
-            return Math.pow((normX - 0.22) / 0.78, 1.3) * 22.0;
-        }
-        return 0;
-    }
+function updateProgressUI() {
+  const pct = totalMowable > 0 ? Math.min(100, (mowedCount / totalMowable * 100)).toFixed(1) : 0;
+  document.getElementById('progress-label').textContent = `Mowed: ${pct}%`;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  if (parseFloat(pct) >= 90) {
+    levelComplete();
+  }
+}
 
-    // --- BANA 1: VILLAKVARTERET ---
-    function buildHouse(x, z, colorStr, rotationY = 0) {
-        const house = new THREE.Group();
-        const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d');
-        ctx.fillStyle = colorStr; ctx.fillRect(0,0,256,256); 
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 12, 256); ctx.fillRect(244, 0, 12, 256);
-        ctx.fillStyle = '#87CEEB'; ctx.fillRect(40, 50, 50, 50); ctx.fillRect(166, 50, 50, 50);
-        const tex = new THREE.CanvasTexture(c); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 1);
-        const body = new THREE.Mesh(new THREE.BoxGeometry(60, 25, 40), new THREE.MeshStandardMaterial({ map: tex }));
-        body.position.y = 12.5; body.castShadow = true; house.add(body);
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(45, 15, 4), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }));
-        roof.position.y = 32.5; roof.rotation.y = Math.PI / 4; roof.castShadow = true; house.add(roof);
-        house.position.set(x, 0, z); house.rotation.y = rotationY; scene.add(house);
-    }
+function levelComplete() {
+  if (!gameActive) return;
+  gameActive = false;
+  const reward = Math.floor(100 + (300 - elapsedTime) * 0.5);
+  money += Math.max(50, reward);
+  saveMoney();
+  document.getElementById('win-details').textContent =
+    `Time: ${elapsedTime.toFixed(1)}s | Reward: $${Math.max(50, reward)}`;
+  document.getElementById('win-overlay').style.display = 'flex';
+}
 
-    function buildYardFence(offsetX, offsetZ) {
-        const fenceMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-        const picketGeo = new THREE.BoxGeometry(0.5, 3, 0.2); picketGeo.translate(0, 1.5, 0); 
-        const railGeo = new THREE.BoxGeometry(lawnWorldSize, 0.3, 0.3);
-        function buildSide(x, z, rotation) {
-            const sideGroup = new THREE.Group();
-            const r1 = new THREE.Mesh(railGeo, fenceMat); r1.position.set(0, 1.0, 0); sideGroup.add(r1);
-            const r2 = new THREE.Mesh(railGeo, fenceMat); r2.position.set(0, 2.2, 0); sideGroup.add(r2);
-            for(let i = -lawnWorldSize / 2; i <= lawnWorldSize / 2; i += 1.5) {
-                const p = new THREE.Mesh(picketGeo, fenceMat); p.position.set(i, 0, 0.1); sideGroup.add(p); 
-            }
-            sideGroup.position.set(x, 0, z); sideGroup.rotation.y = rotation; scene.add(sideGroup);
-        }
-        buildSide(offsetX, offsetZ - lawnWorldSize/2, 0); buildSide(offsetX, offsetZ + lawnWorldSize/2, 0); 
-        buildSide(offsetX - lawnWorldSize/2, offsetZ, Math.PI/2); buildSide(offsetX + lawnWorldSize/2, offsetZ, Math.PI/2); 
-    }
+// ─── LEVEL 1: VILLAKVARTER ─────────────────────────────────────────────────
+function buildLevel1() {
+  buildSky(0x87ceeb);
 
-    function setupVillaLevel() {
-        lawnWorldSize = 100;
-        const world = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x245419 }));
-        world.rotation.x = -Math.PI / 2; world.position.y = -0.1; scene.add(world);
-        const street = new THREE.Mesh(new THREE.PlaneGeometry(1000, 24), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-        street.rotation.x = -Math.PI / 2; street.position.set(0, 0.05, 62); scene.add(street);
+  // Ground
+  const groundGeo = new THREE.PlaneGeometry(120, 120, 60, 60);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x5a8a3c, roughness: 0.9 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  levelObjects.push(ground);
 
-        buildHouse(0, -30, '#ffcda8'); buildYardFence(0, 0);           
-        buildHouse(-lawnWorldSize, -30, '#8fb8cc'); buildYardFence(-lawnWorldSize, 0); 
-        buildHouse(lawnWorldSize, -30, '#e6e6a1'); buildYardFence(lawnWorldSize, 0);  
+  // Roads
+  buildRoads();
 
-        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
-        lawnContext = lawnCanvas.getContext('2d', { willReadFrequently: true });
-        lawnContext.fillStyle = COLOR_UNCUT; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
-        lawnTexture = new THREE.CanvasTexture(lawnCanvas);
-        lawn = new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize), new THREE.MeshStandardMaterial({ map: lawnTexture }));
-        lawn.rotation.x = -Math.PI / 2; scene.add(lawn);
+  // Houses
+  const housePositions = [
+    [-30, -20], [-15, -20], [0, -20], [15, -20], [30, -20],
+    [-30,  20], [-15,  20], [0,  20], [15,  20], [30,  20],
+    [-30,  0], [30, 0],
+  ];
+  housePositions.forEach(([x, z], i) => {
+    buildHouse(x, z, i);
+  });
 
-        cars = [];
-        ['./suv.glb', './taxi.glb'].forEach((path, idx) => {
-            gltfLoader.load(path, (gltf) => {
-                const car = gltf.scene; car.scale.setScalar(2.2); car.position.set(-150 + idx * 100, 0, 62);
-                car.userData = { dir: idx === 0 ? 1 : -1, speed: 0.6 + Math.random() * 0.3 };
-                scene.add(car); cars.push(car);
-            }, undefined, () => {});
-        });
-    }
+  // Garden items
+  buildGardenItems();
 
-    // --- BANA 2: FOTBOLLSPLANEN ---
-    function setupStadiumLevel() {
-        lawnWorldSize = 120;
-        const world = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x113311 }));
-        world.rotation.x = -Math.PI / 2; world.position.y = -0.1; scene.add(world);
+  // Cars on road (animated)
+  buildCars();
 
-        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
-        lawnContext = lawnCanvas.getContext('2d', { willReadFrequently: true });
-        lawnContext.fillStyle = '#4a754a'; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
-        
-        const stripeH = 32;
-        for(let y = 0; y < lawnTexResolution; y += stripeH) {
-            lawnContext.fillStyle = (y / stripeH) % 2 === 0 ? '#7CFC00' : '#55bb22';
-            lawnContext.fillRect(0, y, lawnTexResolution, stripeH);
-        }
-        lawnContext.strokeStyle = '#ffffff'; lawnContext.lineWidth = 6;
-        lawnContext.strokeRect(40, 40, lawnTexResolution - 80, lawnTexResolution - 80);
-        lawnContext.beginPath(); lawnContext.arc(256, 256, 60, 0, Math.PI*2); lawnContext.stroke();
-        lawnContext.beginPath(); lawnContext.moveTo(40, 256); lawnContext.lineTo(512-40, 256); lawnContext.stroke();
+  // Animals
+  buildAnimals();
 
-        lawnTexture = new THREE.CanvasTexture(lawnCanvas); 
-        lawn = new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize), new THREE.MeshStandardMaterial({ map: lawnTexture }));
-        lawn.rotation.x = -Math.PI / 2; scene.add(lawn);
+  // Mow grid
+  const gridInfo = initMowGrid(120, 120, 0.6);
+  // Mark road and house footprints as no-mow
+  // (simplified: just count green area)
+  totalMowable = Math.floor(mowGridW * mowGridH * 0.45);
 
-        const concreteMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
-        for(let i = 0; i < 6; i++) {
-            const stepHeight = 2 + i*1.2;
-            const step = new THREE.Mesh(new THREE.BoxGeometry(lawnWorldSize + 20, stepHeight, 4), concreteMat);
-            step.position.set(0, stepHeight / 2, -lawnWorldSize / 2 - 10 - i * 3.5); step.castShadow = true; scene.add(step);
-        }
-    }
+  // Mowing plane (visual feedback) - color changing
+  const mowVisGeo = new THREE.PlaneGeometry(120, 120, 120, 120);
+  const mowVisMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.9,
+    transparent: true,
+    opacity: 0.95,
+  });
+  // Initialize vertex colors to uncut
+  const colors = [];
+  const posAttr = mowVisGeo.attributes.position;
+  for (let i = 0; i < posAttr.count; i++) colors.push(0.35, 0.54, 0.24);
+  mowVisGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+  const mowVis = new THREE.Mesh(mowVisGeo, mowVisMat);
+  mowVis.rotation.x = -Math.PI / 2;
+  mowVis.position.y = 0.01;
+  scene.add(mowVis);
+  levelObjects.push(mowVis);
 
-    // --- BANA 3: GOLFBANAN ---
-    function setupGolfLevel() {
-        lawnWorldSize = 160;
-        const terrainGeo = new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize, 80, 80);
-        const posAttr = terrainGeo.attributes.position;
-        for (let i = 0; i < posAttr.count; i++) {
-            const x = posAttr.getX(i); const z = -posAttr.getY(i);
-            posAttr.setZ(i, getTerrainHeight(x, z));
-        }
-        terrainGeo.computeVertexNormals();
+  // Spawn mower
+  spawnMower(0, 0, gridInfo, mowVis);
+  camera.position.set(0, 18, 18);
+  camera.lookAt(0, 0, 0);
+}
 
-        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = lawnTexResolution; lawnCanvas.height = lawnTexResolution;
-        lawnContext = lawnCanvas.getContext('2d', { willReadFrequently: true });
-        lawnContext.fillStyle = '#1e4620'; lawnContext.fillRect(0, 0, lawnTexResolution, lawnTexResolution);
-        
-        lawnContext.fillStyle = COLOR_UNCUT; lawnContext.beginPath(); lawnContext.ellipse(256, 300, 120, 200, 0, 0, Math.PI * 2); lawnContext.fill();
-        lawnContext.fillStyle = '#7CFC00'; lawnContext.beginPath(); lawnContext.arc(256, 120, 70, 0, Math.PI * 2); lawnContext.fill(); // Green
-        lawnContext.fillStyle = '#edc9af'; lawnContext.beginPath(); lawnContext.ellipse(180, 120, 30, 45, Math.PI / 4, 0, Math.PI * 2); lawnContext.fill(); // Sandbunker
-        lawnContext.fillStyle = '#1e90ff'; lawnContext.beginPath(); lawnContext.arc(360, 280, 50, 0, Math.PI * 2); lawnContext.fill(); // Vattenhål
+function buildRoads() {
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
 
-        lawnTexture = new THREE.CanvasTexture(lawnCanvas);
-        lawn = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ map: lawnTexture, roughness: 0.8 }));
-        lawn.rotation.x = -Math.PI / 2; scene.add(lawn);
+  // Horizontal road
+  const hRoad = new THREE.Mesh(new THREE.PlaneGeometry(120, 10), roadMat);
+  hRoad.rotation.x = -Math.PI / 2;
+  hRoad.position.y = 0.02;
+  scene.add(hRoad); levelObjects.push(hRoad);
 
-        const flagX = 0, flagZ = -50, flagH = getTerrainHeight(flagX, flagZ);
-        const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 7), new THREE.MeshStandardMaterial({ color: 0xffffff }));
-        flagPole.position.set(flagX, flagH + 3.5, flagZ); scene.add(flagPole);
-        const flagCloth = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-        flagCloth.position.set(1.2, 2.5, 0); flagPole.add(flagCloth);
+  // Vertical road
+  const vRoad = new THREE.Mesh(new THREE.PlaneGeometry(10, 120), roadMat);
+  vRoad.rotation.x = -Math.PI / 2;
+  vRoad.position.y = 0.02;
+  scene.add(vRoad); levelObjects.push(vRoad);
 
-        for (let i = 0; i < 35; i++) {
-            const angle = Math.random() * Math.PI * 2, dist = 60 + Math.random() * 20;
-            const tx = Math.sin(angle) * dist, tz = Math.cos(angle) * dist, th = getTerrainHeight(tx, tz);
-            spawnTree(tx, tz, th);
-        }
-    }
+  // Dashed center lines
+  for (let i = -55; i < 55; i += 6) {
+    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 3), lineMat);
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(i, 0.04, 0);
+    scene.add(dash); levelObjects.push(dash);
 
-    // --- BANA 4: SJÖTOMTEN (FULLSTÄNDIGT ÅTERSTÄLLD MED DIREKTGENERERAD LAYOUT) ---
-    function setupLakeLevel() {
-        lawnWorldSize = 200;
-        const res = lawnTexResolution;
+    const dash2 = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.3), lineMat);
+    dash2.rotation.x = -Math.PI / 2;
+    dash2.position.set(0, 0.04, i);
+    scene.add(dash2); levelObjects.push(dash2);
+  }
 
-        const terrainGeo = new THREE.PlaneGeometry(lawnWorldSize, lawnWorldSize, 128, 128);
-        const posAttr = terrainGeo.attributes.position;
-        for (let i = 0; i < posAttr.count; i++) {
-            const x = posAttr.getX(i); const z = -posAttr.getY(i);
-            posAttr.setZ(i, getTerrainHeight(x, z));
-        }
-        terrainGeo.computeVertexNormals();
+  // Sidewalks
+  const swMat = new THREE.MeshStandardMaterial({ color: 0xbbbbaa });
+  [[-55, 0, 'h'], [55, 0, 'h'], [0, -55, 'v'], [0, 55, 'v']].forEach(([x, z, dir]) => {
+    const sw = new THREE.Mesh(new THREE.PlaneGeometry(dir==='h'?120:3, dir==='v'?120:3), swMat);
+    sw.rotation.x = -Math.PI / 2;
+    sw.position.set(x, 0.015, z);
+    scene.add(sw); levelObjects.push(sw);
+  });
+}
 
-        lawnCanvas = document.createElement('canvas'); lawnCanvas.width = res; lawnCanvas.height = res;
-        lawnContext = lawnCanvas.getContext('2d', { willReadFrequently: true });
+function buildHouse(x, z, idx) {
+  const colors = [0xd4936e, 0xc4a882, 0xb0c4de, 0xe8d5b7, 0xdda0dd, 0x98c4a0];
+  const roofColors = [0x8b2020, 0x6b4226, 0x2f4f4f, 0x8b6914, 0x4a4a8b, 0x8b3a3a];
+  const wallColor = colors[idx % colors.length];
+  const roofColor = roofColors[idx % roofColors.length];
 
-        // Bakgrund & Layout
-        lawnContext.fillStyle = '#0f380f'; lawnContext.fillRect(0, 0, res, res); // Skog
-        lawnContext.fillStyle = '#1e90ff'; lawnContext.fillRect(0, 0, res * 0.22, res); // Sjö
+  const hGroup = new THREE.Group();
+  hGroup.position.set(x, 0, z);
 
-        // Gräsmatta
-        lawnContext.fillStyle = COLOR_UNCUT;
-        lawnContext.beginPath();
-        lawnContext.moveTo(res * 0.22, 0);
-        lawnContext.lineTo(res * 0.95, 0);
-        lawnContext.lineTo(res * 0.95, res);
-        lawnContext.lineTo(res * 0.22, res);
-        lawnContext.fill();
+  // Foundation
+  const foundGeo = new THREE.BoxGeometry(9, 0.3, 8);
+  const found = new THREE.Mesh(foundGeo, new THREE.MeshStandardMaterial({ color: 0xaaa090 }));
+  found.position.y = 0.15;
+  hGroup.add(found);
 
-        // Skogsdunge i mitten
-        lawnContext.fillStyle = '#0f380f';
-        lawnContext.beginPath(); lawnContext.arc(res * 0.55, res * 0.25, 70, 0, Math.PI * 2); lawnContext.fill();
+  // Walls
+  const wallGeo = new THREE.BoxGeometry(8, 4, 7);
+  const wall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ color: wallColor }));
+  wall.position.y = 2.15;
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  hGroup.add(wall);
 
-        // Grusvägar
-        lawnContext.fillStyle = '#c2b280';
-        lawnContext.fillRect(res * 0.35, res * 0.1, res * 0.2, 18);
-        lawnContext.fillRect(res * 0.8, res * 0.05, res * 0.18, 18);
-        lawnContext.fillRect(res * 0.8, res * 0.25, res * 0.18, 18);
-        lawnContext.fillRect(res * 0.35, res * 0.92, res * 0.25, 20);
+  // Roof (prism)
+  const roofGeo = new THREE.CylinderGeometry(0, 6.5, 3, 4);
+  const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({ color: roofColor }));
+  roof.position.y = 5.65;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  hGroup.add(roof);
 
-        lawnTexture = new THREE.CanvasTexture(lawnCanvas);
-        lawn = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ map: lawnTexture, roughness: 0.8 }));
-        lawn.rotation.x = -Math.PI / 2; scene.add(lawn);
+  // Door
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x6b4226 });
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.1), doorMat);
+  door.position.set(0, 1.15, 3.55);
+  hGroup.add(door);
 
-        // Skogsträd
-        for(let i=0; i<70; i++) {
-            let tx = -80 + Math.random()*20; let tz = -90 + Math.random()*180;
-            spawnTree(tx, tz, getTerrainHeight(tx, tz));
+  // Door knob
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8),
+    new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8 }));
+  knob.position.set(0.35, 1.1, 3.61);
+  hGroup.add(knob);
 
-            let tx2 = 10 + Math.random()*30; let tz2 = -60 + Math.random()*40;
-            spawnTree(tx2, tz2, getTerrainHeight(tx2, tz2));
-        }
+  // Steps
+  const stepMat = new THREE.MeshStandardMaterial({ color: 0x999988 });
+  [[0, 0.12, 3.8], [0, 0.22, 4.1]].forEach(([sx, sy, sz], si) => {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2 - si * 0.05, 0.4), stepMat);
+    step.position.set(sx, sy, sz);
+    hGroup.add(step);
+  });
 
-        // Detaljer
-        spawnFruitTree(30, -30, getTerrainHeight(30, -30));
-        spawnFruitTree(38, -30, getTerrainHeight(38, -30));
-        spawnFruitTree(46, -30, getTerrainHeight(46, -30));
+  // Windows with curtains and flowers
+  const windowPositions = [
+    [-2.5, 2.5, 3.56, true], [2.5, 2.5, 3.56, true],  // front
+    [-2.5, 2.5, -3.56, false], [2.5, 2.5, -3.56, false], // back
+    [4.06, 2.5, 0, false, true], [-4.06, 2.5, 0, false, true], // sides
+  ];
+  windowPositions.forEach(([wx, wy, wz, front, side]) => {
+    buildWindow(hGroup, wx, wy, wz, front, side);
+  });
 
-        spawnTrampoline(-10, -40, getTerrainHeight(-10, -40));
+  // Chimney
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.5, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
+  chimney.position.set(2, 5.8, -0.5);
+  hGroup.add(chimney);
 
-        spawnRedHouse(-30, -60, getTerrainHeight(-30, -60), false);
-        spawnRedHouse(-35, 20, getTerrainHeight(-35, 20), false);
-        spawnRedHouse(65, 25, getTerrainHeight(65, 25), true); // Stora huset med maffig terrass
+  // Chimney top
+  const chimneyTop = new THREE.Mesh(new THREE.BoxGeometry(1, 0.15, 1),
+    new THREE.MeshStandardMaterial({ color: 0x666666 }));
+  chimneyTop.position.set(2, 7.1, -0.5);
+  hGroup.add(chimneyTop);
 
-        spawnRedHouse(75, -40, getTerrainHeight(75, -40), false);
-        spawnRedHouse(85, -30, getTerrainHeight(85, -30), false);
-        spawnRedHouse(78, -10, getTerrainHeight(78, -10), false);
+  // Fence around garden
+  buildFence(hGroup);
 
-        if (mower) mower.position.set(0, getTerrainHeight(0, 0), 0);
-    }
+  // Mailbox
+  buildMailbox(hGroup);
 
-    function spawnTree(x, z, h) {
-        const tree = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 5), new THREE.MeshStandardMaterial({ color: 0x4a2e15 }));
-        trunk.position.y = 2.5; tree.add(trunk);
-        const leaves = new THREE.Mesh(new THREE.ConeGeometry(4, 9, 8), new THREE.MeshStandardMaterial({ color: 0x0f380f }));
-        leaves.position.y = 7; tree.add(leaves);
-        tree.position.set(x, h, z); scene.add(tree);
-    }
+  scene.add(hGroup);
+  levelObjects.push(hGroup);
+}
 
-    function spawnFruitTree(x, z, h) {
-        const tree = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3), new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
-        trunk.position.y = 1.5; tree.add(trunk);
-        const leaves = new THREE.Mesh(new THREE.SphereGeometry(2.5, 8, 8), new THREE.MeshStandardMaterial({ color: 0x388e3c }));
-        leaves.position.y = 3.5; tree.add(leaves);
-        const appleMat = new THREE.MeshStandardMaterial({ color: 0xffd700 });
-        for(let i = 0; i < 6; i++) {
-            const apple = new THREE.Mesh(new THREE.SphereGeometry(0.25, 4, 4), appleMat);
-            apple.position.set((Math.random()-0.5)*3, 2.5 + Math.random()*1.5, (Math.random()-0.5)*3);
-            tree.add(apple);
-        }
-        tree.position.set(x, h, z); scene.add(tree);
-    }
+function buildWindow(group, x, y, z, front, side) {
+  const winMat = new THREE.MeshStandardMaterial({ color: 0x9ecfff, transparent: true, opacity: 0.7 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+  const curtainColors = [0xff9999, 0xffcc88, 0xaaccff, 0xddaaff, 0xaaffaa];
+  const curtainCol = curtainColors[Math.floor(Math.random() * curtainColors.length)];
 
-    function spawnRedHouse(x, z, h, isTerraceHouse) {
-        const houseGroup = new THREE.Group();
-        const houseBody = new THREE.Mesh(new THREE.BoxGeometry(16, 10, 12), new THREE.MeshStandardMaterial({ color: 0x9e3838 }));
-        houseBody.position.y = 5; houseGroup.add(houseBody);
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(12, 6, 4), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-        roof.position.y = 13; roof.rotation.y = Math.PI / 4; houseGroup.add(roof);
+  const rot = side ? Math.PI / 2 : 0;
+  const w = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.05), winMat);
+  w.position.set(x, y, z);
+  w.rotation.y = rot;
+  group.add(w);
 
-        if (isTerraceHouse) {
-            const deck = new THREE.Mesh(new THREE.BoxGeometry(22, 1.0, 16), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }));
-            deck.position.set(-8, 4, 0); houseGroup.add(deck);
-            const poleMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
-            for (let pz = -6; pz <= 6; pz += 6) {
-                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 10), poleMat);
-                pole.position.set(-16, -1, pz); houseGroup.add(pole);
-            }
-        }
-        houseGroup.position.set(x, h, z); scene.add(houseGroup);
-    }
+  // Frame
+  [[0, 0.6, 1.3, 0.08], [0, -0.6, 1.3, 0.08], [0.6, 0, 0.08, 1.3], [-0.6, 0, 0.08, 1.3]].forEach(([fx, fy, fw, fh]) => {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, 0.07), frameMat);
+    frame.position.set(x + (side ? 0 : fx), y + fy, z + (side ? fx : 0));
+    frame.rotation.y = rot;
+    group.add(frame);
+  });
 
-    function spawnTrampoline(x, z, h) {
-        const trampGroup = new THREE.Group();
-        const canvasMesh = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.2, 24), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-        canvasMesh.position.y = 1.2; trampGroup.add(canvasMesh);
-        const padMesh = new THREE.Mesh(new THREE.TorusGeometry(4, 0.4, 8, 24), new THREE.MeshStandardMaterial({ color: 0x0000ff }));
-        padMesh.rotation.x = Math.PI / 2; padMesh.position.y = 1.25; trampGroup.add(padMesh);
-        trampGroup.position.set(x, h, z); scene.add(trampGroup);
-    }
+  // Curtains
+  const curtainMat = new THREE.MeshStandardMaterial({ color: curtainCol, side: THREE.DoubleSide });
+  [-0.3, 0.3].forEach(cx => {
+    const curtain = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.0), curtainMat);
+    if (side) curtain.position.set(x, y, z + cx);
+    else curtain.position.set(x + cx, y, z);
+    curtain.rotation.y = rot;
+    group.add(curtain);
+  });
 
-    function buildMower() {
-        let posX = 0, posY = 0, posZ = 0, rotY = mowerStats.rotation;
-        if (mower) {
-            posX = mower.position.x; posY = mower.position.y; posZ = mower.position.z; rotY = mower.rotation.y;
-            scene.remove(mower);
-        }
+  // Flower box
+  const flowerBox = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
+  if (side) flowerBox.position.set(x, y - 0.72, z);
+  else flowerBox.position.set(x, y - 0.72, z + 0.15);
+  flowerBox.rotation.y = rot;
+  group.add(flowerBox);
 
-        mower = new THREE.Group();
-        cuttingCylinder = null; mowerWheelL = null; mowerWheelR = null;
+  // Flowers
+  const flowerColors = [0xff4444, 0xff9900, 0xffff00, 0xff44ff, 0xff6688];
+  for (let fi = 0; fi < 4; fi++) {
+    const fc = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+    const petal = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshStandardMaterial({ color: fc }));
+    const stemX = -0.4 + fi * 0.25;
+    if (side) petal.position.set(x, y - 0.55, z + stemX);
+    else petal.position.set(x + stemX, y - 0.55, z + 0.15);
+    group.add(petal);
+  }
+}
 
-        if (selectedMower === 'combine') {
-            if (loadedCombineMesh) mower.add(loadedCombineMesh.clone());
-            else {
-                const body = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 10), new THREE.MeshStandardMaterial({color: 0xff6600}));
-                body.position.y = 2; mower.add(body);
-            }
-            mowerStats.cutWidth = 18; mowerStats.radius = 4.5; mowerStats.maxSpeed = 0.40;
-        } 
-        else if (selectedMower === 'ts112') {
-            if (loadedRideMesh) mower.add(loadedRideMesh.clone());
-            else {
-                const placeholder = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 6), new THREE.MeshStandardMaterial({color: 0xcc0000}));
-                placeholder.position.y = 1.5; mower.add(placeholder);
-            }
-            mowerStats.cutWidth = 12; mowerStats.radius = 3.2; mowerStats.maxSpeed = 0.50;
-        } 
-        else if (selectedMower === 'klippo') {
-            if (loadedKlippoMesh) mower.add(loadedKlippoMesh.clone());
-            else {
-                const placeholder = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 4), new THREE.MeshStandardMaterial({color: 0x00cc00}));
-                placeholder.position.y = 1; mower.add(placeholder);
-            }
-            mowerStats.cutWidth = 9; mowerStats.radius = 2.8; mowerStats.maxSpeed = 0.45;
-        } 
-        else {
-            const handjagare = new THREE.Group();
-            const wheelGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.4, 16); wheelGeo.rotateZ(Math.PI/2); 
-            mowerWheelL = new THREE.Mesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); mowerWheelL.position.set(-2.2, 1.0, 0); handjagare.add(mowerWheelL);
-            mowerWheelR = new THREE.Mesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); mowerWheelR.position.set(2.2, 1.0, 0); handjagare.add(mowerWheelR);
-            const cylGeo = new THREE.CylinderGeometry(0.8, 0.8, 4.0, 32); cylGeo.rotateZ(Math.PI/2);
-            cuttingCylinder = new THREE.Mesh(cylGeo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa })); cuttingCylinder.position.set(0, 0.8, 0); handjagare.add(cuttingCylinder);
-            mower.add(handjagare); mowerStats.cutWidth = 7; mowerStats.radius = 2.5; mowerStats.maxSpeed = 0.45;
-        }
+function buildFence(group) {
+  const postMat = new THREE.MeshStandardMaterial({ color: 0xddd8c4 });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0xddd8c4 });
+  const fenceW = 10, fenceD = 9;
+  const postH = 1.2, postW = 0.12;
+  const railH = 0.08;
 
-        attachMats();
-        mower.position.set(posX, posY, posZ); mower.rotation.y = rotY; scene.add(mower);
-    }
+  // Posts along perimeter
+  for (let i = 0; i <= 10; i++) {
+    const px = -fenceW / 2 + i;
+    [[px, fenceD / 2], [px, -fenceD / 2]].forEach(([x, z]) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(postW, postH, postW), postMat);
+      post.position.set(x, postH / 2, z);
+      group.add(post);
+    });
+  }
+  for (let i = 1; i < 9; i++) {
+    const pz = -fenceD / 2 + i;
+    [[-fenceW / 2, pz], [fenceW / 2, pz]].forEach(([x, z]) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(postW, postH, postW), postMat);
+      post.position.set(x, postH / 2, z);
+      group.add(post);
+    });
+  }
 
-    // --- KORRIGERAT 3D SHOWROOM SOM VISAR ALLA KLIPPARE ---
-    window.openShowroom = function(mowerId) {
-        inspectingMowerId = mowerId;
-        const data = mowerData[mowerId];
-        
-        document.getElementById('shop-screen').style.display = 'none';
-        document.getElementById('showroom-screen').style.display = 'flex';
-        document.getElementById('showroom-name').innerText = data.name;
+  // Rails
+  [[0, 0.9, fenceD / 2], [0, 0.5, fenceD / 2],
+   [0, 0.9, -fenceD / 2], [0, 0.5, -fenceD / 2]].forEach(([x, y, z]) => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(fenceW, railH, railH), railMat);
+    rail.position.set(x, y, z);
+    group.add(rail);
+  });
+  [[-fenceW / 2, 0.9, 0], [-fenceW / 2, 0.5, 0],
+   [fenceW / 2, 0.9, 0], [fenceW / 2, 0.5, 0]].forEach(([x, y, z]) => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(railH, railH, fenceD), railMat);
+    rail.position.set(x, y, z);
+    group.add(rail);
+  });
+}
 
-        document.getElementById('stat-speed-val').innerText = data.speed + "%";
-        document.getElementById('stat-speed-bar').style.width = data.speed + "%";
-        document.getElementById('stat-width-val').innerText = data.width + "%";
-        document.getElementById('stat-width-bar').style.width = data.width + "%";
-        document.getElementById('stat-turn-val').innerText = data.turn + "%";
-        document.getElementById('stat-turn-bar').style.width = data.turn + "%";
+function buildMailbox(group) {
+  const mb = new THREE.Group();
+  // Post
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 8),
+    new THREE.MeshStandardMaterial({ color: 0x888888 }));
+  post.position.y = 0.5;
+  mb.add(post);
+  // Box
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x4444cc }));
+  box.position.y = 1.17;
+  mb.add(box);
+  // Lid (curved top)
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.32, 12, 1, false, 0, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x3333bb }));
+  lid.rotation.z = Math.PI / 2;
+  lid.position.set(0, 1.35, 0);
+  mb.add(lid);
 
-        const actionBtn = document.getElementById('showroom-action-btn');
-        if (selectedMower === mowerId) {
-            actionBtn.innerText = "VALD"; actionBtn.disabled = true; actionBtn.style.background = "#27ae60";
-        } else if (ownedMowers.includes(mowerId)) {
-            actionBtn.innerText = "VÄLJ MASKIN"; actionBtn.disabled = false; actionBtn.style.background = "#27ae60";
-        } else if (totalMoney >= data.price) {
-            actionBtn.innerText = "KÖP (" + data.price.toLocaleString() + " KR)"; actionBtn.disabled = false; actionBtn.style.background = "#ff00ff";
+  mb.position.set(-4, 0, 4.5);
+  group.add(mb);
+}
+
+function buildGardenItems() {
+  // Trees in gardens
+  const treePositions = [
+    [-28, -28], [-10, -28], [10, -28], [28, -28],
+    [-28,  28], [-10,  28], [10,  28], [28,  28],
+    [-42, -15], [-42, 15], [42, -15], [42, 15],
+  ];
+  treePositions.forEach(([x, z]) => {
+    buildTree(x, z, 0.8 + Math.random() * 0.6);
+  });
+
+  // Bushes
+  const bushPos = [
+    [-22, -18], [-8, -18], [8, -18], [22, -18],
+    [-22, 18], [-8, 18], [8, 18], [22, 18],
+  ];
+  bushPos.forEach(([x, z]) => {
+    buildBush(x + (Math.random() - 0.5) * 3, z + (Math.random() - 0.5) * 3);
+  });
+
+  // Garden tables and chairs
+  const tablePos = [[-28, 0], [28, 0], [0, -40], [0, 40]];
+  tablePos.forEach(([x, z]) => buildGardenTable(x, z));
+
+  // Grills
+  buildGrill(-12, -32);
+  buildGrill(18, 32);
+}
+
+function buildTree(x, z, scale = 1) {
+  const g = new THREE.Group();
+  // Trunk
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18 * scale, 0.25 * scale, 1.5 * scale, 8),
+    new THREE.MeshStandardMaterial({ color: 0x6b4226 })
+  );
+  trunk.position.y = 0.75 * scale;
+  trunk.castShadow = true;
+  g.add(trunk);
+
+  // Foliage (layered spheres)
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2d7a2d });
+  [[0, 2.8, 1.2], [0, 3.5, 0.9], [0, 4.1, 0.6]].forEach(([fy, fy2, fr]) => {
+    const f = new THREE.Mesh(new THREE.SphereGeometry(fr * scale, 10, 8), foliageMat);
+    f.position.y = fy2 * scale;
+    f.castShadow = true;
+    g.add(f);
+  });
+
+  g.position.set(x, 0, z);
+  scene.add(g);
+  levelObjects.push(g);
+}
+
+function buildBush(x, z) {
+  const colors = [0x2d7a2d, 0x3d8a3d, 0x4a9a4a, 0x1d6a1d];
+  const mat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
+  const g = new THREE.Group();
+  const numPuffs = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < numPuffs; i++) {
+    const r = 0.3 + Math.random() * 0.3;
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), mat);
+    puff.position.set((Math.random() - 0.5) * 0.6, r, (Math.random() - 0.5) * 0.4);
+    puff.castShadow = true;
+    g.add(puff);
+  }
+  g.position.set(x, 0, z);
+  scene.add(g);
+  levelObjects.push(g);
+}
+
+function buildGardenTable(x, z) {
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0xc4963c });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+  const g = new THREE.Group();
+  // Table top
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.08, 12), woodMat);
+  top.position.y = 0.75;
+  g.add(top);
+  // Table leg
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.7, 8), metalMat);
+  leg.position.y = 0.35;
+  g.add(leg);
+  // Chairs
+  const chairAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+  chairAngles.forEach(a => {
+    const ch = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), woodMat);
+    seat.position.y = 0.45;
+    ch.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.05), woodMat);
+    back.position.set(0, 0.65, -0.2);
+    ch.add(back);
+    [[-0.15, 0.22, 0.15], [0.15, 0.22, 0.15], [-0.15, 0.22, -0.15], [0.15, 0.22, -0.15]].forEach(([lx, ly, lz]) => {
+      const leg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 6), metalMat);
+      leg2.position.set(lx, ly, lz);
+      ch.add(leg2);
+    });
+    ch.position.set(Math.sin(a) * 1.1, 0, Math.cos(a) * 1.1);
+    g.add(ch);
+  });
+  // Umbrella
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.8, 8), metalMat);
+  pole.position.y = 1.65;
+  g.add(pole);
+  const umbrella = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.4, 12),
+    new THREE.MeshStandardMaterial({ color: 0xff6644 }));
+  umbrella.position.y = 2.55;
+  g.add(umbrella);
+
+  g.position.set(x, 0, z);
+  scene.add(g);
+  levelObjects.push(g);
+}
+
+function buildGrill(x, z) {
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
+  const g = new THREE.Group();
+  // Bowl
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    metalMat);
+  bowl.position.y = 0.8;
+  g.add(bowl);
+  // Lid
+  const lid = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    metalMat);
+  lid.position.y = 0.8;
+  lid.rotation.x = Math.PI;
+  g.add(lid);
+  // Legs
+  [[-0.25, 0.3, 0.25], [0.25, 0.3, 0.25], [0, 0.3, -0.3]].forEach(([lx, ly, lz]) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), metalMat);
+    leg.position.set(lx, ly, lz);
+    g.add(leg);
+  });
+
+  g.position.set(x, 0, z);
+  scene.add(g);
+  levelObjects.push(g);
+}
+
+function buildCars() {
+  const carColors = [0xcc2222, 0x2244cc, 0x228822, 0xccaa22, 0x222222, 0xcc6622, 0x8822cc];
+  const cars = [];
+
+  // Cars moving on horizontal road (z ≈ 0)
+  for (let i = 0; i < 4; i++) {
+    const car = buildCarMesh(carColors[i % carColors.length]);
+    const startX = -60 + i * 30;
+    car.position.set(startX, 0.35, i < 2 ? 2.5 : -2.5);
+    car.rotation.y = i < 2 ? 0 : Math.PI;
+    scene.add(car);
+    levelObjects.push(car);
+    const dir = i < 2 ? 1 : -1;
+    cars.push({ mesh: car, dir, axis: 'x', lane: i < 2 ? 2.5 : -2.5 });
+  }
+
+  // Cars moving on vertical road (x ≈ 0)
+  for (let i = 0; i < 3; i++) {
+    const car = buildCarMesh(carColors[(i + 4) % carColors.length]);
+    const startZ = -60 + i * 40;
+    car.position.set(i < 2 ? 2.5 : -2.5, 0.35, startZ);
+    car.rotation.y = i < 2 ? Math.PI / 2 : -Math.PI / 2;
+    scene.add(car);
+    levelObjects.push(car);
+    const dir = i < 2 ? 1 : -1;
+    cars.push({ mesh: car, dir, axis: 'z', lane: i < 2 ? 2.5 : -2.5 });
+  }
+
+  animatables.push({
+    update(dt) {
+      cars.forEach(c => {
+        const speed = 8 + Math.random() * 0; // consistent speed
+        if (c.axis === 'x') {
+          c.mesh.position.x += c.dir * 10 * dt;
+          if (c.mesh.position.x > 65) c.mesh.position.x = -65;
+          if (c.mesh.position.x < -65) c.mesh.position.x = 65;
+          c.mesh.position.z = c.lane;
         } else {
-            actionBtn.innerText = "SAKNAR PENGAR"; actionBtn.disabled = true; actionBtn.style.background = "#555";
+          c.mesh.position.z += c.dir * 10 * dt;
+          if (c.mesh.position.z > 65) c.mesh.position.z = -65;
+          if (c.mesh.position.z < -65) c.mesh.position.z = 65;
+          c.mesh.position.x = c.lane;
         }
-
-        setTimeout(() => { onWindowResize(); updateShowroomModel(); }, 50);
+      });
     }
+  });
+}
 
-    function updateShowroomModel() {
-        if (!inspectingMowerId || !showroomModelGroup) return;
-        while(showroomModelGroup.children.length > 0) showroomModelGroup.remove(showroomModelGroup.children[0]);
+function buildCarMesh(color) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8 });
 
-        let meshToAdd = null;
-        if (inspectingMowerId === 'combine' && loadedCombineMesh) meshToAdd = loadedCombineMesh.clone();
-        else if (inspectingMowerId === 'ts112' && loadedRideMesh) meshToAdd = loadedRideMesh.clone();
-        else if (inspectingMowerId === 'klippo' && loadedKlippoMesh) meshToAdd = loadedKlippoMesh.clone();
-        else if (inspectingMowerId === 'standard') {
-            const handjagare = new THREE.Group();
-            const wheelGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.3, 16); wheelGeo.rotateZ(Math.PI/2); 
-            const w1 = new THREE.Mesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); w1.position.set(-1.5, 0.8, 0); handjagare.add(w1);
-            const w2 = new THREE.Mesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 })); w2.position.set(1.5, 0.8, 0); handjagare.add(w2);
-            const cylGeo = new THREE.CylinderGeometry(0.6, 0.6, 2.8, 16); cylGeo.rotateZ(Math.PI/2);
-            const cyl = new THREE.Mesh(cylGeo, new THREE.MeshStandardMaterial({ color: 0x00cc00 })); cyl.position.set(0, 0.6, 0); handjagare.add(cyl);
-            meshToAdd = handjagare;
+  // Car body (lower)
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 0.9), bodyMat);
+  lower.position.y = 0.2;
+  lower.castShadow = true;
+  g.add(lower);
+
+  // Car body (upper / cabin)
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.38, 0.82), bodyMat);
+  upper.position.set(-0.1, 0.59, 0);
+  upper.castShadow = true;
+  g.add(upper);
+
+  // Windshield
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.35, 0.78), glassMat);
+  windshield.position.set(0.44, 0.6, 0);
+  g.add(windshield);
+
+  // Rear window
+  const rear = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.35, 0.78), glassMat);
+  rear.position.set(-0.65, 0.6, 0);
+  g.add(rear);
+
+  // Side windows
+  [-0.415, 0.415].forEach(z => {
+    const sw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.02), glassMat);
+    sw.position.set(-0.1, 0.63, z);
+    g.add(sw);
+  });
+
+  // Wheels
+  const wGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 14);
+  const rimGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.13, 10);
+  [[-0.65, 0, -0.52], [-0.65, 0, 0.52], [0.65, 0, -0.52], [0.65, 0, 0.52]].forEach(([wx, wy, wz]) => {
+    const wheel = new THREE.Mesh(wGeo, tireMat);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(wx, wy, wz);
+    g.add(wheel);
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(wx, wy, wz);
+    g.add(rim);
+  });
+
+  // Headlights
+  const lightMat = new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 0.5 });
+  [[-0.2, 0.2], [0.2, 0.2]].forEach(([lz, ly]) => {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.15), lightMat);
+    hl.position.set(0.9, ly, lz);
+    g.add(hl);
+  });
+
+  // Taillights
+  const tailMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 0.4 });
+  [[-0.2, 0.2], [0.2, 0.2]].forEach(([lz, ly]) => {
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.15), tailMat);
+    tl.position.set(-0.9, ly, lz);
+    g.add(tl);
+  });
+
+  return g;
+}
+
+function buildAnimals() {
+  // Dogs
+  const dogData = [
+    { x: -20, z: -30, route: [[-20, -30], [-20, -22], [-24, -22], [-24, -30]] },
+    { x: 18, z: 22, route: [[18, 22], [24, 22], [24, 28], [18, 28]] },
+  ];
+  dogData.forEach(d => {
+    const dog = buildDogMesh();
+    dog.position.set(d.x, 0, d.z);
+    scene.add(dog);
+    levelObjects.push(dog);
+    let routeIdx = 0;
+    let t = 0;
+    const speed = 3;
+    animatables.push({
+      update(dt) {
+        const from = d.route[routeIdx];
+        const to = d.route[(routeIdx + 1) % d.route.length];
+        const dx = to[0] - from[0], dz = to[1] - from[1];
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        t += speed * dt;
+        if (t >= dist) {
+          t = 0;
+          routeIdx = (routeIdx + 1) % d.route.length;
         }
-
-        if (meshToAdd) {
-            showroomModelGroup.add(meshToAdd);
-            
-            // Centrera & Justera Kameraavstånd
-            const box = new THREE.Box3().setFromObject(meshToAdd);
-            const center = box.getCenter(new THREE.Vector3());
-            meshToAdd.position.sub(center); 
-            
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            showroomCamera.position.set(0, maxDim * 0.8, maxDim * 1.8);
-            showroomCamera.lookAt(0, 0, 0);
-        }
-    }
-
-    window.closeShowroom = function() {
-        inspectingMowerId = null;
-        document.getElementById('showroom-screen').style.display = 'none';
-        document.getElementById('shop-screen').style.display = 'flex';
-    }
-
-    window.actionShowroomMower = function() {
-        if (!inspectingMowerId) return;
-        const price = mowerData[inspectingMowerId].price;
-        if (!ownedMowers.includes(inspectingMowerId) && totalMoney >= price) {
-            totalMoney -= price;
-            ownedMowers.push(inspectingMowerId);
-            localStorage.setItem('mower_money', totalMoney);
-            localStorage.setItem('mower_owned', JSON.stringify(ownedMowers));
-        }
-        if (ownedMowers.includes(inspectingMowerId)) {
-            selectedMower = inspectingMowerId;
-            localStorage.setItem('mower_selected', selectedMower);
-        }
-        openShowroom(inspectingMowerId);
-    }
-
-    // NAVIGERING
-    window.openMainMenu = function() {
-        document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('level-select-screen').style.display = 'none';
-        document.getElementById('level-intro-screen').style.display = 'none';
-        document.getElementById('shop-screen').style.display = 'none';
-        document.getElementById('showroom-screen').style.display = 'none';
-        document.getElementById('main-menu-screen').style.display = 'flex';
-    }
-
-    window.openLevelSelect = function() {
-        document.getElementById('main-menu-screen').style.display = 'none';
-        document.getElementById('level-intro-screen').style.display = 'none';
-        document.getElementById('game-over').style.display = 'none';
-        document.getElementById('level-select-screen').style.display = 'flex';
-        
-        const listEl = document.getElementById('level-list'); listEl.innerHTML = '';
-        const levels = [
-            { id: 1, name: "Bana 1: Villakvarteret" },
-            { id: 2, name: "Bana 2: Fotbollsplanen" },
-            { id: 3, name: "Bana 3: Golfbanan (Kuperad)" },
-            { id: 4, name: "Bana 4: Sjötomten (Ritad bana)" }
-        ];
-
-        levels.forEach(lvl => {
-            const btn = document.createElement('button');
-            btn.className = `level-btn`; btn.innerHTML = `<span>${lvl.name}</span> <span>★</span>`;
-            btn.onclick = () => showLevelIntro(lvl.id);
-            listEl.appendChild(btn);
+        const progress = dist > 0 ? t / dist : 0;
+        dog.position.x = from[0] + dx * progress;
+        dog.position.z = from[1] + dz * progress;
+        dog.rotation.y = Math.atan2(dx, dz);
+        // Leg animation
+        dog.children.forEach((c, i) => {
+          if (i >= 4 && i <= 7) { // legs
+            c.rotation.x = Math.sin(elapsedTime * 8 + i) * 0.4;
+          }
         });
-    }
-
-    function showLevelIntro(levelId) {
-        currentLevel = levelId;
-        document.getElementById('level-select-screen').style.display = 'none';
-        const introScreen = document.getElementById('level-intro-screen');
-        const introTitle = document.getElementById('intro-title');
-        
-        if (currentLevel === 1) { introScreen.style.backgroundImage = "url('./villa.jpg')"; introTitle.innerText = "Level 1: Villakvarteret"; }
-        else if (currentLevel === 2) { introScreen.style.backgroundImage = "url('./fotboll.jpg')"; introTitle.innerText = "Level 2: Fotbollsplanen"; }
-        else if (currentLevel === 3) { introScreen.style.backgroundImage = "url('./golf.jpg')"; introTitle.innerText = "Level 3: Golfbanan"; }
-        else if (currentLevel === 4) { introScreen.style.backgroundImage = "url('./bana_intro.jpg')"; introTitle.innerText = "Level 4: Sjötomten"; }
-
-        introScreen.style.display = 'flex';
-    }
-
-    window.confirmStartLevel = function() {
-        document.getElementById('level-intro-screen').style.display = 'none';
-        document.getElementById('hud').style.display = 'flex';
-
-        while(scene.children.length > 0){ scene.remove(scene.children[0]); }
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(50, 100, -150); scene.add(dirLight);
-
-        buildMower();
-
-        if (currentLevel === 1) setupVillaLevel();
-        else if (currentLevel === 2) setupStadiumLevel();
-        else if (currentLevel === 3) setupGolfLevel();
-        else if (currentLevel === 4) setupLakeLevel();
-
-        timeLeft = 90; currentProgress = 0;
-        document.getElementById('progress').innerText = "0";
-        
-        gameStarted = true; gameActive = true;
-        if (timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(updateTimer, 1000);
-    }
-
-    function updateTimer() {
-        if (!gameStarted || !gameActive) return;
-        timeLeft--;
-        const mins = Math.floor(timeLeft / 60); const secs = timeLeft % 60;
-        document.getElementById('timer').innerText = `0${mins}:${secs < 10 ? '0' : ''}${secs}`;
-        if (timeLeft <= 0) endGame();
-    }
-
-    function calculateProgress() {
-        if(!lawnContext) return;
-        const imageData = lawnContext.getImageData(0, 0, lawnTexResolution, lawnTexResolution).data;
-        let cutPixels = 0, totalGrassPixels = 0;
-        for (let i = 0; i < imageData.length; i += 4) {
-            totalGrassPixels++;
-            if (imageData[i] > 100) cutPixels++;
+        // Tail wag
+        if (dog.userData.tail) {
+          dog.userData.tail.rotation.z = Math.sin(elapsedTime * 6) * 0.5;
         }
-        currentProgress = Math.floor((cutPixels / totalGrassPixels) * 100);
-        document.getElementById('progress').innerText = currentProgress;
-        currentStars = Math.min(5, Math.floor(currentProgress / 18));
-        renderStars('hud-stars', currentStars);
-    }
+      }
+    });
+  });
 
-    function renderStars(elementId, count) {
-        let starHTML = '';
-        for (let i = 1; i <= 5; i++) starHTML += i <= count ? '<span class="star-earned">★</span>' : '★';
-        document.getElementById(elementId).innerHTML = starHTML;
-    }
-
-    function endGame() {
-        gameActive = false; clearInterval(timerInterval); calculateProgress();
-        const earnedMoney = currentProgress * 100;
-        totalMoney += earnedMoney;
-        localStorage.setItem('mower_money', totalMoney);
-
-        document.getElementById('game-over').style.display = 'flex';
-        document.getElementById('go-progress').innerText = currentProgress + '%';
-        document.getElementById('go-money').innerText = earnedMoney + ' KR';
-        document.getElementById('go-total-money').innerText = totalMoney + ' KR';
-        renderStars('go-stars', currentStars);
-        document.getElementById('go-msg').innerText = currentStars >= 3 ? "BANAN KLARAD!" : "DU BEHÖVER 3 STJÄRNOR.";
-    }
-
-    window.openShop = function() {
-        document.getElementById('main-menu-screen').style.display = 'none';
-        document.getElementById('game-over').style.display = 'none';
-        document.getElementById('showroom-screen').style.display = 'none';
-        document.getElementById('shop-screen').style.display = 'flex';
-        document.getElementById('shop-wallet').innerText = totalMoney + ' KR';
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        
-        // Roterar modellen i 3D Showroom
-        if (showroomModelGroup && inspectingMowerId) {
-            showroomModelGroup.rotation.y += 0.015;
-            showroomRenderer.render(showroomScene, showroomCamera);
+  // Cats
+  const catData = [
+    { x: -35, z: -10 },
+    { x: 25, z: -28 },
+  ];
+  catData.forEach(d => {
+    const cat = buildCatMesh();
+    cat.position.set(d.x, 0, d.z);
+    scene.add(cat);
+    levelObjects.push(cat);
+    let pause = Math.random() * 3;
+    let moveDir = new THREE.Vector2(Math.random() - 0.5, Math.random() - 0.5).normalize();
+    let moveDist = 0;
+    animatables.push({
+      update(dt) {
+        if (pause > 0) { pause -= dt; return; }
+        moveDist += 2.5 * dt;
+        cat.position.x += moveDir.x * 2.5 * dt;
+        cat.position.z += moveDir.y * 2.5 * dt;
+        cat.rotation.y = Math.atan2(moveDir.x, moveDir.y);
+        if (moveDist > 3 + Math.random() * 3) {
+          moveDist = 0;
+          pause = 1 + Math.random() * 2;
+          moveDir = new THREE.Vector2(Math.random() - 0.5, Math.random() - 0.5).normalize();
         }
+        // Keep in bounds
+        cat.position.x = Math.max(-55, Math.min(55, cat.position.x));
+        cat.position.z = Math.max(-55, Math.min(55, cat.position.z));
+      }
+    });
+  });
+}
 
-        if (gameStarted && gameActive) {
-            updateMowerPhysics();
-            paintCutTrail();
-            updateCameraFollow();
-            if (Date.now() - lastCheckTime > 500) { calculateProgress(); lastCheckTime = Date.now(); }
+function buildDogMesh() {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xc8a86b });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x8b6914 });
+  const noseMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+  // Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.28), bodyMat);
+  body.position.y = 0.35;
+  g.add(body);
+
+  // Head
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.25), bodyMat);
+  head.position.set(0.38, 0.52, 0);
+  g.add(head);
+
+  // Snout
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.18), bodyMat);
+  snout.position.set(0.53, 0.47, 0);
+  g.add(snout);
+
+  // Nose
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), noseMat);
+  nose.position.set(0.61, 0.5, 0);
+  g.add(nose);
+
+  // Ears (floppy)
+  [-0.1, 0.1].forEach(z => {
+    const ear = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.06), darkMat);
+    ear.position.set(0.3, 0.62, z);
+    ear.rotation.z = z > 0 ? -0.3 : 0.3;
+    g.add(ear);
+  });
+
+  // Legs
+  [[-0.2, 0, 0.1], [0.2, 0, 0.1], [-0.2, 0, -0.1], [0.2, 0, -0.1]].forEach(([lx, ly, lz], li) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.1), bodyMat);
+    leg.position.set(lx, 0.17, lz);
+    g.add(leg);
+  });
+
+  // Tail
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.3, 8), bodyMat);
+  tail.position.set(-0.38, 0.55, 0);
+  tail.rotation.z = -0.8;
+  g.add(tail);
+  g.userData.tail = tail;
+
+  return g;
+}
+
+function buildCatMesh() {
+  const g = new THREE.Group();
+  const colors = [0x888888, 0x333333, 0xffaa44, 0xeeeeee, 0xccaa88];
+  const bodyColor = colors[Math.floor(Math.random() * colors.length)];
+  const mat = new THREE.MeshStandardMaterial({ color: bodyColor });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+  // Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.28, 0.22), mat);
+  body.position.y = 0.28;
+  g.add(body);
+
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat);
+  head.position.set(0.3, 0.44, 0);
+  g.add(head);
+
+  // Ears (triangles)
+  [-0.07, 0.07].forEach(z => {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), mat);
+    ear.position.set(0.3, 0.58, z);
+    g.add(ear);
+  });
+
+  // Eyes
+  [-0.05, 0.05].forEach(z => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), darkMat);
+    eye.position.set(0.42, 0.47, z);
+    g.add(eye);
+  });
+
+  // Legs
+  [[-0.15, 0, 0.08], [0.15, 0, 0.08], [-0.15, 0, -0.08], [0.15, 0, -0.08]].forEach(([lx, ly, lz]) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.28, 6), mat);
+    leg.position.set(lx, 0.14, lz);
+    g.add(leg);
+  });
+
+  // Tail (curved - approximated with segments)
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.4, 8), mat);
+  tail.position.set(-0.28, 0.38, 0);
+  tail.rotation.z = -1.2;
+  g.add(tail);
+  const tailTip = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), mat);
+  tailTip.position.set(-0.5, 0.6, 0);
+  g.add(tailTip);
+
+  return g;
+}
+
+// ─── LEVEL 2: FOOTBALL STADIUM ─────────────────────────────────────────────
+function buildLevel2() {
+  buildSky(0x4a8fc4);
+
+  // Pitch dimensions
+  const pitchW = 68, pitchH = 105;
+  const totalW = pitchW + 30, totalH = pitchH + 30;
+
+  // Ground outside pitch
+  const outerGeo = new THREE.PlaneGeometry(200, 200);
+  const outerMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+  const outer = new THREE.Mesh(outerGeo, outerMat);
+  outer.rotation.x = -Math.PI / 2;
+  outer.receiveShadow = true;
+  scene.add(outer); levelObjects.push(outer);
+
+  // Pitch base (uncut - greenish grey)
+  const pitchGeo = new THREE.PlaneGeometry(pitchW, pitchH, 68, 105);
+  // Use vertex colors for mowing feedback
+  const pitchMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+  const pitchPosAttr = pitchGeo.attributes.position;
+  const pitchColors = new Float32Array(pitchPosAttr.count * 3);
+  for (let i = 0; i < pitchPosAttr.count; i++) {
+    pitchColors[i * 3] = 0.42;     // r - greyish green
+    pitchColors[i * 3 + 1] = 0.52;
+    pitchColors[i * 3 + 2] = 0.38;
+  }
+  pitchGeo.setAttribute('color', new THREE.BufferAttribute(pitchColors, 3));
+  const pitch = new THREE.Mesh(pitchGeo, pitchMat);
+  pitch.rotation.x = -Math.PI / 2;
+  pitch.position.y = 0.02;
+  scene.add(pitch); levelObjects.push(pitch);
+  pitch.userData.isFootballPitch = true;
+  pitch.userData.pitchW = pitchW;
+  pitch.userData.pitchH = pitchH;
+
+  // Football pitch lines
+  buildFootballLines(pitchW, pitchH);
+
+  // Bleachers on all 4 sides
+  buildStadiumBleachers(pitchW, pitchH);
+
+  // Stadium lights / floodlights
+  buildFloodlights(pitchW, pitchH);
+
+  // Football players
+  buildFootballPlayers(pitchW, pitchH);
+
+  // Mow grid
+  const gridInfo = initMowGrid(pitchW, pitchH, 0.5);
+  totalMowable = mowGridW * mowGridH;
+
+  spawnMower(0, -pitchH / 2 + 5, gridInfo, pitch, pitchW, pitchH);
+  camera.position.set(0, 45, 60);
+  camera.lookAt(0, 0, 0);
+}
+
+function buildFootballLines(pw, ph) {
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+  const H = 0.05;
+
+  function addLine(x, y, w, d) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), lineMat);
+    line.position.set(x, H / 2 + 0.03, y);
+    scene.add(line); levelObjects.push(line);
+  }
+
+  // Outer boundary
+  addLine(0, 0, pw, 0.3);        // doesn't matter — we draw proper lines
+  // Actually draw proper lines:
+  const lw = 0.25; // line width
+  // Touchlines (sides)
+  addLine(-pw / 2 + lw / 2, 0, lw, ph);
+  addLine(pw / 2 - lw / 2, 0, lw, ph);
+  // Goal lines (ends)
+  addLine(0, -ph / 2 + lw / 2, pw, lw);
+  addLine(0, ph / 2 - lw / 2, pw, lw);
+  // Halfway line
+  addLine(0, 0, pw, lw);
+  // Center circle
+  const circleGeo = new THREE.TorusGeometry(9.15, 0.15, 8, 48);
+  const circle = new THREE.Mesh(circleGeo, lineMat);
+  circle.rotation.x = -Math.PI / 2;
+  circle.position.y = 0.05;
+  scene.add(circle); levelObjects.push(circle);
+  // Center spot
+  const spot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 12), lineMat);
+  spot.position.y = 0.05;
+  scene.add(spot); levelObjects.push(spot);
+
+  // Penalty boxes
+  [-1, 1].forEach(side => {
+    const py = side * (ph / 2 - 16.5 / 2);
+    addLine(0, py, 40.32, lw);
+    addLine(-40.32 / 2 + lw / 2, side * (ph / 2 - 16.5 / 4), lw, 16.5);
+    addLine(40.32 / 2 - lw / 2, side * (ph / 2 - 16.5 / 4), lw, 16.5);
+    // Goal boxes
+    addLine(0, side * (ph / 2 - 5.5 / 2), 18.32, lw);
+    addLine(-18.32 / 2 + lw / 2, side * (ph / 2 - 5.5 / 4), lw, 5.5);
+    addLine(18.32 / 2 - lw / 2, side * (ph / 2 - 5.5 / 4), lw, 5.5);
+    // Penalty spot
+    const pspot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 12), lineMat);
+    pspot.position.set(0, 0.05, side * (ph / 2 - 11));
+    scene.add(pspot); levelObjects.push(pspot);
+    // Penalty arc
+    const arcGeo = new THREE.TorusGeometry(9.15, 0.13, 8, 48, Math.PI * 0.55);
+    const arc = new THREE.Mesh(arcGeo, lineMat);
+    arc.rotation.x = -Math.PI / 2;
+    arc.rotation.z = side > 0 ? Math.PI * 0.725 : Math.PI * 0.725 + Math.PI;
+    arc.position.set(0, 0.05, side * (ph / 2 - 11));
+    scene.add(arc); levelObjects.push(arc);
+    // Goals
+    buildGoal(0, side * (ph / 2 + 1.2), side > 0 ? 0 : Math.PI);
+  });
+
+  // Corner flags
+  [[-pw / 2, -ph / 2], [pw / 2, -ph / 2], [-pw / 2, ph / 2], [pw / 2, ph / 2]].forEach(([cx, cz]) => {
+    const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.5, 6),
+      new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
+    flagPole.position.set(cx, 0.75, cz);
+    scene.add(flagPole); levelObjects.push(flagPole);
+    const flagMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0xff4400, side: THREE.DoubleSide }));
+    flagMesh.position.set(cx + 0.25, 1.35, cz);
+    scene.add(flagMesh); levelObjects.push(flagMesh);
+  });
+}
+
+function buildGoal(x, z, rotY) {
+  const goalMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.6 });
+  const g = new THREE.Group();
+  // Posts
+  [-3.66, 3.66].forEach(ox => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.44, 8), goalMat);
+    post.position.set(ox, 1.22, 0);
+    g.add(post);
+  });
+  // Crossbar
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 7.32, 8), goalMat);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.set(0, 2.44, 0);
+  g.add(bar);
+  // Net (simplified)
+  const netMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, wireframe: true });
+  const net = new THREE.Mesh(new THREE.BoxGeometry(7.32, 2.44, 1.5), netMat);
+  net.position.set(0, 1.22, -0.75);
+  g.add(net);
+
+  g.position.set(x, 0.02, z);
+  g.rotation.y = rotY;
+  scene.add(g); levelObjects.push(g);
+}
+
+function buildStadiumBleachers(pw, ph) {
+  const seatsPerRow = 20;
+  const numRows = 8;
+  const rowSpacing = 0.8;
+  const seatW = 0.55;
+  const seatColors = [0xcc2222, 0x2255cc, 0xcc8822, 0x22cc22];
+
+  // Build one stand section
+  function buildStand(x, z, width, rotY) {
+    const g = new THREE.Group();
+    // Concrete structure
+    const concreteMat = new THREE.MeshStandardMaterial({ color: 0x888880 });
+    for (let row = 0; row < numRows; row++) {
+      const raisedH = 0.5 + row * rowSpacing * 0.5;
+      const tier = new THREE.Mesh(
+        new THREE.BoxGeometry(width, raisedH, 0.7),
+        concreteMat
+      );
+      tier.position.set(0, raisedH / 2, row * 0.7);
+      g.add(tier);
+
+      // Seats in this row
+      const numSeats = Math.floor(width / seatW);
+      for (let s = 0; s < numSeats; s++) {
+        const sc = seatColors[Math.floor(Math.random() * seatColors.length)];
+        const seatMat = new THREE.MeshStandardMaterial({ color: sc });
+
+        // Seat base
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 0.4), seatMat);
+        seat.position.set(-width / 2 + s * seatW + seatW / 2, raisedH + 0.04, row * 0.7 + 0.1);
+        g.add(seat);
+
+        // Simplified crowd person
+        if (Math.random() > 0.15) {
+          buildCrowdPerson(g, -width / 2 + s * seatW + seatW / 2, raisedH + 0.22, row * 0.7 + 0.1);
         }
-        renderer.render(scene, camera);
+      }
+    }
+    // Roof over stand
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x555566, transparent: true, opacity: 0.85 });
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 2, 0.3, 1), roofMat);
+    roof.position.set(0, numRows * rowSpacing * 0.5 + 1.5, numRows * 0.7 / 2 + 2);
+    g.add(roof);
+    // Roof support columns
+    for (let ci = 0; ci < 4; ci++) {
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, numRows * rowSpacing * 0.5 + 1.5, 6),
+        concreteMat);
+      col.position.set(-width / 2 + ci * (width / 3), (numRows * rowSpacing * 0.5 + 1.5) / 2, numRows * 0.7 - 1);
+      g.add(col);
     }
 
-    function canMoveTo(newX, newZ) {
-        const boundary = (lawnWorldSize / 2) - mowerStats.radius;
-        if (newX < -boundary || newX > boundary || newZ < -boundary || newZ > boundary) return false;
-        
-        if (currentLevel === 1) {
-            if (newX > -35 && newX < 35 && newZ > -55 && newZ < -5) return false; 
-        } else if (currentLevel === 4) {
-            if (newX < -55) return false; // Sjön
+    g.position.set(x, 0, z);
+    g.rotation.y = rotY;
+    scene.add(g); levelObjects.push(g);
+  }
+
+  // North stand
+  buildStand(0, -ph / 2 - 2, pw + 12, 0);
+  // South stand (mirrored)
+  buildStand(0, ph / 2 + 2, pw + 12, Math.PI);
+  // West stand
+  buildStand(-pw / 2 - 2, 0, ph + 4, Math.PI / 2);
+  // East stand
+  buildStand(pw / 2 + 2, 0, ph + 4, -Math.PI / 2);
+}
+
+function buildCrowdPerson(g, x, y, z) {
+  const skinColors = [0xffcc99, 0xcc9966, 0x885533, 0xffddbb];
+  const jerseyColors = [0xcc2222, 0x2255cc, 0xcc8822, 0x22cc22, 0xffffff, 0xcccccc];
+  const skin = skinColors[Math.floor(Math.random() * skinColors.length)];
+  const jersey = jerseyColors[Math.floor(Math.random() * jerseyColors.length)];
+
+  // Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.1),
+    new THREE.MeshStandardMaterial({ color: jersey }));
+  body.position.set(x, y, z);
+  g.add(body);
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6),
+    new THREE.MeshStandardMaterial({ color: skin }));
+  head.position.set(x, y + 0.17, z);
+  g.add(head);
+  // Arms occasionally raised
+  if (Math.random() > 0.6) {
+    const armMat = new THREE.MeshStandardMaterial({ color: jersey });
+    [-0.12, 0.12].forEach(ax => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.06), armMat);
+      arm.position.set(x + ax, y + 0.2, z);
+      arm.rotation.z = ax > 0 ? -0.8 : 0.8;
+      g.add(arm);
+    });
+  }
+}
+
+function buildFloodlights(pw, ph) {
+  const lightMat = new THREE.MeshStandardMaterial({ color: 0xddddcc, metalness: 0.5 });
+  [[-pw / 2 - 4, -ph / 2 - 4], [pw / 2 + 4, -ph / 2 - 4],
+   [-pw / 2 - 4, ph / 2 + 4], [pw / 2 + 4, ph / 2 + 4]].forEach(([x, z]) => {
+    // Pole
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 20, 8), lightMat);
+    pole.position.set(x, 10, z);
+    scene.add(pole); levelObjects.push(pole);
+    // Light head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(3, 0.4, 1.5),
+      new THREE.MeshStandardMaterial({ color: 0xccccaa, emissive: 0x888866, emissiveIntensity: 0.3 }));
+    head.position.set(x, 20.5, z);
+    scene.add(head); levelObjects.push(head);
+    // Point light
+    const pLight = new THREE.PointLight(0xfff5cc, 1.0, 80);
+    pLight.position.set(x, 20, z);
+    scene.add(pLight); levelObjects.push(pLight);
+  });
+}
+
+function buildFootballPlayers(pw, ph) {
+  const teamColors = [
+    { jersey: 0xcc2222, shorts: 0xffffff }, // home
+    { jersey: 0x2255cc, shorts: 0x2255cc },  // away
+  ];
+  const players = [];
+
+  for (let i = 0; i < 14; i++) {
+    const team = i < 7 ? teamColors[0] : teamColors[1];
+    const player = buildPlayerMesh(team);
+    const px = (Math.random() - 0.5) * (pw - 6);
+    const pz = (Math.random() - 0.5) * (ph - 6);
+    player.position.set(px, 0, pz);
+    scene.add(player); levelObjects.push(player);
+
+    // Each player has a ball
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xffffff })
+    );
+    // Pentagon pattern
+    const pentagons = new THREE.Mesh(
+      new THREE.SphereGeometry(0.225, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0x111111, wireframe: true })
+    );
+    ball.add(pentagons);
+    ball.position.set(px + 0.5, 0.22, pz);
+    scene.add(ball); levelObjects.push(ball);
+
+    // Random wandering
+    let targetX = (Math.random() - 0.5) * (pw - 4);
+    let targetZ = (Math.random() - 0.5) * (ph - 4);
+    let waitTime = 0;
+    const speed = 4 + Math.random() * 3;
+
+    players.push({
+      mesh: player, ball, targetX, targetZ, waitTime, speed,
+      update(dt) {
+        if (waitTime > 0) { waitTime -= dt; return; }
+        const dx = targetX - this.mesh.position.x;
+        const dz = targetZ - this.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < 0.5) {
+          targetX = (Math.random() - 0.5) * (pw - 4);
+          targetZ = (Math.random() - 0.5) * (ph - 4);
+          waitTime = Math.random() * 0.5;
+          return;
         }
-        return true; 
-    }
+        const nx = dx / dist, nz = dz / dist;
+        this.mesh.position.x += nx * this.speed * dt;
+        this.mesh.position.z += nz * this.speed * dt;
+        this.mesh.rotation.y = Math.atan2(nx, nz);
+        // Ball follows slightly behind
+        this.ball.position.x = this.mesh.position.x + nx * 0.6;
+        this.ball.position.z = this.mesh.position.z + nz * 0.6;
+        this.ball.rotation.x += this.speed * dt * 2;
 
-    function updateMowerPhysics() {
-        if (!mower) return;
-        let turnInput = 0;
-        if (inputs.left) turnInput = 1; if (inputs.right) turnInput = -1; if (inputs.joyX !== 0) turnInput = -inputs.joyX;
-        mowerStats.rotation += mowerStats.turnSpeed * turnInput; mower.rotation.y = mowerStats.rotation;
-
-        let forwardInput = 0;
-        if (inputs.up) forwardInput = 1; if (inputs.down) forwardInput = -1; if (inputs.joyY !== 0) forwardInput = -inputs.joyY;
-        if (forwardInput !== 0) mowerStats.speed += mowerStats.acceleration * forwardInput;
-        else mowerStats.speed *= mowerStats.deceleration;
-        mowerStats.speed = THREE.MathUtils.clamp(mowerStats.speed, -mowerStats.maxSpeed / 2, mowerStats.maxSpeed);
-
-        let newX = mower.position.x + Math.sin(mowerStats.rotation) * mowerStats.speed;
-        let newZ = mower.position.z + Math.cos(mowerStats.rotation) * mowerStats.speed;
-
-        if (canMoveTo(newX, newZ)) { 
-            mower.position.x = newX; 
-            mower.position.z = newZ; 
-            mower.position.y = getTerrainHeight(newX, newZ);
-        } else { 
-            mowerStats.speed = 0; 
+        // Leg animation
+        if (this.mesh.userData.leftLeg) {
+          this.mesh.userData.leftLeg.rotation.x = Math.sin(elapsedTime * 8) * 0.5;
+          this.mesh.userData.rightLeg.rotation.x = -Math.sin(elapsedTime * 8) * 0.5;
         }
+      }
+    });
+  }
+
+  animatables.push({
+    update(dt) { players.forEach(p => p.update(dt)); }
+  });
+}
+
+function buildPlayerMesh(team) {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+  const jerseyMat = new THREE.MeshStandardMaterial({ color: team.jersey });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: team.shorts });
+  const sockMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+  const bootMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+
+  // Body/torso
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.38, 0.18), jerseyMat);
+  torso.position.y = 0.85;
+  g.add(torso);
+
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), skinMat);
+  head.position.y = 1.2;
+  g.add(head);
+
+  // Hair
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.145, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.45),
+    new THREE.MeshStandardMaterial({ color: Math.random() > 0.5 ? 0x222222 : 0xcc8844 }));
+  hair.position.y = 1.22;
+  g.add(hair);
+
+  // Arms
+  const armMat = jerseyMat;
+  [-0.2, 0.2].forEach(ax => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.3, 8), armMat);
+    arm.position.set(ax, 0.88, 0);
+    arm.rotation.z = ax > 0 ? 0.3 : -0.3;
+    g.add(arm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), skinMat);
+    hand.position.set(ax > 0 ? 0.27 : -0.27, 0.75, 0);
+    g.add(hand);
+  });
+
+  // Legs
+  const leftLeg = new THREE.Group();
+  const rightLeg = new THREE.Group();
+  [[-0.1, leftLeg], [0.1, rightLeg]].forEach(([lx, leg]) => {
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.28, 8), shortsMat);
+    thigh.position.set(0, -0.14, 0);
+    leg.add(thigh);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.26, 8), sockMat);
+    shin.position.set(0, -0.42, 0);
+    leg.add(shin);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.2), bootMat);
+    boot.position.set(0, -0.58, 0.04);
+    leg.add(boot);
+    leg.position.set(lx, 0.7, 0);
+    g.add(leg);
+  });
+  g.userData.leftLeg = leftLeg;
+  g.userData.rightLeg = rightLeg;
+
+  return g;
+}
+
+// ─── LEVEL 3: GOLF COURSE ──────────────────────────────────────────────────
+function buildLevel3() {
+  buildSky(0x7ab8e8);
+
+  const GRID_W = 80, GRID_H = 120;
+
+  // Forest border
+  buildForestBorder(GRID_W, GRID_H);
+
+  // Outer rough (whole area)
+  const roughGeo = new THREE.PlaneGeometry(GRID_W, GRID_H, 80, 120);
+  const roughMat = new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 1 });
+  const rough = new THREE.Mesh(roughGeo, roughMat);
+  rough.rotation.x = -Math.PI / 2;
+  rough.receiveShadow = true;
+  scene.add(rough); levelObjects.push(rough);
+
+  // Fairway shape (elongated, curves slightly)
+  const fairwayGroup = buildFairway();
+  // Pond
+  const pondData = buildPond(-12, 20);
+  // Bunkers
+  const bunkerData = buildBunkers();
+  // Green + hole + flag
+  buildGreen(0, -42);
+  // Tee box
+  buildTeeBox(0, 48);
+
+  // Mow grid (only fairway + green are mowable)
+  const gridInfo = initMowGrid(GRID_W, GRID_H, 0.5);
+  // We'll count mowable area as fairway + green region
+  totalMowable = Math.floor(mowGridW * mowGridH * 0.32);
+
+  // Mowing color overlay
+  const mowVisGeo = new THREE.PlaneGeometry(GRID_W, GRID_H, 80, 120);
+  const mowVisMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.8, transparent: true, opacity: 0.95
+  });
+  const mowPosAttr = mowVisGeo.attributes.position;
+  const mowColors = new Float32Array(mowPosAttr.count * 3);
+  for (let i = 0; i < mowPosAttr.count; i++) {
+    const vx = mowPosAttr.getX(i);
+    const vz = mowPosAttr.getZ(i);
+    // Color based on zone
+    const col = getGolfColor(vx, vz);
+    mowColors[i * 3] = col.r;
+    mowColors[i * 3 + 1] = col.g;
+    mowColors[i * 3 + 2] = col.b;
+  }
+  mowVisGeo.setAttribute('color', new THREE.BufferAttribute(mowColors, 3));
+  const mowVis = new THREE.Mesh(mowVisGeo, mowVisMat);
+  mowVis.rotation.x = -Math.PI / 2;
+  mowVis.position.y = 0.03;
+  scene.add(mowVis); levelObjects.push(mowVis);
+  mowVis.userData.golfMow = true;
+  mowVis.userData.pondData = pondData;
+  mowVis.userData.bunkerData = bunkerData;
+  mowVis.userData.gridInfo = gridInfo;
+
+  // Mower spawns on tee box
+  spawnMower(0, 45, gridInfo, mowVis, GRID_W, GRID_H);
+
+  // Pond collision (mark as obstacle)
+  mowVis.userData.pondCollider = pondData;
+
+  camera.position.set(0, 50, 80);
+  camera.lookAt(0, 0, 0);
+}
+
+function getGolfColor(x, z) {
+  // Green (putting green area)
+  const distGreen = Math.sqrt(x * x + (z + 42) * (z + 42));
+  if (distGreen < 10) return { r: 0.15, g: 0.68, b: 0.15 }; // vivid green
+
+  // Fairway (approximate)
+  const fairwayBend = Math.sin(z * 0.03) * 8;
+  const distFairway = Math.abs(x - fairwayBend);
+  if (distFairway < 12 && z > -50 && z < 50) return { r: 0.25, g: 0.58, b: 0.18 }; // medium green
+
+  // Default rough
+  return { r: 0.28, g: 0.48, b: 0.18 };
+}
+
+function buildFairway() {
+  const fairMat = new THREE.MeshStandardMaterial({ color: 0x4a9a2a, roughness: 0.9 });
+  // Fairway as slightly elevated, irregular shape using a plane
+  const fw = new THREE.Mesh(new THREE.PlaneGeometry(24, 95, 24, 95), fairMat);
+  fw.rotation.x = -Math.PI / 2;
+  fw.position.y = 0.01;
+  scene.add(fw); levelObjects.push(fw);
+  return fw;
+}
+
+function buildPond(x, z) {
+  const pondMat = new THREE.MeshStandardMaterial({
+    color: 0x1a6ea8,
+    roughness: 0.1,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.85
+  });
+  const pondGeo = new THREE.EllipseCurve(0, 0, 10, 7);
+  const points2D = pondGeo.getPoints(32);
+  const shape = new THREE.Shape(points2D);
+  const pond3D = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    pondMat
+  );
+  pond3D.rotation.x = -Math.PI / 2;
+  pond3D.position.set(x, 0.05, z);
+  scene.add(pond3D); levelObjects.push(pond3D);
+
+  // Pond edge (darker)
+  const edgeMat = new THREE.MeshStandardMaterial({ color: 0x3a5a3a, roughness: 1 });
+  const edgeGeo = new THREE.TorusGeometry(9, 0.8, 8, 32);
+  const edge = new THREE.Mesh(edgeGeo, edgeMat);
+  edge.rotation.x = -Math.PI / 2;
+  edge.scale.set(1, 0.7, 1);
+  edge.position.set(x, 0.02, z);
+  scene.add(edge); levelObjects.push(edge);
+
+  // Ripple animation
+  animatables.push({
+    update(dt) {
+      pond3D.rotation.z += dt * 0.1;
     }
+  });
 
-    function paintCutTrail() {
-        if (!lawnContext || !mower) return;
-        const uvX = (mower.position.x + lawnWorldSize / 2) / lawnWorldSize; 
-        const uvY = (mower.position.z + lawnWorldSize / 2) / lawnWorldSize;
-        const texX = uvX * lawnTexResolution; const texY = uvY * lawnTexResolution;
-        const lastX = lawnCanvas.lastPaintedX || texX; const lastY = lawnCanvas.lastPaintedY || texY;
+  // Return collider data {x, z, rx, rz}
+  return { cx: x, cz: z, rx: 10, rz: 7 };
+}
 
-        if (mowerStats.speed !== 0) { 
-            lawnContext.strokeStyle = COLOR_CUT; lawnContext.lineWidth = (mowerStats.cutWidth / lawnWorldSize) * lawnTexResolution;
-            lawnContext.lineCap = 'round'; lawnContext.beginPath(); lawnContext.moveTo(lastX, lastY); lawnContext.lineTo(texX, texY); lawnContext.stroke();
-            lawnCanvas.lastPaintedX = texX; lawnCanvas.lastPaintedY = texY; lawnTexture.needsUpdate = true;
+function buildBunkers() {
+  const bunkerMat = new THREE.MeshStandardMaterial({ color: 0xe8d8a0, roughness: 1 });
+  const bunkerData = [];
+  const positions = [
+    { x: -14, z: -5, rx: 6, rz: 4 },
+    { x: 12, z: 15, rx: 5, rz: 3.5 },
+    { x: -8, z: -35, rx: 4, rz: 3 },
+    { x: 9, z: -30, rx: 3.5, rz: 3 },
+  ];
+  positions.forEach(b => {
+    const curve = new THREE.EllipseCurve(0, 0, b.rx, b.rz);
+    const pts = curve.getPoints(28);
+    const shape = new THREE.Shape(pts);
+    const bunker = new THREE.Mesh(new THREE.ShapeGeometry(shape), bunkerMat);
+    bunker.rotation.x = -Math.PI / 2;
+    bunker.position.set(b.x, 0.025, b.z);
+    scene.add(bunker); levelObjects.push(bunker);
+    bunkerData.push(b);
+  });
+  return bunkerData;
+}
+
+function buildGreen(x, z) {
+  const greenMat = new THREE.MeshStandardMaterial({ color: 0x28cc28, roughness: 0.7 });
+  const greenGeo = new THREE.CircleGeometry(9, 32);
+  const green = new THREE.Mesh(greenGeo, greenMat);
+  green.rotation.x = -Math.PI / 2;
+  green.position.set(x, 0.04, z);
+  scene.add(green); levelObjects.push(green);
+
+  // Fringe
+  const fringeMat = new THREE.MeshStandardMaterial({ color: 0x38b838, roughness: 0.8 });
+  const fringe = new THREE.Mesh(new THREE.TorusGeometry(9, 0.8, 8, 32), fringeMat);
+  fringe.rotation.x = -Math.PI / 2;
+  fringe.position.set(x, 0.035, z);
+  scene.add(fringe); levelObjects.push(fringe);
+
+  // Hole
+  const holeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.54, 16), holeMat);
+  hole.rotation.x = -Math.PI / 2;
+  hole.position.set(x + 1.5, 0.05, z - 1);
+  scene.add(hole); levelObjects.push(hole);
+
+  // Flag pole
+  const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8),
+    new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.6 }));
+  flagPole.position.set(x + 1.5, 1.25, z - 1);
+  scene.add(flagPole); levelObjects.push(flagPole);
+
+  // Flag
+  const flagMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xff2200, side: THREE.DoubleSide }));
+  flagMesh.position.set(x + 1.9, 2.3, z - 1);
+  scene.add(flagMesh); levelObjects.push(flagMesh);
+
+  // Flag wave
+  animatables.push({
+    update(dt) {
+      flagMesh.rotation.y = Math.sin(elapsedTime * 2) * 0.3;
+    }
+  });
+}
+
+function buildTeeBox(x, z) {
+  const teeMat = new THREE.MeshStandardMaterial({ color: 0x3aaa3a, roughness: 0.8 });
+  const tee = new THREE.Mesh(new THREE.BoxGeometry(6, 0.05, 5), teeMat);
+  tee.position.set(x, 0.025, z);
+  scene.add(tee); levelObjects.push(tee);
+
+  // Tee markers
+  [[-1.5, 0.15, z - 0.5], [1.5, 0.15, z - 0.5]].forEach(([mx, my, mz]) => {
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 0.15),
+      new THREE.MeshStandardMaterial({ color: 0xcc2222 }));
+    marker.position.set(mx + x, my, mz);
+    scene.add(marker); levelObjects.push(marker);
+  });
+}
+
+function buildForestBorder(gw, gh) {
+  const treeCount = 120;
+  const innerW = gw / 2 + 5, innerH = gh / 2 + 5;
+
+  for (let i = 0; i < treeCount; i++) {
+    let tx, tz;
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) { tx = -innerW - Math.random() * 25; tz = (Math.random() - 0.5) * (gh + 50); }
+    else if (side === 1) { tx = innerW + Math.random() * 25; tz = (Math.random() - 0.5) * (gh + 50); }
+    else if (side === 2) { tx = (Math.random() - 0.5) * (gw + 50); tz = -innerH - Math.random() * 25; }
+    else { tx = (Math.random() - 0.5) * (gw + 50); tz = innerH + Math.random() * 25; }
+
+    buildForestTree(tx, tz, 0.7 + Math.random() * 0.8);
+  }
+
+  // Also add some trees within the rough area (outside fairway)
+  for (let i = 0; i < 30; i++) {
+    const tx = (Math.random() - 0.5) * gw * 0.9;
+    const tz = (Math.random() - 0.5) * gh * 0.9;
+    // Only in rough (not on fairway or green)
+    const fairwayDist = Math.abs(tx - Math.sin(tz * 0.03) * 8);
+    if (fairwayDist > 15) {
+      buildForestTree(tx, tz, 0.5 + Math.random() * 0.5);
+    }
+  }
+}
+
+function buildForestTree(x, z, scale) {
+  const g = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3520 });
+  const leafColors = [0x1a6b1a, 0x2d7a2d, 0x1a5a2a, 0x3a8a3a, 0x245a24];
+  const leafColor = leafColors[Math.floor(Math.random() * leafColors.length)];
+  const leafMat = new THREE.MeshStandardMaterial({ color: leafColor });
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.22 * scale, 1.8 * scale, 7), trunkMat);
+  trunk.position.y = 0.9 * scale;
+  g.add(trunk);
+
+  // Layered cone foliage
+  [[0, 2.2 * scale, 1.6 * scale], [0, 3.2 * scale, 1.2 * scale], [0, 4.0 * scale, 0.8 * scale]].forEach(([fy, fy2, fr]) => {
+    const layer = new THREE.Mesh(new THREE.ConeGeometry(fr, 1.2 * scale, 7), leafMat);
+    layer.position.y = fy2;
+    layer.castShadow = true;
+    g.add(layer);
+  });
+
+  g.position.set(x, 0, z);
+  scene.add(g); levelObjects.push(g);
+}
+
+// ─── SPAWN MOWER ───────────────────────────────────────────────────────────
+function spawnMower(x, z, gridInfo, mowPlane, gridW, gridH) {
+  mowerObj = new THREE.Group();
+  const mowerMesh = buildMowerMesh(selectedMower);
+  mowerObj.add(mowerMesh);
+  mowerObj.position.set(x, 0, z);
+  scene.add(mowerObj);
+  levelObjects.push(mowerObj);
+
+  mowerObj.userData.gridInfo = gridInfo;
+  mowerObj.userData.mowPlane = mowPlane;
+  mowerObj.userData.gridW = gridW || 120;
+  mowerObj.userData.gridH = gridH || 120;
+  mowerObj.userData.limitW = (gridW || 120) / 2;
+  mowerObj.userData.limitH = (gridH || 120) / 2;
+
+  mowerSpeed = 0;
+  mowerRot = 0;
+}
+
+// ─── GAME LOOP ─────────────────────────────────────────────────────────────
+let lastTime = performance.now();
+
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  if (gameActive) {
+    elapsedTime += dt;
+    document.getElementById('hud-time').textContent = `Time: ${elapsedTime.toFixed(1)}s`;
+
+    updateMower(dt);
+    animatables.forEach(a => a.update(dt));
+    updateCamera();
+    checkWin();
+  }
+
+  renderer.render(scene, camera);
+}
+
+function updateMower(dt) {
+  if (!mowerObj) return;
+  const mdef = MOWERS[selectedMower];
+  const speed = mdef.speed;
+
+  // Rotation
+  if (keys['KeyA'] || keys['ArrowLeft']) mowerRot += 1.8 * dt;
+  if (keys['KeyD'] || keys['ArrowRight']) mowerRot -= 1.8 * dt;
+
+  // Acceleration
+  if (keys['KeyW'] || keys['ArrowUp']) {
+    mowerSpeed = Math.min(mowerSpeed + speed * 4 * dt, speed);
+  } else if (keys['KeyS'] || keys['ArrowDown']) {
+    mowerSpeed = Math.max(mowerSpeed - speed * 4 * dt, -speed * 0.6);
+  } else {
+    mowerSpeed *= 0.85; // friction
+  }
+
+  mowerObj.rotation.y = mowerRot;
+  const dx = Math.sin(mowerRot) * mowerSpeed * dt;
+  const dz = Math.cos(mowerRot) * mowerSpeed * dt;
+
+  const newX = mowerObj.position.x + dx;
+  const newZ = mowerObj.position.z + dz;
+
+  // Boundary check
+  const lw = mowerObj.userData.limitW;
+  const lh = mowerObj.userData.limitH;
+  if (Math.abs(newX) < lw && Math.abs(newZ) < lh) {
+    // Level 3: pond collision check
+    if (currentLevel === 3 && mowerObj.userData.mowPlane && mowerObj.userData.mowPlane.userData.pondCollider) {
+      const pd = mowerObj.userData.mowPlane.userData.pondCollider;
+      const ex = (newX - pd.cx) / pd.rx;
+      const ez = (newZ - pd.cz) / pd.rz;
+      if (ex * ex + ez * ez < 1.0) {
+        // In pond — bounce back
+        mowerSpeed = 0;
+        return;
+      }
+    }
+    mowerObj.position.x = newX;
+    mowerObj.position.z = newZ;
+  } else {
+    mowerSpeed = 0;
+  }
+
+  // Mow!
+  if (Math.abs(mowerSpeed) > 0.1) {
+    const gi = mowerObj.userData.gridInfo;
+    if (gi) {
+      // Level 3: don't mow bunkers
+      if (currentLevel === 3) {
+        const mp = mowerObj.userData.mowPlane;
+        if (mp && mp.userData.bunkerData) {
+          const onBunker = mp.userData.bunkerData.some(b => {
+            const ex = (mowerObj.position.x - b.x) / b.rx;
+            const ez = (mowerObj.position.z - b.z) / b.rz;
+            return ex * ex + ez * ez < 1;
+          });
+          if (onBunker) return;
         }
+      }
+      markMowed(mowerObj.position.x, mowerObj.position.z, gi);
+      updateMowVisual(mowerObj.position.x, mowerObj.position.z, gi);
     }
+  }
+}
 
-    function updateCameraFollow() {
-        if (!mower) return;
-        let camDistance = selectedMower === 'combine' ? 32 : (selectedMower === 'ts112' ? 24 : 20);
-        let camHeight = selectedMower === 'combine' ? 22 : (selectedMower === 'ts112' ? 18 : 16);
-        const offset = new THREE.Vector3(-Math.sin(mowerStats.rotation) * camDistance, camHeight, -Math.cos(mowerStats.rotation) * camDistance);
-        camera.position.lerp(mower.position.clone().add(offset), 0.1); 
-        camera.lookAt(mower.position.x, mower.position.y + 2, mower.position.z);
-    }
+function updateMowVisual(wx, wz, gridInfo) {
+  if (!mowerObj.userData.mowPlane) return;
+  const plane = mowerObj.userData.mowPlane;
+  const geo = plane.geometry;
+  if (!geo.attributes.color) return;
 
-    function setupJoystick() {
-        const zone = document.getElementById('joystick-zone'), knob = document.getElementById('joystick-knob');
-        let active = false, centerX, centerY, maxRadius;
-        zone.addEventListener('touchstart', (e) => { e.preventDefault(); active = true; const rect = zone.getBoundingClientRect(); centerX = rect.left + rect.width / 2; centerY = rect.top + rect.height / 2; maxRadius = (rect.width / 2) - (knob.offsetWidth / 2); updateKnobPosition(e.touches[0]); }, { passive: false });
-        zone.addEventListener('touchmove', (e) => { e.preventDefault(); if (active) updateKnobPosition(e.touches[0]); }, { passive: false });
-        const resetJoystick = () => { active = false; knob.style.transform = `translate(-50%, -50%)`; inputs.joyX = 0; inputs.joyY = 0; };
-        zone.addEventListener('touchend', resetJoystick); zone.addEventListener('touchcancel', resetJoystick);
-        function updateKnobPosition(touch) {
-            let dx = touch.clientX - centerX, dy = touch.clientY - centerY;
-            let distance = Math.sqrt(dx*dx + dy*dy);
-            if (distance > maxRadius) { const angle = Math.atan2(dy, dx); dx = Math.cos(angle) * maxRadius; dy = Math.sin(angle) * maxRadius; }
-            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; inputs.joyX = dx / maxRadius; inputs.joyY = dy / maxRadius; 
+  const colAttr = geo.attributes.color;
+  const posAttr = geo.attributes.position;
+  const mwd = MOWERS[selectedMower].width;
+  const gw = mowerObj.userData.gridW || 120;
+  const gh = mowerObj.userData.gridH || 120;
+
+  for (let i = 0; i < posAttr.count; i++) {
+    // Plane vertices are in local space (centered at 0), need to offset
+    const vx = posAttr.getX(i);
+    const vz = posAttr.getZ(i);
+
+    const dx = Math.abs(vx - wx);
+    const dz = Math.abs(vz - wz);
+
+    if (dx < mwd && dz < mwd) {
+      if (currentLevel === 2) {
+        // Football pitch: alternate stripes (lighter/darker green based on Z band)
+        const stripe = Math.floor((vz + gh / 2) / 6) % 2;
+        if (stripe === 0) { colAttr.setXYZ(i, 0.18, 0.58, 0.12); }
+        else { colAttr.setXYZ(i, 0.22, 0.68, 0.16); }
+      } else if (currentLevel === 3) {
+        // Golf: check zone, but don't change bunkers
+        const isBunker = mowerObj.userData.mowPlane.userData.bunkerData &&
+          mowerObj.userData.mowPlane.userData.bunkerData.some(b => {
+            const ex = (vx - b.x) / b.rx;
+            const ez = (vz - b.z) / b.rz;
+            return ex * ex + ez * ez < 1;
+          });
+        if (!isBunker) {
+          const distGreen = Math.sqrt(vx * vx + (vz + 42) * (vz + 42));
+          if (distGreen < 9) {
+            colAttr.setXYZ(i, 0.1, 0.72, 0.1); // vivid cut green
+          } else {
+            colAttr.setXYZ(i, 0.2, 0.6, 0.15); // cut fairway
+          }
         }
+      } else {
+        // Default: bright green cut
+        colAttr.setXYZ(i, 0.3, 0.72, 0.2);
+      }
     }
-    function handleKeyDown(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = true; break; case 's': case 'arrowdown': inputs.down = true; break; case 'a': case 'arrowleft': inputs.left = true; break; case 'd': case 'arrowright': inputs.right = true; break; } }
-    function handleKeyUp(e) { switch(e.key.toLowerCase()) { case 'w': case 'arrowup': inputs.up = false; break; case 's': case 'arrowdown': inputs.down = false; break; case 'a': case 'arrowleft': inputs.left = false; break; case 'd': case 'arrowright': inputs.right = false; break; } }
-    function onWindowResize() { 
-        camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); 
-        const container = document.getElementById('showroom-canvas-container');
-        if (container && showroomRenderer) {
-            showroomCamera.aspect = container.clientWidth / container.clientHeight;
-            showroomCamera.updateProjectionMatrix();
-            showroomRenderer.setSize(container.clientWidth, container.clientHeight);
-        }
-    }
+  }
+  colAttr.needsUpdate = true;
+}
+
+function updateCamera() {
+  if (!mowerObj) return;
+  const offset = new THREE.Vector3(0, 10, 12);
+  const rot = mowerObj.rotation.y;
+  const cx = mowerObj.position.x + Math.sin(rot) * -offset.z + Math.sin(rot + Math.PI / 2) * offset.x;
+  const cz = mowerObj.position.z + Math.cos(rot) * -offset.z + Math.cos(rot + Math.PI / 2) * offset.x;
+  camera.position.lerp(new THREE.Vector3(cx, offset.y, cz), 0.08);
+  camera.lookAt(mowerObj.position.x, 0.5, mowerObj.position.z);
+}
+
+function checkWin() {
+  const pct = totalMowable > 0 ? (mowedCount / totalMowable * 100) : 0;
+  if (pct >= 90 && gameActive) levelComplete();
+}
+
+// ─── START LOOP ────────────────────────────────────────────────────────────
+gameLoop();
 </script>
 </body>
 </html>
