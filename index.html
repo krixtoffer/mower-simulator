@@ -458,6 +458,12 @@ function initThree(){
     camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1000);
     renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight);
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    // Canvas must sit behind all HTML UI elements
+    renderer.domElement.style.position='absolute';
+    renderer.domElement.style.top='0';
+    renderer.domElement.style.left='0';
+    renderer.domElement.style.zIndex='0';
+    renderer.domElement.style.pointerEvents='none';
     document.body.appendChild(renderer.domElement);
     window.addEventListener('keydown',handleKeyDown); window.addEventListener('keyup',handleKeyUp);
     setupJoystick(); window.addEventListener('resize',onWindowResize);
