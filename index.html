@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mower Simulator</title>
     <style>
+	#maze-overlay {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:#000; display:none; z-index:300; flex-direction:column;
+    justify-content:center; align-items:center;
+}
+#maze-canvas { border:4px solid #00ffff; box-shadow:0 0 20px #ff00ff; display:block; }
+#maze-msg {
+    font-family:'Press Start 2P',monospace; color:#ffff00; font-size:14px;
+    text-align:center; margin-top:20px; text-shadow:2px 2px #ff0055; min-height:24px;
+}
+#maze-hud {
+    font-family:'Press Start 2P',monospace; color:#00ffff; font-size:10px;
+    text-align:center; margin-bottom:12px;
+}
+
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         body { margin:0; padding:0; overflow:hidden; background:#000; font-family:'Press Start 2P',monospace; }
         canvas { display:block; }
@@ -274,6 +289,16 @@
             <button class="arcade-btn" style="background:#e74c3c;flex:1;" onclick="closeShowroom()">← TILLBAKA</button>
             <button class="arcade-btn" id="showroom-action-btn" style="background:#27ae60;flex:1;" onclick="actionShowroomMower()">VÄLJ</button>
         </div>
+    </div>
+</div>
+
+<div id="maze-overlay">
+    <div id="maze-hud">DOTS: <span id="maze-dots-left">0</span> LEFT</div>
+    <canvas id="maze-canvas" width="560" height="560"></canvas>
+    <div id="maze-msg"></div>
+    <div style="margin-top:18px;display:flex;gap:12px;">
+        <button class="arcade-btn" style="background:#e74c3c;" onclick="closeMaze()">← TILLBAKA</button>
+        <button class="arcade-btn" style="background:#8b008b;" id="maze-restart-btn" onclick="startMaze()">↺ BÖRJA OM</button>
     </div>
 </div>
 
@@ -1173,7 +1198,8 @@ window.actionShowroomMower=function(){
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 window.openMainMenu=function(){ ['start-screen','level-select-screen','level-intro-screen','shop-screen','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none'); document.getElementById('main-menu-screen').style.display='flex'; if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{}); };
-window.openLevelSelect=function(){ ['main-menu-screen','level-intro-screen','game-over'].forEach(id=>document.getElementById(id).style.display='none'); document.getElementById('level-select-screen').style.display='flex'; const listEl=document.getElementById('level-list'); listEl.innerHTML=''; [{id:1,name:"Bana 1: Villakvarteret"},{id:2,name:"Bana 2: Fotbollsplanen"},{id:3,name:"Bana 3: Golfbanan"},{id:4,name:"Bana 4: Sjötomten"}].forEach(lvl=>{ const btn=document.createElement('button'); btn.className='level-btn'; btn.innerHTML=`<span>${lvl.name}</span><span>★</span>`; btn.onclick=()=>showLevelIntro(lvl.id); listEl.appendChild(btn); }); };
+window.openLevelSelect=function(){ ['main-menu-screen','level-intro-screen','game-over'].forEach(id=>document.getElementById(id).style.display='none'); document.getElementById('level-select-screen').style.display='flex'; const listEl=document.getElementById('level-list'); listEl.innerHTML=''; [{id:1,name:"Bana 1: Villakvarteret"},{id:2,name:"Bana 2: Fotbollsplanen"},{id:3,name:"Bana 3: Golfbanan"},{id:4,name:"Bana 4: Sjötomten"},{id:'maze',name:"BONUS🌿"}].forEach(lvl=>{ const btn=document.createElement('button'); btn.className='level-btn'; btn.innerHTML=`<span>${lvl.name}</span><span>★</span>`; btn.onclick=()=>{ if(lvl.id==='maze'){ openMaze(); } else { showLevelIntro(lvl.id); } };
+ listEl.appendChild(btn); }); };
 function showLevelIntro(id){ currentLevel=id; document.getElementById('level-select-screen').style.display='none'; const is=document.getElementById('level-intro-screen'),it=document.getElementById('intro-title'); const map={1:['./villa.jpg','Level 1: Villakvarteret'],2:['./fotboll.jpg','Level 2: Fotbollsplanen'],3:['./golf.jpg','Level 3: Golfbanan'],4:['./bana_intro.jpg','Level 4: Sjötomten']}; const [img,title]=map[id]||['','?']; is.style.backgroundImage=`url('${img}')`; it.innerText=title; is.style.display='flex'; }
 
 window.confirmStartLevel=function(){
@@ -1335,6 +1361,215 @@ function setupJoystick(){
 function handleKeyDown(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=true;if(k==='s'||k==='arrowdown')inputs.down=true;if(k==='a'||k==='arrowleft')inputs.left=true;if(k==='d'||k==='arrowright')inputs.right=true;}
 function handleKeyUp(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=false;if(k==='s'||k==='arrowdown')inputs.down=false;if(k==='a'||k==='arrowleft')inputs.left=false;if(k==='d'||k==='arrowright')inputs.right=false;}
 function onWindowResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);const c=document.getElementById('showroom-canvas-container');if(c&&showroomRenderer&&c.clientWidth>0){showroomCamera.aspect=c.clientWidth/c.clientHeight;showroomCamera.updateProjectionMatrix();showroomRenderer.setSize(c.clientWidth,c.clientHeight);}}
+// ══════════════════════════════════════════════════════════════════════════════
+// BONUS LEVEL — GRÄSLABYRINTH (self-contained 2D canvas, no Three.js)
+// ══════════════════════════════════════════════════════════════════════════════
+(function(){
+    const CELL  = 40;   // pixels per cell
+    const COLS  = 14;
+    const ROWS  = 14;
+    const W     = COLS * CELL;
+    const H     = ROWS * CELL;
+
+    // Maze layout: 0=path, 1=wall. 14x14 grid.
+    // Entrance: top-left area. Exit: bottom-right area.
+    const MAZE = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,0,0,1,0,0,1],
+        [1,0,1,0,1,0,1,1,1,0,1,0,1,1],
+        [1,0,1,0,0,0,0,0,1,0,0,0,0,1],
+        [1,0,1,1,1,1,1,0,1,1,1,1,0,1],
+        [1,0,0,0,0,0,1,0,0,0,0,1,0,1],
+        [1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+        [1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+        [1,0,1,1,1,1,1,0,1,1,1,0,1,1],
+        [1,0,0,0,0,0,1,0,0,0,1,0,0,1],
+        [1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,1,1,1,1,1,1,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    // Player start and exit positions (in cell coords)
+    const START = {col:1, row:1};
+    const EXIT  = {col:12, row:11};
+
+    let canvas, ctx;
+    let player   = {};
+    let dots     = [];
+    let dotsLeft = 0;
+    let finished = false;
+    let keys     = {};
+    let moveTimer= 0;
+    const MOVE_INTERVAL = 0.12; // seconds between moves
+
+    // Build dot positions: every walkable cell except start and exit
+    function buildDots(){
+        dots = [];
+        for(let r=0;r<ROWS;r++){
+            for(let c=0;c<COLS;c++){
+                if(MAZE[r][c]===0){
+                    if(!(r===START.row&&c===START.col) && !(r===EXIT.row&&c===EXIT.col)){
+                        dots.push({col:c, row:r, eaten:false});
+                    }
+                }
+            }
+        }
+        dotsLeft = dots.length;
+    }
+
+    function cellToPixel(col,row){
+        return { x: col*CELL + CELL/2, y: row*CELL + CELL/2 };
+    }
+
+    function draw(){
+        if(!ctx) return;
+        ctx.clearRect(0,0,W,H);
+
+        // Draw maze
+        for(let r=0;r<ROWS;r++){
+            for(let c=0;c<COLS;c++){
+                if(MAZE[r][c]===1){
+                    ctx.fillStyle='#1a0055';
+                    ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+                    ctx.strokeStyle='#4400aa';
+                    ctx.lineWidth=1;
+                    ctx.strokeRect(c*CELL, r*CELL, CELL, CELL);
+                } else {
+                    ctx.fillStyle='#2d5a1b';
+                    ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+                }
+            }
+        }
+
+        // Draw exit (flashing cyan square)
+        const ep = cellToPixel(EXIT.col, EXIT.row);
+        ctx.fillStyle = (Math.floor(Date.now()/300)%2===0) ? '#00ffff' : '#007777';
+        ctx.fillRect(EXIT.col*CELL+4, EXIT.row*CELL+4, CELL-8, CELL-8);
+        ctx.fillStyle='#ffffff';
+        ctx.font='bold 10px monospace';
+        ctx.textAlign='center';
+        ctx.fillText('MÅL', ep.x, ep.y+4);
+
+        // Draw dots
+        dots.forEach(d=>{
+            if(!d.eaten){
+                const dp=cellToPixel(d.col,d.row);
+                ctx.beginPath();
+                ctx.arc(dp.x, dp.y, 4, 0, Math.PI*2);
+                ctx.fillStyle='#7CFC00';
+                ctx.fill();
+            }
+        });
+
+        // Draw player (top-down mower)
+        const pp = cellToPixel(player.col, player.row);
+        // Body
+        ctx.fillStyle='#cc2200';
+        ctx.fillRect(pp.x-11, pp.y-10, 22, 20);
+        // Blade (front)
+        ctx.fillStyle='#888888';
+        ctx.fillRect(pp.x-13, pp.y-13, 26, 5);
+        // Wheels
+        ctx.fillStyle='#222222';
+        [[pp.x-10,pp.y+8],[pp.x+10,pp.y+8],[pp.x-10,pp.y-5],[pp.x+10,pp.y-5]].forEach(([wx,wy])=>{
+            ctx.fillRect(wx-3,wy-3,6,6);
+        });
+        // Handle bars
+        ctx.fillStyle='#888888';
+        ctx.fillRect(pp.x-9, pp.y+10, 4, 7);
+        ctx.fillRect(pp.x+5, pp.y+10, 4, 7);
+        ctx.fillRect(pp.x-9, pp.y+16, 18, 3);
+
+        // HUD
+        document.getElementById('maze-dots-left').textContent = dotsLeft;
+    }
+
+    let lastTime = 0;
+    function loop(ts){
+        if(!document.getElementById('maze-overlay') ||
+           document.getElementById('maze-overlay').style.display==='none') return;
+        requestAnimationFrame(loop);
+        const dt = Math.min((ts - lastTime)/1000, 0.1);
+        lastTime = ts;
+        if(!finished){
+            moveTimer += dt;
+            if(moveTimer >= MOVE_INTERVAL){
+                moveTimer = 0;
+                let dc=0, dr=0;
+                if(keys['ArrowUp']||keys['w']||keys['W'])     dr=-1;
+                else if(keys['ArrowDown']||keys['s']||keys['S'])  dr=1;
+                else if(keys['ArrowLeft']||keys['a']||keys['A'])  dc=-1;
+                else if(keys['ArrowRight']||keys['d']||keys['D']) dc=1;
+                if(dc!==0||dr!==0){
+                    const nc=player.col+dc, nr=player.row+dr;
+                    if(nc>=0&&nc<COLS&&nr>=0&&nr<ROWS&&MAZE[nr][nc]===0){
+                        player.col=nc; player.row=nr;
+                        // Eat dot
+                        const dot=dots.find(d=>d.col===nc&&d.row===nr&&!d.eaten);
+                        if(dot){ dot.eaten=true; dotsLeft--; }
+                        // Check exit
+                        if(player.col===EXIT.col&&player.row===EXIT.row){
+                            if(dotsLeft===0){
+                                finished=true;
+                                document.getElementById('maze-msg').innerHTML=
+                                    '🎉 GRATTIS! Du klarade labyrinthbanan! 🎉';
+                            } else {
+                                document.getElementById('maze-msg').textContent=
+                                    'Samla alla dots först! ('+dotsLeft+' kvar)';
+                            }
+                        } else {
+                            document.getElementById('maze-msg').textContent='';
+                        }
+                    }
+                }
+            }
+        }
+        draw();
+    }
+
+    function onKey(e){ keys[e.key]=true; }
+    function offKey(e){ keys[e.key]=false; }
+
+    window.startMaze = function(){
+        canvas = document.getElementById('maze-canvas');
+        canvas.width  = W;
+        canvas.height = H;
+        ctx = canvas.getContext('2d');
+        player   = {col:START.col, row:START.row};
+        finished = false;
+        keys     = {};
+        moveTimer= 0;
+        buildDots();
+        document.getElementById('maze-msg').textContent='';
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+    };
+
+    window.openMaze = function(){
+        // Hide all other screens
+        ['start-screen','main-menu-screen','level-select-screen',
+         'level-intro-screen','shop-screen','showroom-screen',
+         'game-over','hud','hud-buttons'].forEach(id=>{
+            const el=document.getElementById(id);
+            if(el) el.style.display='none';
+        });
+        document.getElementById('maze-overlay').style.display='flex';
+        startMaze();
+        window.addEventListener('keydown', onKey);
+        window.addEventListener('keyup',   offKey);
+    };
+
+    window.closeMaze = function(){
+        document.getElementById('maze-overlay').style.display='none';
+        window.removeEventListener('keydown', onKey);
+        window.removeEventListener('keyup',   offKey);
+        // Re-open level select
+        window.openLevelSelect();
+    };
+})();
+
+
 </script>
 </body>
 </html>
