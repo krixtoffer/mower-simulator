@@ -287,75 +287,57 @@ const settings = { music:true, sfx:true, timedMode:true };
 
 // ── JUKEBOX ───────────────────────────────────────────────────────────────────
 const jukeboxTracks = [
-    { id:'golf',       name:'GOLF.MP3',       file:'./golf.mp3' },
-    { id:'up',         name:'UP.MP3',         file:'./up.mp3' },
-    { id:'scoreboard', name:'SCOREBOARD.MP3', file:'./scoreboard.mp3' },
-    { id:'fairway',    name:'FAIRWAY.MP3',    file:'./fairway.mp3' },
-    { id:'power',      name:'POWER.MP3',      file:'./power.mp3' },
+    {id:'golf',name:'GOLF.MP3',file:'./golf.mp3'},
+    {id:'up',name:'UP.MP3',file:'./up.mp3'},
+    {id:'scoreboard',name:'SCOREBOARD.MP3',file:'./scoreboard.mp3'},
+    {id:'fairway',name:'FAIRWAY.MP3',file:'./fairway.mp3'},
+    {id:'power',name:'POWER.MP3',file:'./power.mp3'},
 ];
-let activeTrackId = 'golf';
-window.openJukebox = function(){
-    document.getElementById('settings-overlay').style.display='none';
-    document.getElementById('jukebox-overlay').style.display='flex';
-    renderJukeboxTracks();
-};
-window.closeJukebox = function(){
-    document.getElementById('jukebox-overlay').style.display='none';
-    document.getElementById('settings-overlay').style.display='flex';
-};
+let activeTrackId='golf';
+window.openJukebox=function(){document.getElementById('settings-overlay').style.display='none';document.getElementById('jukebox-overlay').style.display='flex';renderJukeboxTracks();};
+window.closeJukebox=function(){document.getElementById('jukebox-overlay').style.display='none';document.getElementById('settings-overlay').style.display='flex';};
 function renderJukeboxTracks(){
-    const container=document.getElementById('jukebox-tracks'); container.innerHTML='';
-    jukeboxTracks.forEach(track=>{
-        const isActive=track.id===activeTrackId;
-        const row=document.createElement('div');
-        row.className='jukebox-track'+(isActive?' active-track':'');
-        row.innerHTML=`<span class="track-name${isActive?' active':''}">${isActive?'▶ ':''}${track.name}</span>
-            <button class="arcade-btn" style="font-size:8px;padding:6px 14px;background:${isActive?'#27ae60':'#8b008b'};" onclick="jukeboxSelect('${track.id}')">${isActive?'✓ VALD':'VÄLJ'}</button>`;
-        container.appendChild(row);
+    const c=document.getElementById('jukebox-tracks');c.innerHTML='';
+    jukeboxTracks.forEach(t=>{
+        const isA=t.id===activeTrackId,row=document.createElement('div');
+        row.className='jukebox-track'+(isA?' active-track':'');
+        row.innerHTML=`<span class="track-name${isA?' active':''}">${isA?'▶ ':''}${t.name}</span>
+            <button class="arcade-btn" style="font-size:8px;padding:6px 14px;background:${isA?'#27ae60':'#8b008b'};" onclick="jukeboxSelect('${t.id}')">${isA?'✓ VALD':'VÄLJ'}</button>`;
+        c.appendChild(row);
     });
 }
-window.jukeboxSelect=function(trackId){
-    const track=jukeboxTracks.find(t=>t.id===trackId); if(!track)return;
-    activeTrackId=trackId; bgMusic.src=track.file; bgMusic.currentTime=0;
-    if(settings.music)bgMusic.play().catch(()=>{}); renderJukeboxTracks();
+window.jukeboxSelect=function(id){
+    const t=jukeboxTracks.find(x=>x.id===id);if(!t)return;
+    activeTrackId=id;bgMusic.src=t.file;bgMusic.currentTime=0;
+    if(settings.music)bgMusic.play().catch(()=>{});renderJukeboxTracks();
 };
 
 // ── AUDIO ─────────────────────────────────────────────────────────────────────
-const bgMusic=document.getElementById('bg-music'); bgMusic.volume=0.35;
+const bgMusic=document.getElementById('bg-music');bgMusic.volume=0.35;
 bgMusic.play().catch(()=>{});
-document.addEventListener('click',()=>{ if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{}); },{once:true});
+document.addEventListener('click',()=>{if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});},{once:true});
 const sfxEls={fan1:document.getElementById('sfx-fan1'),fan2:document.getElementById('sfx-fan2'),fan3:document.getElementById('sfx-fan3'),swing:document.getElementById('sfx-swing'),fore:document.getElementById('sfx-fore')};
-const mowerSfx=document.getElementById('sfx-mower');
-mowerSfx.volume=0.4; // 20% quieter than 0.5
+const mowerSfx=document.getElementById('sfx-mower');mowerSfx.volume=0.4;
 let mowerSfxPlaying=false;
 const mowerSfxFiles={standard:'./handjag.mp3',klippo:'./klippo.mp3',ts112:'./rideon.mp3',combine:'./combine.mp3'};
-function playSfx(id){ if(!settings.sfx)return; const e=sfxEls[id]; if(!e)return; e.currentTime=0; e.play().catch(()=>{}); }
-function startMowerSfx(){ if(!settings.sfx||mowerSfxPlaying)return; mowerSfx.play().catch(()=>{}); mowerSfxPlaying=true; }
-function stopMowerSfx(){ if(!mowerSfxPlaying)return; mowerSfx.pause(); mowerSfxPlaying=false; }
+function playSfx(id){if(!settings.sfx)return;const e=sfxEls[id];if(!e)return;e.currentTime=0;e.play().catch(()=>{});}
+function startMowerSfx(){if(!settings.sfx||mowerSfxPlaying)return;mowerSfx.play().catch(()=>{});mowerSfxPlaying=true;}
+function stopMowerSfx(){if(!mowerSfxPlaying)return;mowerSfx.pause();mowerSfxPlaying=false;}
 let sfxTimer=null;
-function startStadiumSfx(){
-    stopLevelSfx();
-    const seq=['fan1','fan2','fan3']; let idx=0;
-    function next(){ if(!gameActive)return; playSfx(seq[idx]); idx=(idx+1)%seq.length; sfxTimer=setTimeout(next,14000); }
-    sfxTimer=setTimeout(next,100);
-}
-function startGolfSfx(){
-    stopLevelSfx();
-    function sw(){ if(!gameActive)return; playSfx('swing'); sfxTimer=setTimeout(()=>{ playSfx('fore'); sfxTimer=setTimeout(sw,18000); },2000); }
-    sfxTimer=setTimeout(sw,2000);
-}
-function stopLevelSfx(){ if(sfxTimer){clearTimeout(sfxTimer);sfxTimer=null;} stopMowerSfx(); }
-window.openSettings=function(){ document.getElementById('settings-overlay').style.display='flex'; updateSettingsUI(); };
-window.closeSettings=function(){ document.getElementById('settings-overlay').style.display='none'; };
+function startStadiumSfx(){stopLevelSfx();const seq=['fan1','fan2','fan3'];let idx=0;function next(){if(!gameActive)return;playSfx(seq[idx]);idx=(idx+1)%seq.length;sfxTimer=setTimeout(next,14000);}sfxTimer=setTimeout(next,100);}
+function startGolfSfx(){stopLevelSfx();function sw(){if(!gameActive)return;playSfx('swing');sfxTimer=setTimeout(()=>{playSfx('fore');sfxTimer=setTimeout(sw,18000);},2000);}sfxTimer=setTimeout(sw,2000);}
+function stopLevelSfx(){if(sfxTimer){clearTimeout(sfxTimer);sfxTimer=null;}stopMowerSfx();}
+window.openSettings=function(){document.getElementById('settings-overlay').style.display='flex';updateSettingsUI();};
+window.closeSettings=function(){document.getElementById('settings-overlay').style.display='none';};
 window.toggleSetting=function(key){
-    if(key==='music'){settings.music=!settings.music; if(settings.music)bgMusic.play().catch(()=>{}); else bgMusic.pause();}
-    else if(key==='sfx'){settings.sfx=!settings.sfx; if(!settings.sfx)stopMowerSfx();}
+    if(key==='music'){settings.music=!settings.music;if(settings.music)bgMusic.play().catch(()=>{});else bgMusic.pause();}
+    else if(key==='sfx'){settings.sfx=!settings.sfx;if(!settings.sfx)stopMowerSfx();}
     else if(key==='timer'){settings.timedMode=!settings.timedMode;}
     updateSettingsUI();
 };
 function updateSettingsUI(){
     [['toggle-music','music'],['toggle-sfx','sfx'],['toggle-timer','timedMode']].forEach(([id,k])=>{
-        const b=document.getElementById(id),on=settings[k]; b.textContent=on?'PÅ':'AV'; b.className='toggle-btn'+(on?'':' off');
+        const b=document.getElementById(id),on=settings[k];b.textContent=on?'PÅ':'AV';b.className='toggle-btn'+(on?'':' off');
     });
 }
 
@@ -373,14 +355,9 @@ let lawnWorldSize=100;
 let totalCuttablePixels=0;
 let animatedCars=[],animatedAnimals=[],animatedPlayers=[],animatedCrowdArms=[],animatedClouds=[];
 let animatedFlag=null,animatedPond=null,pondCollider=null,bunkerZones=[],trampolineKids=[];
-let charLeftLeg=null,charRightLeg=null,charIsSitting=false;
-
 // Football
-let footballMesh=null;
-let footballVel={x:0,z:0};
-const BALL_RADIUS=0.55;
-const BALL_FRICTION=0.92;
-
+let footballMesh=null,footballVel={x:0,z:0};
+const BALL_RADIUS=0.55,BALL_FRICTION=0.92;
 // Golf cut overlay
 let golfCutCanvas=null,golfCutCtx=null,golfCutTexture=null,golfCutMesh=null;
 
@@ -399,202 +376,89 @@ let ownedMowers=JSON.parse(localStorage.getItem('mower_owned'))||['standard','co
 let selectedMower=localStorage.getItem('mower_selected')||'standard';
 let currentLevel=1;
 
-initThree(); initShowroomThree(); preloadAssets(); animate();
+initThree();initShowroomThree();preloadAssets();animate();
 
 function initThree(){
-    scene=new THREE.Scene(); scene.background=new THREE.Color(0x87CEEB); scene.fog=new THREE.Fog(0x87CEEB,80,250);
+    scene=new THREE.Scene();scene.background=new THREE.Color(0x87CEEB);scene.fog=new THREE.Fog(0x87CEEB,80,250);
     camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1000);
-    renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight);
-    renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
-    window.addEventListener('keydown',handleKeyDown); window.addEventListener('keyup',handleKeyUp);
-    setupJoystick(); window.addEventListener('resize',onWindowResize);
+    window.addEventListener('keydown',handleKeyDown);window.addEventListener('keyup',handleKeyUp);
+    setupJoystick();window.addEventListener('resize',onWindowResize);
 }
 function initShowroomThree(){
     const container=document.getElementById('showroom-canvas-container');
-    showroomScene=new THREE.Scene(); showroomScene.background=null;
+    showroomScene=new THREE.Scene();showroomScene.background=null;
     showroomCamera=new THREE.PerspectiveCamera(45,container.clientWidth/container.clientHeight,0.1,200);
-    showroomCamera.position.set(0,2,7); showroomCamera.lookAt(0,0,0);
+    showroomCamera.position.set(0,2,7);showroomCamera.lookAt(0,0,0);
     showroomRenderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-    showroomRenderer.setClearColor(0x000000,0); showroomRenderer.setSize(container.clientWidth,container.clientHeight);
+    showroomRenderer.setClearColor(0x000000,0);showroomRenderer.setSize(container.clientWidth,container.clientHeight);
     container.appendChild(showroomRenderer.domElement);
     showroomScene.add(new THREE.AmbientLight(0xffffff,1.8));
-    const d1=new THREE.DirectionalLight(0xffffff,2.2); d1.position.set(5,10,5); showroomScene.add(d1);
-    const d2=new THREE.DirectionalLight(0x8888ff,0.9); d2.position.set(-5,3,-5); showroomScene.add(d2);
-    showroomModelGroup=new THREE.Group(); showroomScene.add(showroomModelGroup);
+    const d1=new THREE.DirectionalLight(0xffffff,2.2);d1.position.set(5,10,5);showroomScene.add(d1);
+    const d2=new THREE.DirectionalLight(0x8888ff,0.9);d2.position.set(-5,3,-5);showroomScene.add(d2);
+    showroomModelGroup=new THREE.Group();showroomScene.add(showroomModelGroup);
 }
-function setupMeshProps(mesh){ mesh.traverse(c=>{ if(c.isMesh){c.castShadow=true;c.receiveShadow=true;if(c.material)c.material.side=THREE.DoubleSide;} }); }
-
+function setupMeshProps(m){m.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;if(c.material)c.material.side=THREE.DoubleSide;}});}
 function preloadAssets(){
-    // hand_shaded.glb for handjagare
     gltfLoader.load('./hand_shaded.glb',gltf=>{
-        const m=gltf.scene; setupMeshProps(m);
+        const m=gltf.scene;setupMeshProps(m);
         const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
         if(s.y>0)m.scale.setScalar(4.0/s.y);
         loadedHandMesh=m;
         if(inspectingMowerId==='standard')updateShowroomModel();
-    },undefined,()=>{ loadedHandMesh=null; });
-
+    },undefined,()=>{loadedHandMesh=null;});
     [['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();}],
      ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();}],
      ['./combine_shaded.glb',8.0,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();}]
     ].forEach(([path,h,cb])=>{
-        gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,()=>{});
+        gltfLoader.load(path,gltf=>{const m=gltf.scene;setupMeshProps(m);const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());if(s.y>0)m.scale.setScalar(h/s.y);cb(m);},undefined,()=>{});
     });
 }
 
-function getTerrainHeight(x,z){
-    if(currentLevel===4){
-        // Slope from water (left/negative x) up to houses (right/positive x)
-        const nx=(x+lawnWorldSize/2)/lawnWorldSize; // 0=left edge, 1=right edge
-        if(nx<0.22)return 0; // flat water area
-        return Math.pow((nx-0.22)/0.78,1.0)*18.0;
+// ── MOWER ONLY — no character at all ─────────────────────────────────────────
+function buildMower(){
+    let px=0,pz=0,ry=mowerStats.rotation;
+    if(mowerGroup){px=mowerGroup.position.x;pz=mowerGroup.position.z;ry=mowerGroup.rotation.y;scene.remove(mowerGroup);}
+    mowerGroup=new THREE.Group();
+
+    if(selectedMower==='combine'){
+        if(loadedCombineMesh)mowerGroup.add(loadedCombineMesh.clone());
+        else{const b=new THREE.Mesh(new THREE.BoxGeometry(6,4,10),new THREE.MeshStandardMaterial({color:0xff6600}));b.position.y=2;mowerGroup.add(b);}
+        mowerStats.cutWidth=18;mowerStats.radius=4.5;mowerStats.maxSpeed=0.40;
+    } else if(selectedMower==='ts112'){
+        if(loadedRideMesh)mowerGroup.add(loadedRideMesh.clone());
+        else{const b=new THREE.Mesh(new THREE.BoxGeometry(4,3,6),new THREE.MeshStandardMaterial({color:0xcc0000}));b.position.y=1.5;mowerGroup.add(b);}
+        mowerStats.cutWidth=12;mowerStats.radius=3.2;mowerStats.maxSpeed=0.50;
+    } else if(selectedMower==='klippo'){
+        if(loadedKlippoMesh)mowerGroup.add(loadedKlippoMesh.clone());
+        else{const b=new THREE.Mesh(new THREE.BoxGeometry(3,2,4),new THREE.MeshStandardMaterial({color:0x00cc00}));b.position.y=1;mowerGroup.add(b);}
+        mowerStats.cutWidth=9;mowerStats.radius=2.8;mowerStats.maxSpeed=0.45;
+    } else {
+        // standard — use hand_shaded.glb if loaded
+        if(loadedHandMesh)mowerGroup.add(loadedHandMesh.clone());
+        else{const b=new THREE.Mesh(new THREE.BoxGeometry(3,2,4),new THREE.MeshStandardMaterial({color:0xcc2200}));b.position.y=1;mowerGroup.add(b);}
+        mowerStats.cutWidth=7;mowerStats.radius=2.5;mowerStats.maxSpeed=0.45;
     }
-    return 0;
+
+    mowerGroup.position.set(px,0,pz);
+    mowerGroup.rotation.y=ry;
+    scene.add(mowerGroup);
 }
 
 // ── SKY ───────────────────────────────────────────────────────────────────────
 function addSunAndClouds(){
-    const sun=new THREE.Mesh(new THREE.SphereGeometry(8,16,16),new THREE.MeshBasicMaterial({color:0xffee88})); sun.position.set(120,160,-200); scene.add(sun);
-    const halo=new THREE.Mesh(new THREE.SphereGeometry(12,16,16),new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:0.15})); halo.position.copy(sun.position); scene.add(halo);
+    const sun=new THREE.Mesh(new THREE.SphereGeometry(8,16,16),new THREE.MeshBasicMaterial({color:0xffee88}));sun.position.set(120,160,-200);scene.add(sun);
+    const halo=new THREE.Mesh(new THREE.SphereGeometry(12,16,16),new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:0.15}));halo.position.copy(sun.position);scene.add(halo);
     animatedClouds=[];
     const cMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.88});
     for(let i=0;i<14;i++){
         const cg=new THREE.Group();
-        for(let p=0;p<3+Math.floor(Math.random()*4);p++){ const puff=new THREE.Mesh(new THREE.SphereGeometry(5+Math.random()*7,7,5),cMat); puff.position.set((Math.random()-0.5)*18,(Math.random()-0.5)*4,(Math.random()-0.5)*8); cg.add(puff); }
-        cg.position.set((Math.random()-0.5)*600,80+Math.random()*60,(Math.random()-0.5)*600); scene.add(cg);
+        for(let p=0;p<3+Math.floor(Math.random()*4);p++){const puff=new THREE.Mesh(new THREE.SphereGeometry(5+Math.random()*7,7,5),cMat);puff.position.set((Math.random()-0.5)*18,(Math.random()-0.5)*4,(Math.random()-0.5)*8);cg.add(puff);}
+        cg.position.set((Math.random()-0.5)*600,80+Math.random()*60,(Math.random()-0.5)*600);scene.add(cg);
         animatedClouds.push({mesh:cg,speed:0.8+Math.random()*1.8});
     }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MOWER + CHARACTER
-// Character placed NEXT TO / ON mowers with simple, safe positioning
-// ══════════════════════════════════════════════════════════════════════════════
-function buildMowerAndCharacter(){
-    let px=0,py=0,pz=0,ry=mowerStats.rotation;
-    if(mowerGroup){ px=mowerGroup.position.x; py=mowerGroup.position.y; pz=mowerGroup.position.z; ry=mowerGroup.rotation.y; scene.remove(mowerGroup); }
-    mowerGroup=new THREE.Group();
-    charLeftLeg=null; charRightLeg=null; charIsSitting=false;
-
-    if(selectedMower==='combine'){
-        if(loadedCombineMesh)mowerGroup.add(loadedCombineMesh.clone());
-        else{ const b=new THREE.Mesh(new THREE.BoxGeometry(6,4,10),new THREE.MeshStandardMaterial({color:0xff6600})); b.position.y=2; mowerGroup.add(b); }
-        mowerStats.cutWidth=18; mowerStats.radius=4.5; mowerStats.maxSpeed=0.40;
-        // No character for combine — sitting inside
-    }
-    else if(selectedMower==='ts112'){
-        if(loadedRideMesh)mowerGroup.add(loadedRideMesh.clone());
-        else{ const b=new THREE.Mesh(new THREE.BoxGeometry(4,3,6),new THREE.MeshStandardMaterial({color:0xcc0000})); b.position.y=1.5; mowerGroup.add(b); }
-        mowerStats.cutWidth=12; mowerStats.radius=3.2; mowerStats.maxSpeed=0.50;
-        // Character sitting on top — simple box figure so it never crashes level loading
-        addSimpleRider(mowerGroup, 0, 2.8, 0);
-    }
-    else if(selectedMower==='klippo'){
-        if(loadedKlippoMesh)mowerGroup.add(loadedKlippoMesh.clone());
-        else{ buildFallbackMower(mowerGroup,0x00cc00); }
-        mowerStats.cutWidth=9; mowerStats.radius=2.8; mowerStats.maxSpeed=0.45;
-        // Character walks behind klippo
-        addSimpleWalker(mowerGroup, 0, 0, -4);
-    }
-    else {
-        // standard — use hand_shaded.glb if loaded, else fallback
-        if(loadedHandMesh)mowerGroup.add(loadedHandMesh.clone());
-        else buildFallbackMower(mowerGroup,0xcc2200);
-        mowerStats.cutWidth=7; mowerStats.radius=2.5; mowerStats.maxSpeed=0.45;
-        // Character walks behind
-        addSimpleWalker(mowerGroup, 0, 0, -4);
-    }
-
-    const sc=currentLevel===1?1.82:1.4;
-    mowerGroup.scale.setScalar(sc);
-    mowerGroup.position.set(px,py,pz); mowerGroup.rotation.y=ry; scene.add(mowerGroup);
-}
-
-// Simple seated rider — small box character, no complex leg/arm refs that could break
-function addSimpleRider(g, x, y, z){
-    const skinMat=new THREE.MeshStandardMaterial({color:0xf5c5a0});
-    const shirtMat=new THREE.MeshStandardMaterial({color:0x8b2020});
-    const pantsMat=new THREE.MeshStandardMaterial({color:0x2d5a1b});
-    const capMat=new THREE.MeshStandardMaterial({color:0x3a5a1a});
-    const bootMat=new THREE.MeshStandardMaterial({color:0x3a2a1a});
-    const group=new THREE.Group();
-    // Torso
-    const torso=new THREE.Mesh(new THREE.BoxGeometry(2.0,2.5,1.2),shirtMat); torso.position.y=0; group.add(torso);
-    // Head
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.9,10,8),skinMat); head.position.y=2.2; group.add(head);
-    // Cap
-    const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.95,0.8,10),capMat); cap.position.y=3.0; group.add(cap);
-    const brim=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.15,0.8),capMat); brim.position.set(0,2.6,0.7); group.add(brim);
-    // Arms reaching forward
-    const armMat=shirtMat;
-    [-0.9,0.9].forEach(ax=>{
-        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.22,1.8,8),armMat);
-        arm.rotation.x=1.1; arm.position.set(ax,0.5,0.8); group.add(arm);
-    });
-    // Legs (sitting — horizontal)
-    const legL=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.55,2.2),pantsMat); legL.position.set(-0.5,-1.1,1.0); group.add(legL);
-    const legR=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.55,2.2),pantsMat); legR.position.set(0.5,-1.1,1.0); group.add(legR);
-    // Boots
-    const bL=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.5,0.9),bootMat); bL.position.set(-0.5,-1.3,2.0); group.add(bL);
-    const bR=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.5,0.9),bootMat); bR.position.set(0.5,-1.3,2.0); group.add(bR);
-    group.position.set(x,y,z);
-    charIsSitting=true;
-    g.add(group);
-}
-
-// Simple walking figure behind mower — has leg refs for animation
-function addSimpleWalker(g, x, y, z){
-    const skinMat=new THREE.MeshStandardMaterial({color:0xf5c5a0});
-    const shirtMat=new THREE.MeshStandardMaterial({color:0x8b2020});
-    const pantsMat=new THREE.MeshStandardMaterial({color:0x2d5a1b});
-    const capMat=new THREE.MeshStandardMaterial({color:0x3a5a1a});
-    const bootMat=new THREE.MeshStandardMaterial({color:0x3a2a1a});
-    const beardMat=new THREE.MeshStandardMaterial({color:0xffffff});
-    const group=new THREE.Group();
-    // Torso
-    const torso=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.8,1.4),shirtMat); torso.position.y=3.0; group.add(torso);
-    // Head
-    const head=new THREE.Mesh(new THREE.SphereGeometry(1.0,10,8),skinMat); head.position.y=5.8; group.add(head);
-    // Beard
-    const beard=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.5,0.4),beardMat); beard.position.set(0,5.1,0.65); group.add(beard);
-    // Cap
-    const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.95,1.05,0.9,10),capMat); cap.position.y=6.8; group.add(cap);
-    const brim=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.15,0.9),capMat); brim.position.set(0,6.35,0.8); group.add(brim);
-    // Arms forward
-    [-1.0,1.0].forEach(ax=>{
-        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.24,2.2,8),shirtMat);
-        arm.rotation.x=1.1; arm.position.set(ax,3.8,1.0); group.add(arm);
-    });
-    // Legs with refs for animation
-    const legLG=new THREE.Group(); legLG.position.set(-0.55,1.8,0);
-    legLG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.36,2.2,8),pantsMat),{position:new THREE.Vector3(0,-1.1,0)}));
-    legLG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.7,0.5,1.1),bootMat),{position:new THREE.Vector3(0,-2.4,0.2)}));
-    group.add(legLG); charLeftLeg=legLG;
-    const legRG=new THREE.Group(); legRG.position.set(0.55,1.8,0);
-    legRG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.36,2.2,8),pantsMat),{position:new THREE.Vector3(0,-1.1,0)}));
-    legRG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.7,0.5,1.1),bootMat),{position:new THREE.Vector3(0,-2.4,0.2)}));
-    group.add(legRG); charRightLeg=legRG;
-    charIsSitting=false;
-    group.position.set(x,y,z);
-    g.add(group);
-}
-
-// Fallback mower body when GLB not loaded
-function buildFallbackMower(g,color){
-    const hm=new THREE.MeshStandardMaterial({color});
-    const housing=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.4,1.0,16),hm); housing.position.y=1.0; g.add(housing);
-    const hTop=new THREE.Mesh(new THREE.SphereGeometry(2.2,16,8,0,Math.PI*2,0,Math.PI/2),hm); hTop.position.y=1.5; g.add(hTop);
-    const bag=new THREE.Mesh(new THREE.BoxGeometry(3.5,2.2,1.2),new THREE.MeshStandardMaterial({color:0x444444})); bag.position.set(0,1.6,-2.2); g.add(bag);
-    const wGeo=new THREE.CylinderGeometry(1.0,1.0,0.4,16); wGeo.rotateZ(Math.PI/2);
-    const wm=new THREE.MeshStandardMaterial({color:0x222222}),rm=new THREE.MeshStandardMaterial({color:0x888888});
-    [[-2.2,1.0,1.8],[2.2,1.0,1.8],[-2.2,1.0,-1.8],[2.2,1.0,-1.8]].forEach(([wx,wy,wz])=>{
-        const w=new THREE.Mesh(wGeo,wm); w.position.set(wx,wy,wz); g.add(w);
-        const r=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.45,8),rm); r.rotateZ(Math.PI/2); r.position.set(wx,wy,wz); g.add(r);
-    });
-    const handleMat=new THREE.MeshStandardMaterial({color:0x888888});
-    [-1.2,1.2].forEach(hx=>{ const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,7,8),handleMat); bar.position.set(hx,4.5,-3.0); bar.rotation.x=Math.PI/5; g.add(bar); });
-    const grip=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,3.0,8),handleMat); grip.rotateZ(Math.PI/2); grip.position.set(0,7.2,-5.2); g.add(grip);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -602,22 +466,22 @@ function buildFallbackMower(g,color){
 // ══════════════════════════════════════════════════════════════════════════════
 function buildHouseDetailed(x,z,wallColor,rotY=0){
     const g=new THREE.Group();
-    const cv=document.createElement('canvas'); cv.width=cv.height=256; const ct=cv.getContext('2d');
-    ct.fillStyle=wallColor; ct.fillRect(0,0,256,256); ct.fillStyle='#cccccc'; ct.fillRect(0,0,8,256); ct.fillRect(248,0,8,256);
-    const tex=new THREE.CanvasTexture(cv); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(2,1);
+    const cv=document.createElement('canvas');cv.width=cv.height=256;const ct=cv.getContext('2d');
+    ct.fillStyle=wallColor;ct.fillRect(0,0,256,256);ct.fillStyle='#cccccc';ct.fillRect(0,0,8,256);ct.fillRect(248,0,8,256);
+    const tex=new THREE.CanvasTexture(cv);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(2,1);
     const wallMat=new THREE.MeshStandardMaterial({map:tex}),roofMat=new THREE.MeshStandardMaterial({color:0x2a2a2a}),chimMat=new THREE.MeshStandardMaterial({color:0x8b4513});
-    const body=new THREE.Mesh(new THREE.BoxGeometry(60,25,40),wallMat); body.position.y=12.5; body.castShadow=true; g.add(body);
-    const roof=new THREE.Mesh(new THREE.ConeGeometry(45,15,4),roofMat); roof.position.y=32.5; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+    const body=new THREE.Mesh(new THREE.BoxGeometry(60,25,40),wallMat);body.position.y=12.5;body.castShadow=true;g.add(body);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(45,15,4),roofMat);roof.position.y=32.5;roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(5,14,5),chimMat),{position:new THREE.Vector3(15,33,-8)}));
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(8,14,0.8),new THREE.MeshStandardMaterial({color:0x5c3317})),{position:new THREE.Vector3(0,7,20.5)}));
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(12,2,4),new THREE.MeshStandardMaterial({color:0x999988})),{position:new THREE.Vector3(0,1,22.5)}));
-    addWin(g,-18,14,20.5,false); addWin(g,18,14,20.5,false); addWin(g,-18,14,-20.5,false); addWin(g,18,14,-20.5,false);
-    addWin(g,30.5,14,-10,true); addWin(g,-30.5,14,-10,true);
+    addWin(g,-18,14,20.5,false);addWin(g,18,14,20.5,false);addWin(g,-18,14,-20.5,false);addWin(g,18,14,-20.5,false);
+    addWin(g,30.5,14,-10,true);addWin(g,-30.5,14,-10,true);
     const garMat=new THREE.MeshStandardMaterial({color:0xddddbb});
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(28,20,35),garMat),{position:new THREE.Vector3(-44,10,2)}));
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(30,2,37),roofMat),{position:new THREE.Vector3(-44,21,2)}));
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(22,14,0.5),new THREE.MeshStandardMaterial({color:0xaaaaaa})),{position:new THREE.Vector3(-44,7,19.6)}));
-    g.position.set(x,0,z); g.rotation.y=rotY; scene.add(g);
+    g.position.set(x,0,z);g.rotation.y=rotY;scene.add(g);
 }
 function addWin(g,x,y,z,isSide){
     const gMat=new THREE.MeshStandardMaterial({color:0x9ecfff,transparent:true,opacity:0.6});
@@ -635,7 +499,7 @@ function addWin(g,x,y,z,isSide){
 }
 function buildYardFence(ox,oz){
     const mat=new THREE.MeshStandardMaterial({color:0xffffff});
-    const pGeo=new THREE.BoxGeometry(0.5,3,0.2); pGeo.translate(0,1.5,0);
+    const pGeo=new THREE.BoxGeometry(0.5,3,0.2);pGeo.translate(0,1.5,0);
     const rGeo=new THREE.BoxGeometry(lawnWorldSize,0.3,0.3);
     function side(x,z,ry){const sg=new THREE.Group();[1.0,2.2].forEach(hy=>{const r=new THREE.Mesh(rGeo,mat);r.position.set(0,hy,0);sg.add(r);});for(let i=-lawnWorldSize/2;i<=lawnWorldSize/2;i+=1.5){const p=new THREE.Mesh(pGeo,mat);p.position.set(i,0,0.1);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);}
     side(ox,oz-lawnWorldSize/2,0);side(ox,oz+lawnWorldSize/2,0);side(ox-lawnWorldSize/2,oz,Math.PI/2);side(ox+lawnWorldSize/2,oz,Math.PI/2);
@@ -644,19 +508,18 @@ function buildWavingNeighbor(x,z){
     const g=new THREE.Group();
     const skinMat=new THREE.MeshStandardMaterial({color:0xf5c5a0}),shirtMat=new THREE.MeshStandardMaterial({color:0x3355cc}),pantsMat=new THREE.MeshStandardMaterial({color:0x222222}),bootMat=new THREE.MeshStandardMaterial({color:0x3a2a1a});
     g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2.5,3.0,1.4),shirtMat),{position:new THREE.Vector3(0,4.0,0)}));
-    const head=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),skinMat); head.position.y=6.8; g.add(head);
-    const armL=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.32,2.5,8),shirtMat); armL.position.set(-1.7,3.8,0); armL.rotation.z=0.2; g.add(armL);
-    const armRGroup=new THREE.Group(); armRGroup.position.set(1.7,5.2,0);
-    armRGroup.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.32,2.5,8),shirtMat),{position:new THREE.Vector3(0,-1.25,0)}));
-    armRGroup.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),skinMat),{position:new THREE.Vector3(0,-2.7,0)}));
-    armRGroup.rotation.z=-1.8;
-    g.add(armRGroup);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(1.2,10,8),skinMat);head.position.y=6.8;g.add(head);
+    const armL=new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.32,2.5,8),shirtMat);armL.position.set(-1.7,3.8,0);armL.rotation.z=0.2;g.add(armL);
+    const armRG=new THREE.Group();armRG.position.set(1.7,5.2,0);
+    armRG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.32,2.5,8),shirtMat),{position:new THREE.Vector3(0,-1.25,0)}));
+    armRG.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),skinMat),{position:new THREE.Vector3(0,-2.7,0)}));
+    armRG.rotation.z=-1.8;g.add(armRG);
     [[-0.7,0],[0.7,0]].forEach(([lx,lz])=>{
         g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.38,2.8,8),pantsMat),{position:new THREE.Vector3(lx,1.4,lz)}));
         g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.8,0.5,1.2),bootMat),{position:new THREE.Vector3(lx,0.1,lz+0.2)}));
     });
-    g.position.set(x,0,z); g.scale.setScalar(1.2); scene.add(g);
-    animatedAnimals.push({type:'neighbor',armRGroup,phase:Math.random()*Math.PI*2});
+    g.position.set(x,0,z);g.scale.setScalar(1.2);scene.add(g);
+    animatedAnimals.push({type:'neighbor',armRG,phase:Math.random()*Math.PI*2});
 }
 function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.7;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
 function spawnGrill(x,z){const g=new THREE.Group();const S=0.7;const mm=new THREE.MeshStandardMaterial({color:0x333333,metalness:0.7});const bowl=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);bowl.position.y=9*S;g.add(bowl);const lid=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);lid.position.y=9*S;lid.rotation.x=Math.PI;g.add(lid);[[-2.5,2.5],[2.5,2.5],[0,-3]].forEach(([lx,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.25*S,0.25*S,9*S,6),mm);l.position.set(lx*S,4.5*S,lz*S);g.add(l);});g.position.set(x,0,z);scene.add(g);}
@@ -664,7 +527,6 @@ function spawnDecoTree(x,z){const g=new THREE.Group();const tr=new THREE.Mesh(ne
 function spawnBush(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0x2a6a2a});for(let i=0;i<3;i++){const r=2+Math.random()*2;const p=new THREE.Mesh(new THREE.SphereGeometry(r,7,6),bm);p.position.set((Math.random()-0.5)*3,r,(Math.random()-0.5)*2);g.add(p);}g.position.set(x,0,z);scene.add(g);}
 function spawnDog(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0xc8a86b}),dm=new THREE.MeshStandardMaterial({color:0x8b6914});const body=new THREE.Mesh(new THREE.BoxGeometry(6,3.5,2.8),bm);body.position.y=3.5;g.add(body);const headG=new THREE.Group();headG.position.set(3.8,5.2,0);headG.add(new THREE.Mesh(new THREE.BoxGeometry(2.8,2.8,2.5),bm));const snout=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.2,1.8),bm);snout.position.set(1.5,-0.5,0);headG.add(snout);const nose=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),new THREE.MeshStandardMaterial({color:0x111111}));nose.position.set(2.3,-0.5,0);headG.add(nose);[-1,1].forEach(dz=>{const ear=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.6,0.6),dm);ear.position.set(0,1.6,dz);ear.rotation.z=dz>0?-0.3:0.3;headG.add(ear);});g.add(headG);[[-2,0,1],[2,0,1],[-2,0,-1],[2,0,-1]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.BoxGeometry(1,3.5,1),bm);l.position.set(lx,1.75,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-3.8,5.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.6,3,8),bm);tail.position.set(0,1.5,0);tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'dog',headG,tailG,phase:Math.random()*Math.PI*2});}
 function spawnCat(x,z){const g=new THREE.Group();const cc=[0x888888,0x333333,0xffaa44,0xeeeeee,0xccaa88];const cm=new THREE.MeshStandardMaterial({color:cc[Math.floor(Math.random()*cc.length)]}),dm=new THREE.MeshStandardMaterial({color:0x222222});const body=new THREE.Mesh(new THREE.BoxGeometry(4.5,2.8,2.2),cm);body.position.y=2.8;g.add(body);const headG=new THREE.Group();headG.position.set(3,4.4,0);headG.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,10,8),cm));[-0.7,0.7].forEach(dz=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(0.6,1.2,4),cm);ear.position.set(0,1.5,dz);headG.add(ear);});[-0.5,0.5].forEach(dz=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(0.25,8,6),dm);eye.position.set(1.2,0.3,dz);headG.add(eye);});g.add(headG);[[-1.5,0,.8],[1.5,0,.8],[-1.5,0,-.8],[1.5,0,-.8]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,2.8,6),cm);l.position.set(lx,1.4,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-2.5,3.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.4,4,8),cm);tail.position.set(0,2,0);tail.rotation.z=0.4;tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'cat',headG,tailG,phase:Math.random()*Math.PI*2});}
-
 function spawnProceduralCar(startX,startZ,dir,speed,color){
     const g=new THREE.Group();
     const bm=new THREE.MeshStandardMaterial({color}),gm=new THREE.MeshStandardMaterial({color:0x88ccff,transparent:true,opacity:0.6}),tm=new THREE.MeshStandardMaterial({color:0x111111});
@@ -674,14 +536,13 @@ function spawnProceduralCar(startX,startZ,dir,speed,color){
     [[-6.5,0,-5.2],[-6.5,0,5.2],[6.5,0,-5.2],[6.5,0,5.2]].forEach(([wx,wy,wz])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(2,2,1.2,14),tm);w.rotation.x=Math.PI/2;w.position.set(wx,wy,wz);g.add(w);});
     const hm=new THREE.MeshStandardMaterial({color:0xffffcc,emissive:0xffffcc,emissiveIntensity:0.5}),tl=new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff2200,emissiveIntensity:0.4});
     [-2,2].forEach(lz=>{g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),hm),{position:new THREE.Vector3(9,2,lz)}));g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),tl),{position:new THREE.Vector3(-9,2,lz)}));});
-    // Car front is at +X (headlights at x=9); rotate so front faces travel direction
     g.rotation.y=dir>0?0:Math.PI;
-    g.position.set(startX,0.5,startZ); scene.add(g);
+    g.position.set(startX,0.5,startZ);scene.add(g);
     animatedCars.push({mesh:g,speed,dir,axis:'x',min:-500,max:500});
 }
 
 function setupVillaLevel(){
-    lawnWorldSize=130; animatedCars=[]; animatedAnimals=[]; animatedClouds=[];
+    lawnWorldSize=130;animatedCars=[];animatedAnimals=[];animatedClouds=[];
     addSunAndClouds();
     const world=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x245419}));world.rotation.x=-Math.PI/2;world.position.y=-0.1;scene.add(world);
     const road=new THREE.Mesh(new THREE.PlaneGeometry(2000,24),new THREE.MeshStandardMaterial({color:0x333333}));road.rotation.x=-Math.PI/2;road.position.set(0,0.05,80);scene.add(road);
@@ -816,11 +677,11 @@ function spawnFootballPlayers(pitchSize){
                 const distToBall=Math.sqrt(dx*dx+dz*dz);
                 const dh=this.homeX-this.mesh.position.x,dhz=this.homeZ-this.mesh.position.z;
                 const distToHome=Math.sqrt(dh*dh+dhz*dhz);
-                let targetX,targetZ;
-                if(distToBall<25){targetX=bx;targetZ=bz;}
-                else if(distToHome>2){targetX=this.homeX;targetZ=this.homeZ;}
-                else{targetX=this.homeX+(Math.random()-0.5)*6;targetZ=this.homeZ+(Math.random()-0.5)*6;}
-                const tdx=targetX-this.mesh.position.x,tdz=targetZ-this.mesh.position.z,td=Math.sqrt(tdx*tdx+tdz*tdz);
+                let tx,tz;
+                if(distToBall<25){tx=bx;tz=bz;}
+                else if(distToHome>2){tx=this.homeX;tz=this.homeZ;}
+                else{tx=this.homeX+(Math.random()-0.5)*6;tz=this.homeZ+(Math.random()-0.5)*6;}
+                const tdx=tx-this.mesh.position.x,tdz=tz-this.mesh.position.z,td=Math.sqrt(tdx*tdx+tdz*tdz);
                 if(td>1){const nx=tdx/td,nz=tdz/td;this.mesh.position.x+=nx*this.spd*dt;this.mesh.position.z+=nz*this.spd*dt;this.mesh.rotation.y=Math.atan2(nx,nz);}
                 if(this.mesh.userData.leftLeg)this.mesh.userData.leftLeg.rotation.x=Math.sin(Date.now()*0.01)*0.6;
                 if(this.mesh.userData.rightLeg)this.mesh.userData.rightLeg.rotation.x=-Math.sin(Date.now()*0.01)*0.6;
@@ -865,7 +726,6 @@ function setupGolfLevel(){
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
     lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
     lawn.rotation.x=-Math.PI/2;scene.add(lawn);
-    // Cut overlay
     golfCutCanvas=document.createElement('canvas');golfCutCanvas.width=golfCutCanvas.height=lawnTexResolution;
     golfCutCtx=golfCutCanvas.getContext('2d',{willReadFrequently:true});golfCutCtx.clearRect(0,0,lawnTexResolution,lawnTexResolution);
     golfCutTexture=new THREE.CanvasTexture(golfCutCanvas);
@@ -882,35 +742,34 @@ function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMa
 function buildGolfSurroundings(){const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1}),snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2,dist=110+Math.random()*30,hx=Math.sin(a)*dist,hz=Math.cos(a)*dist,hillH=25+Math.random()*40,hillR=20+Math.random()*25;const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR,hillH,8),hillMat);hill.position.set(hx,hillH/2-2,hz);scene.add(hill);if(hillH>40){const cap=new THREE.Mesh(new THREE.ConeGeometry(hillR*0.3,hillH*0.25,8),snowMat);cap.position.set(hx,hillH-hillH*0.12-2,hz);scene.add(cap);}}const groundOut=new THREE.Mesh(new THREE.PlaneGeometry(600,600),new THREE.MeshStandardMaterial({color:0x3a6a2a}));groundOut.rotation.x=-Math.PI/2;groundOut.position.y=-0.5;scene.add(groundOut);}
 
 // ══════════════════════════════════════════════════════════════════════════════
-// LEVEL 4 — FANBYVIKEN (sloped)
+// LEVEL 4 — FANBYVIKEN
+// Flat ground for mowing; slope is visual only via shading/texture
+// Trees and objects all at y=0 so nothing sinks or hovers
 // ══════════════════════════════════════════════════════════════════════════════
 function setupLakeLevel(){
     lawnWorldSize=180;animatedClouds=[];trampolineKids=[];
     addSunAndClouds();
     const res=lawnTexResolution;
-    // Sloped terrain geometry
-    const terrainGeo=new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize,64,64);
-    const posAttr=terrainGeo.attributes.position;
-    for(let i=0;i<posAttr.count;i++){
-        const vx=posAttr.getX(i);
-        posAttr.setZ(i,getTerrainHeight(vx,0));
-    }
-    terrainGeo.computeVertexNormals();
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=res;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle='#0f380f';lawnContext.fillRect(0,0,res,res);
     lawnContext.fillStyle='#1e90ff';lawnContext.fillRect(0,0,res*0.22,res);
-    lawnContext.fillStyle=COLOR_UNCUT;lawnContext.beginPath();lawnContext.moveTo(res*0.22,0);lawnContext.lineTo(res*0.95,0);lawnContext.lineTo(res*0.95,res);lawnContext.lineTo(res*0.22,res);lawnContext.fill();
+    lawnContext.fillStyle=COLOR_UNCUT;
+    lawnContext.beginPath();lawnContext.moveTo(res*0.22,0);lawnContext.lineTo(res*0.95,0);lawnContext.lineTo(res*0.95,res);lawnContext.lineTo(res*0.22,res);lawnContext.fill();
     lawnContext.fillStyle='#0f380f';lawnContext.beginPath();lawnContext.arc(res*0.55,res*0.25,70,0,Math.PI*2);lawnContext.fill();
     lawnContext.fillStyle='#c2b280';
     lawnContext.fillRect(res*0.35,res*0.1,res*0.2,18);lawnContext.fillRect(res*0.8,res*0.05,res*0.18,18);
     lawnContext.fillRect(res*0.8,res*0.25,res*0.18,18);lawnContext.fillRect(res*0.35,res*0.92,res*0.25,20);
+    // Give a visual slope impression by darkening left side of texture
+    const grad=lawnContext.createLinearGradient(0,0,res,0);
+    grad.addColorStop(0,'rgba(0,0,0,0.35)');grad.addColorStop(0.4,'rgba(0,0,0,0.0)');
+    lawnContext.fillStyle=grad;lawnContext.fillRect(0,0,res,res);
     {const d=lawnContext.getImageData(0,0,res,res).data;let count=0;for(let i=0;i<d.length;i+=4){if(d[i]>80&&d[i+1]>100&&d[i+2]<80)count++;}totalCuttablePixels=Math.max(count,1);}
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
-    lawn=new THREE.Mesh(terrainGeo,new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
+    // Flat plane — all objects at y=0, nothing sinks
+    lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
     lawn.rotation.x=-Math.PI/2;scene.add(lawn);
     const world=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x0f380f}));world.rotation.x=-Math.PI/2;world.position.y=-0.2;scene.add(world);
-    // Trees: place at ground level (y=0) — NO extra h offset in positions
     for(let i=0;i<50;i++){
         const tx=-80+Math.random()*20,tz=-80+Math.random()*160;spawnTree(tx,tz);
         const tx2=20+Math.random()*25,tz2=-50+Math.random()*30;spawnTree(tx2,tz2);
@@ -919,21 +778,14 @@ function setupLakeLevel(){
     spawnTrampoline(-10,-40);
     spawnRedHouse(-30,-60,false);spawnRedHouse(-35,20,false);spawnRedHouse(65,25,true);
     spawnRedHouse(75,-40,false);spawnRedHouse(85,-30,false);spawnRedHouse(78,-10,false);
-    if(mowerGroup)mowerGroup.position.y=0;
 }
 
-// Tree: placed at y=0, terrain mesh handles visual slope
+// All objects at y=0 — no h parameter needed
 function spawnTree(x,z){
     const g=new THREE.Group();
-    // Trunk sits ON ground — no h offset
-    const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));
-    tr.position.y=2.5; // trunk center 2.5 up from group root
-    g.add(tr);
-    const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));
-    lv.position.y=7;
-    g.add(lv);
-    g.position.set(x,0,z); // Always at y=0; terrain mesh is visual only
-    scene.add(g);
+    const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5;g.add(tr);
+    const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7;g.add(lv);
+    g.position.set(x,0,z);scene.add(g);
 }
 function spawnFruitTree(x,z){
     const g=new THREE.Group();
@@ -955,10 +807,10 @@ function spawnTrampoline(x,z){
     const frame=new THREE.Mesh(new THREE.TorusGeometry(4,0.25,8,32),pm);frame.rotation.x=Math.PI/2;frame.position.y=1.25;g.add(frame);
     g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(4,4,0.2,24),bm),{position:new THREE.Vector3(0,1.2,0)}));
     const pad=new THREE.Mesh(new THREE.TorusGeometry(4,0.4,8,24),blueMat);pad.rotation.x=Math.PI/2;pad.position.y=1.25;g.add(pad);
-    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2,6),pm);leg.position.set(Math.sin(a)*3.5,0.6,Math.cos(a)*3.5);g.add(leg);}
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2,6),pm),{position:new THREE.Vector3(Math.sin(a)*3.5,0.6,Math.cos(a)*3.5)}));}
     g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,5,24,1,true),netMat),{position:new THREE.Vector3(0,3.7,0)}));
     for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,5.5,6),pm),{position:new THREE.Vector3(Math.sin(a)*4.2,3.7,Math.cos(a)*4.2)}));}
-    g.add(Object.assign(new THREE.Mesh(new THREE.TorusGeometry(4.3,0.12,6,24),pm),{position:new THREE.Vector3(0,6.2,0),rotation:{x:Math.PI/2,y:0,z:0}}));
+    const topRing=new THREE.Mesh(new THREE.TorusGeometry(4.3,0.12,6,24),pm);topRing.rotation.x=Math.PI/2;topRing.position.y=6.2;g.add(topRing);
     for(let k=0;k<2;k++){const kid=buildKidMesh();kid.position.set(k===0?-1.5:1.5,1.4,k===0?0.5:-0.5);g.add(kid);trampolineKids.push({mesh:kid,baseY:1.4,phase:k*Math.PI,amplitude:2.5});}
     g.position.set(x,0,z);scene.add(g);
 }
@@ -985,13 +837,11 @@ function updateShowroomModel(){
     else if(inspectingMowerId==='ts112'&&loadedRideMesh)mesh=loadedRideMesh.clone();
     else if(inspectingMowerId==='klippo'&&loadedKlippoMesh)mesh=loadedKlippoMesh.clone();
     else if(inspectingMowerId==='standard'&&loadedHandMesh)mesh=loadedHandMesh.clone();
-    else{const pg=new THREE.Group();pg.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2,1,3),new THREE.MeshStandardMaterial({color:0x555555})),{position:new THREE.Vector3(0,0.5,0)}));mesh=pg;}
-    if(mesh){
-        showroomModelGroup.add(mesh);
-        const box=new THREE.Box3().setFromObject(mesh),center=box.getCenter(new THREE.Vector3());mesh.position.sub(center);
-        const size=box.getSize(new THREE.Vector3()),maxD=Math.max(size.x,size.y,size.z);
-        showroomCamera.position.set(maxD*0.6,maxD*0.5,maxD*1.5);showroomCamera.lookAt(0,0,0);
-    }
+    if(!mesh){const pg=new THREE.Group();pg.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2,1,3),new THREE.MeshStandardMaterial({color:0x555555})),{position:new THREE.Vector3(0,0.5,0)}));mesh=pg;}
+    showroomModelGroup.add(mesh);
+    const box=new THREE.Box3().setFromObject(mesh),center=box.getCenter(new THREE.Vector3());mesh.position.sub(center);
+    const size=box.getSize(new THREE.Vector3()),maxD=Math.max(size.x,size.y,size.z);
+    showroomCamera.position.set(maxD*0.6,maxD*0.5,maxD*1.5);showroomCamera.lookAt(0,0,0);
 }
 window.closeShowroom=function(){inspectingMowerId=null;document.getElementById('showroom-screen').style.display='none';document.getElementById('shop-screen').style.display='flex';};
 window.actionShowroomMower=function(){
@@ -1018,7 +868,6 @@ function showLevelIntro(id){
     const map={1:['./villa.jpg','Level 1: Villakvarteret'],2:['./fotboll.jpg','Level 2: Fotbollsplanen'],3:['./golf.jpg','Level 3: Golfbanan'],4:['./bana_intro.jpg','Level 4: Fanbyviken']};
     const[img,title]=map[id]||['','?'];is.style.backgroundImage=`url('${img}')`;it.innerText=title;is.style.display='flex';
 }
-
 window.confirmStartLevel=function(){
     document.getElementById('level-intro-screen').style.display='none';
     document.getElementById('hud').style.display='flex';
@@ -1030,7 +879,7 @@ window.confirmStartLevel=function(){
     while(scene.children.length>0)scene.remove(scene.children[0]);
     scene.add(new THREE.AmbientLight(0xffffff,0.7));
     const dl=new THREE.DirectionalLight(0xffffff,1.0);dl.position.set(50,100,-150);scene.add(dl);
-    buildMowerAndCharacter();
+    buildMower(); // No character
     if(currentLevel===1)      setupVillaLevel();
     else if(currentLevel===2) setupStadiumLevel();
     else if(currentLevel===3) setupGolfLevel();
@@ -1066,10 +915,7 @@ function calculateProgress(){
         for(let i=0;i<d.length;i+=4){if(d[i]>150&&d[i+1]>200&&d[i+2]<80)cut++;}
     }
     const pct=Math.min(100,Math.floor((cut/totalCuttablePixels)*100));
-    if(pct!==currentProgress){
-        currentProgress=pct;document.getElementById('progress').innerText=currentProgress;
-        currentStars=Math.min(5,Math.floor(currentProgress/18));renderStars('hud-stars',currentStars);
-    }
+    if(pct!==currentProgress){currentProgress=pct;document.getElementById('progress').innerText=currentProgress;currentStars=Math.min(5,Math.floor(currentProgress/18));renderStars('hud-stars',currentStars);}
 }
 function renderStars(id,n){let h='';for(let i=1;i<=5;i++)h+=i<=n?'<span class="star-earned">★</span>':'★';document.getElementById(id).innerHTML=h;}
 function endGame(title='TIDEN ÄR UTE!'){
@@ -1095,7 +941,7 @@ function animate(){
     if(gameStarted&&gameActive){
         updateMowerPhysics();paintCutTrail();updateCameraFollow();
 
-        // Football physics (level 2)
+        // Football physics (level 2 only)
         if(footballMesh&&currentLevel===2){
             footballVel.x*=BALL_FRICTION;footballVel.z*=BALL_FRICTION;
             footballMesh.position.x+=footballVel.x*dt*60;footballMesh.position.z+=footballVel.z*dt*60;
@@ -1108,7 +954,7 @@ function animate(){
             if(mowerGroup){
                 const dx=footballMesh.position.x-mowerGroup.position.x,dz=footballMesh.position.z-mowerGroup.position.z;
                 const dist=Math.sqrt(dx*dx+dz*dz);
-                const touchRadius=BALL_RADIUS+mowerStats.radius*mowerGroup.scale.x*0.35;
+                const touchRadius=BALL_RADIUS+mowerStats.radius*0.6;
                 if(dist<touchRadius&&dist>0.01){
                     const nx=dx/dist,nz=dz/dist;
                     footballVel.x=nx*Math.abs(mowerStats.speed)*8+Math.sin(mowerStats.rotation)*mowerStats.speed*6;
@@ -1124,18 +970,12 @@ function animate(){
             });
         }
 
-        // Leg animation (walker only)
-        if(charLeftLeg&&charRightLeg&&!charIsSitting){
-            if(Math.abs(mowerStats.speed)>0.005){const sw=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=sw;charRightLeg.rotation.x=-sw;}
-            else{charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
-        }
-
         animatedCars.forEach(c=>{c.mesh.position[c.axis]+=c.dir*c.speed;if(c.mesh.position[c.axis]>c.max)c.mesh.position[c.axis]=c.min;if(c.mesh.position[c.axis]<c.min)c.mesh.position[c.axis]=c.max;});
         animatedAnimals.forEach(a=>{
             const p=a.phase+t;
             if(a.type==='dog'){a.tailG.rotation.z=Math.sin(p*4)*0.6;a.headG.rotation.x=Math.sin(p*1.5)*0.08;a.headG.rotation.y=Math.sin(p*0.7)*0.15;}
             else if(a.type==='cat'){a.tailG.rotation.y=Math.sin(p*1.2)*0.5;a.headG.rotation.y=Math.sin(p*0.8)*0.12;}
-            else if(a.type==='neighbor'){a.armRGroup.rotation.z=-1.8+Math.sin(p*3)*0.5;}
+            else if(a.type==='neighbor'){a.armRG.rotation.z=-1.8+Math.sin(p*3)*0.5;}
         });
         animatedPlayers.forEach(pl=>pl.update(dt));
         animatedCrowdArms.forEach(ca=>{if(ca.left)ca.left.rotation.z=-0.8+Math.sin(t*2+ca.phase)*0.5;if(ca.right)ca.right.rotation.z=0.8-Math.sin(t*2+ca.phase)*0.5;});
@@ -1167,10 +1007,8 @@ function updateMowerPhysics(){
     mowerStats.speed=THREE.MathUtils.clamp(mowerStats.speed,-mowerStats.maxSpeed/2,mowerStats.maxSpeed);
     const nx=mowerGroup.position.x+Math.sin(mowerStats.rotation)*mowerStats.speed;
     const nz=mowerGroup.position.z+Math.cos(mowerStats.rotation)*mowerStats.speed;
-    if(canMoveTo(nx,nz)){
-        mowerGroup.position.x=nx;mowerGroup.position.z=nz;
-        mowerGroup.position.y=getTerrainHeight(nx,nz); // 0 for all levels except 4
-    }else mowerStats.speed=0;
+    if(canMoveTo(nx,nz)){mowerGroup.position.x=nx;mowerGroup.position.z=nz;mowerGroup.position.y=0;}
+    else mowerStats.speed=0;
 }
 function paintCutTrail(){
     if(!mowerGroup)return;
