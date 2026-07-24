@@ -120,6 +120,27 @@
             padding:8px 14px; cursor:pointer; min-width:70px; box-shadow:3px 3px 0px #00ffff;
         }
         .toggle-btn.off { background:#e74c3c; box-shadow:3px 3px 0px #ff00ff; }
+
+        /* ── JUKEBOX (added) ── */
+        #jukebox-overlay {
+            position:absolute; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.92); display:none; flex-direction:column;
+            justify-content:center; align-items:center; z-index:600; color:white;
+        }
+        #jukebox-panel {
+            background:#110022; border:6px solid #ffff00; box-shadow:8px 8px 0px #ff00ff;
+            padding:30px; width:90%; max-width:500px; text-align:center;
+        }
+        #jukebox-panel h2 { color:#ffff00; font-size:16px; margin:0 0 8px; }
+        #jukebox-panel p  { color:#00ffff; font-size:8px; margin:0 0 18px; }
+        .jukebox-track {
+            background:#1a0033; border:3px solid #00ffff; padding:12px 15px; margin:10px 0;
+            display:flex; justify-content:space-between; align-items:center; gap:10px;
+        }
+        .jukebox-track.active-track { border-color:#ffff00; background:#2a0055; }
+        .track-name { font-size:9px; color:#00ffff; flex:1; text-align:left; }
+        .track-name.active { color:#ffff00; }
+
         #joystick-zone {
             position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
             width:150px; height:150px; background:rgba(255,255,255,0.2);
@@ -143,14 +164,31 @@
 <audio id="sfx-fore"  src="./fore.mp3"    preload="auto"></audio>
 <audio id="sfx-mower" src="./handjag.mp3" loop preload="auto"></audio>
 
+<!-- ── SETTINGS (unchanged) ── -->
 <div id="settings-overlay">
     <div id="settings-panel">
         <h2>⚙ INSTÄLLNINGAR</h2>
         <div class="setting-row"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
         <div class="setting-row"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
         <div class="setting-row"><span>TIDSBEGRÄNSNING</span><button class="toggle-btn" id="toggle-timer" onclick="toggleSetting('timer')">PÅ</button></div>
+        <!-- JUKEBOX row added inside settings panel -->
+        <div class="setting-row">
+            <span>JUKEBOX</span>
+            <button class="arcade-btn" style="font-size:9px;padding:8px 14px;background:#8b008b;" onclick="openJukebox()">🎵 JUKEBOX</button>
+        </div>
         <br>
         <button class="arcade-btn" style="background:#e74c3c;width:100%;" onclick="closeSettings()">STÄNG</button>
+    </div>
+</div>
+
+<!-- ── JUKEBOX OVERLAY (added) ── -->
+<div id="jukebox-overlay">
+    <div id="jukebox-panel">
+        <h2>🎵 JUKEBOX</h2>
+        <p>Välj låt som spelar i bakgrunden</p>
+        <div id="jukebox-tracks"></div>
+        <br>
+        <button class="arcade-btn" style="background:#e74c3c;width:100%;" onclick="closeJukebox()">← TILLBAKA</button>
     </div>
 </div>
 
@@ -252,6 +290,53 @@ const gltfLoader = new GLTFLoader();
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 const settings = { music:true, sfx:true, timedMode:true };
+
+// ── JUKEBOX (added) ───────────────────────────────────────────────────────────
+const jukeboxTracks = [
+    { id:'golf',       name:'GOLF.MP3',       file:'./golf.mp3' },
+    { id:'up',         name:'UP.MP3',         file:'./up.mp3' },
+    { id:'scoreboard', name:'SCOREBOARD.MP3', file:'./scoreboard.mp3' },
+    { id:'fairway',    name:'FAIRWAY.MP3',    file:'./fairway.mp3' },
+    { id:'power',      name:'POWER.MP3',      file:'./power.mp3' },
+];
+let activeTrackId = 'golf';
+
+window.openJukebox = function(){
+    document.getElementById('settings-overlay').style.display = 'none';
+    document.getElementById('jukebox-overlay').style.display  = 'flex';
+    renderJukeboxTracks();
+};
+window.closeJukebox = function(){
+    document.getElementById('jukebox-overlay').style.display  = 'none';
+    document.getElementById('settings-overlay').style.display = 'flex';
+};
+function renderJukeboxTracks(){
+    const container = document.getElementById('jukebox-tracks');
+    container.innerHTML = '';
+    jukeboxTracks.forEach(track => {
+        const isActive = track.id === activeTrackId;
+        const row = document.createElement('div');
+        row.className = 'jukebox-track' + (isActive ? ' active-track' : '');
+        row.innerHTML = `
+            <span class="track-name${isActive ? ' active' : ''}">${isActive ? '▶ ' : ''}${track.name}</span>
+            <button class="arcade-btn"
+                style="font-size:8px;padding:6px 14px;background:${isActive ? '#27ae60' : '#8b008b'};"
+                onclick="jukeboxSelect('${track.id}')">
+                ${isActive ? '✓ VALD' : 'VÄLJ'}
+            </button>`;
+        container.appendChild(row);
+    });
+}
+window.jukeboxSelect = function(trackId){
+    const track = jukeboxTracks.find(t => t.id === trackId);
+    if(!track) return;
+    activeTrackId       = trackId;
+    bgMusic.src         = track.file;
+    bgMusic.currentTime = 0;
+    if(settings.music) bgMusic.play().catch(()=>{});
+    renderJukeboxTracks();
+};
+// ── END JUKEBOX ───────────────────────────────────────────────────────────────
 
 // ── AUDIO ─────────────────────────────────────────────────────────────────────
 const bgMusic = document.getElementById('bg-music');
@@ -425,14 +510,11 @@ function buildCharacter(pose){
     const S = 1.0; // scale multiplier (we scale the whole group externally)
 
     // ── TORSO ──
-    // Lumberjack shirt body (red base with blue stripe suggestion via two boxes)
     const torso=new THREE.Group();
     const torsoBody=new THREE.Mesh(new THREE.BoxGeometry(2.8*S,3.2*S,1.6*S),shirtMat);
     torsoBody.position.y=0; torso.add(torsoBody);
-    // Blue stripe down middle
     const stripe=new THREE.Mesh(new THREE.BoxGeometry(0.6*S,3.2*S,1.65*S),shirtMat2);
     stripe.position.set(0,0,0); torso.add(stripe);
-    // Collar
     const collar=new THREE.Mesh(new THREE.BoxGeometry(1.4*S,0.5*S,1.65*S),shirtMat2);
     collar.position.set(0,1.7*S,0); torso.add(collar);
     torso.position.set(0,4.2*S,0); torso.castShadow=true; g.add(torso);
@@ -441,71 +523,53 @@ function buildCharacter(pose){
     const suspGeo=new THREE.BoxGeometry(0.18*S,3.2*S,0.18*S);
     const sl=new THREE.Mesh(suspGeo,suspMat); sl.position.set(-0.9*S,4.2*S,0.82*S); g.add(sl);
     const sr=new THREE.Mesh(suspGeo,suspMat); sr.position.set( 0.9*S,4.2*S,0.82*S); g.add(sr);
-    // Cross-piece at back
     const suspBack=new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.18*S,0.18*S),suspMat);
     suspBack.position.set(0,5.5*S,-0.82*S); g.add(suspBack);
 
     // ── HEAD ──
     const headG=new THREE.Group();
-    // Head shape — slightly round/chubby face
     const head=new THREE.Mesh(new THREE.BoxGeometry(2.2*S,2.4*S,2.1*S),skinMat);
     head.scale.set(1,1,0.9); headG.add(head);
-    // Cheeks
     [-0.85,0.85].forEach(hx=>{
         const cheek=new THREE.Mesh(new THREE.SphereGeometry(0.45*S,8,8),skinMat);
         cheek.position.set(hx*S,0.1*S,0.9*S); headG.add(cheek);
     });
-    // Nose
     const nose=new THREE.Mesh(new THREE.SphereGeometry(0.22*S,8,8),skinMat);
     nose.scale.set(1,0.8,1.4); nose.position.set(0,-0.1*S,1.05*S); headG.add(nose);
-    // Short white beard
     const beard=new THREE.Mesh(new THREE.BoxGeometry(1.6*S,0.7*S,0.5*S),beardMat);
     beard.position.set(0,-0.9*S,0.8*S); headG.add(beard);
-    // Mustache
     const mustache=new THREE.Mesh(new THREE.BoxGeometry(1.0*S,0.25*S,0.3*S),beardMat);
     mustache.position.set(0,-0.3*S,1.05*S); headG.add(mustache);
-    // Round glasses (two circles + bridge)
     [-0.5,0.5].forEach(gx=>{
         const lensRim=new THREE.Mesh(new THREE.TorusGeometry(0.28*S,0.05*S,8,16),frameMat);
-        lensRim.position.set(gx*S,0.2*S,1.06*S); lensRim.rotation.y=Math.PI/2*0+0; headG.add(lensRim);
+        lensRim.position.set(gx*S,0.2*S,1.06*S); headG.add(lensRim);
         const lens=new THREE.Mesh(new THREE.CircleGeometry(0.23*S,16),glassMat);
         lens.position.set(gx*S,0.2*S,1.07*S); headG.add(lens);
     });
     const bridge=new THREE.Mesh(new THREE.BoxGeometry(0.44*S,0.06*S,0.06*S),frameMat);
     bridge.position.set(0,0.2*S,1.06*S); headG.add(bridge);
-    // Ear pieces
     [-1.15,1.15].forEach(ex=>{
         const ep=new THREE.Mesh(new THREE.BoxGeometry(0.08*S,0.06*S,0.5*S),frameMat);
         ep.position.set(ex*S,0.2*S,0.8*S); headG.add(ep);
     });
-    // Thinning white hair (just at sides/back)
     const hairSide=new THREE.MeshStandardMaterial({color:0xdddddd});
     [-0.9,0.9].forEach(hx=>{
         const h=new THREE.Mesh(new THREE.BoxGeometry(0.35*S,0.8*S,1.6*S),hairSide);
         h.position.set(hx*S,0.9*S,0); headG.add(h);
     });
-    // Back hair
     const backHair=new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.6*S,0.4*S),hairSide);
     backHair.position.set(0,0.8*S,-0.85*S); headG.add(backHair);
-
-    // ── FARMER CAP ──
-    // Cap base (brim)
     const capBrim=new THREE.Mesh(new THREE.BoxGeometry(2.6*S,0.2*S,2.4*S),capMat);
     capBrim.position.set(0,1.25*S,0.1*S); headG.add(capBrim);
-    // Cap dome
     const capDome=new THREE.Mesh(new THREE.CylinderGeometry(1.1*S,1.2*S,1.1*S,12),capMat);
     capDome.position.set(0,1.8*S,0); headG.add(capDome);
-    // Cap top button
     const capBtn=new THREE.Mesh(new THREE.CylinderGeometry(0.15*S,0.15*S,0.2*S,8),new THREE.MeshStandardMaterial({color:0x222222}));
     capBtn.position.set(0,2.4*S,0); headG.add(capBtn);
-    // Brim peak (front)
     const peak=new THREE.Mesh(new THREE.BoxGeometry(2.2*S,0.18*S,1.0*S),capMat);
     peak.position.set(0,1.25*S,1.2*S); peak.rotation.x=0.15; headG.add(peak);
-
     headG.position.set(0,7.0*S,0); headG.castShadow=true; g.add(headG);
 
     // ── ARMS ──
-    // Left arm (from torso's left)
     const leftArmG=new THREE.Group(); leftArmG.position.set(-1.6*S,5.8*S,0);
     const lUpperArm=new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.38*S,2.0*S,8),shirtMat);
     lUpperArm.position.set(0,-1.0*S,0); leftArmG.add(lUpperArm);
@@ -544,17 +608,14 @@ function buildCharacter(pose){
     rightLegG.castShadow=true; g.add(rightLegG); charRightLeg=rightLegG;
 
     if(pose==='sit'){
-        // Sitting: legs bent 90 degrees forward
         charLeftLeg.rotation.x=-Math.PI/2;
         charRightLeg.rotation.x=-Math.PI/2;
         charLeftLeg.position.set(-0.75*S,1.8*S,0);
         charRightLeg.position.set(0.75*S,1.8*S,0);
         charIsSitting=true;
-        // Arms reach forward
         charLeftArm.rotation.x=1.0; charRightArm.rotation.x=1.0;
     } else {
         charIsSitting=false;
-        // Arms reach forward-down to grab handle
         charLeftArm.rotation.x=0.9; charRightArm.rotation.x=0.9;
     }
 
@@ -574,32 +635,26 @@ function buildMowerAndCharacter(){
         if(loadedCombineMesh) mowerGroup.add(loadedCombineMesh.clone());
         else{ const b=new THREE.Mesh(new THREE.BoxGeometry(6,4,10),new THREE.MeshStandardMaterial({color:0xff6600})); b.position.y=2; mowerGroup.add(b); }
         mowerStats.cutWidth=18; mowerStats.radius=4.5; mowerStats.maxSpeed=0.40;
-        // Character sitting on combine
         const char=buildCharacter('sit'); char.position.set(0,4,0); char.scale.setScalar(0.9); mowerGroup.add(char);
     }
     else if(selectedMower==='ts112'){
         if(loadedRideMesh) mowerGroup.add(loadedRideMesh.clone());
         else{ const b=new THREE.Mesh(new THREE.BoxGeometry(4,3,6),new THREE.MeshStandardMaterial({color:0xcc0000})); b.position.y=1.5; mowerGroup.add(b); }
         mowerStats.cutWidth=12; mowerStats.radius=3.2; mowerStats.maxSpeed=0.50;
-        // Character sitting on ride-on
         const char=buildCharacter('sit'); char.position.set(0,2.5,-0.5); char.scale.setScalar(0.85); mowerGroup.add(char);
     }
     else if(selectedMower==='klippo'){
         if(loadedKlippoMesh) mowerGroup.add(loadedKlippoMesh.clone());
         else{ buildHandjagareBody(mowerGroup, 0x00cc00); }
         mowerStats.cutWidth=9; mowerStats.radius=2.8; mowerStats.maxSpeed=0.45;
-        // Character walking behind
         const char=buildCharacter('walk'); char.position.set(0,0,-3.5); char.scale.setScalar(0.9); mowerGroup.add(char);
     }
     else {
-        // standard / handjagare
         buildHandjagareBody(mowerGroup, 0xcc2200);
         mowerStats.cutWidth=7; mowerStats.radius=2.5; mowerStats.maxSpeed=0.45;
-        // Character walking behind
         const char=buildCharacter('walk'); char.position.set(0,0,-3.5); char.scale.setScalar(0.9); mowerGroup.add(char);
     }
 
-    // Scale whole group: base 1.3 for level 1, 1.0 others
     const sc = currentLevel===1 ? 1.82 : 1.4;
     mowerGroup.scale.setScalar(sc);
     mowerGroup.position.set(px,py,pz); mowerGroup.rotation.y=ry; scene.add(mowerGroup);
@@ -671,7 +726,6 @@ function buildYardFence(ox,oz){
     side(ox,oz-lawnWorldSize/2,0); side(ox,oz+lawnWorldSize/2,0); side(ox-lawnWorldSize/2,oz,Math.PI/2); side(ox+lawnWorldSize/2,oz,Math.PI/2);
 }
 
-// Garden items scaled 30% smaller (0.7x)
 function spawnGardenTable(x,z){
     const g=new THREE.Group(); const S=0.7;
     const wm=new THREE.MeshStandardMaterial({color:0xc4963c}), mm=new THREE.MeshStandardMaterial({color:0x888888});
@@ -766,19 +820,13 @@ function setupVillaLevel(){
     [-200,-100,0,100,200].forEach((hx,i)=>{ buildHouseDetailed(hx,-30,hc[i%hc.length]); if(i===2)buildYardFence(0,0); });
     const hc2=['#c4e8c4','#f0d0a0','#b0c8e8','#e8c4c4','#d8d8a8'];
     [-200,-100,0,100,200].forEach((hx,i)=>{ buildHouseDetailed(hx,92,hc2[i%hc2.length],Math.PI); });
-
-    // Mowable lawn canvas — pure uncut green (no house blackout, use boundary in canMoveTo)
     lawnCanvas=document.createElement('canvas'); lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle=COLOR_UNCUT; lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
     lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture}));
     lawn.rotation.x=-Math.PI/2; scene.add(lawn);
-
-    // Count cuttable pixels = all green pixels = entire lawn canvas
-    // Since we fill entirely with COLOR_UNCUT (r>100), total = all pixels
     totalCuttablePixels = lawnTexResolution * lawnTexResolution;
-
     spawnGardenTable(30,15); spawnGrill(-30,-15);
     spawnDecoTree(-35,30); spawnDecoTree(35,30); spawnDecoTree(-35,-35); spawnDecoTree(35,-35);
     spawnBush(20,-30); spawnBush(-22,25); spawnBush(18,32);
@@ -808,8 +856,6 @@ function setupStadiumLevel(){
     lawnWorldSize=120; animatedPlayers=[]; animatedCrowdArms=[]; animatedClouds=[]; stadiumOverlayMesh=null;
     addSunAndClouds();
     const world=new THREE.Mesh(new THREE.PlaneGeometry(1000,1000),new THREE.MeshStandardMaterial({color:0x113311})); world.rotation.x=-Math.PI/2; world.position.y=-0.1; scene.add(world);
-
-    // Cut layer (bottom) — vivid stripes + lines
     stadiumCutCanvas=document.createElement('canvas'); stadiumCutCanvas.width=stadiumCutCanvas.height=lawnTexResolution;
     stadiumCutCtx=stadiumCutCanvas.getContext('2d');
     const sH=32;
@@ -818,8 +864,6 @@ function setupStadiumLevel(){
     stadiumCutTexture=new THREE.CanvasTexture(stadiumCutCanvas);
     const cutMesh=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:stadiumCutTexture}));
     cutMesh.rotation.x=-Math.PI/2; cutMesh.position.y=0.01; scene.add(cutMesh);
-
-    // Overlay (top) — dull, erased as mowed
     lawnCanvas=document.createElement('canvas'); lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     for(let y=0;y<lawnTexResolution;y+=sH){ lawnContext.fillStyle=(y/sH)%2===0?'#5a7a50':'#4a6a42'; lawnContext.fillRect(0,y,lawnTexResolution,sH); }
@@ -828,21 +872,12 @@ function setupStadiumLevel(){
     stadiumOverlayMesh=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,transparent:true}));
     stadiumOverlayMesh.rotation.x=-Math.PI/2; stadiumOverlayMesh.position.y=0.02; scene.add(stadiumOverlayMesh);
     lawn=stadiumOverlayMesh;
-
-    // Cuttable = entire pitch overlay = all pixels start opaque
     totalCuttablePixels = lawnTexResolution * lawnTexResolution;
-
     buildAllBleachers(lawnWorldSize);
     buildFloodlightPoles(lawnWorldSize);
-    // Goals on SHORT ends (z axis = length of pitch in world space)
-    // lawnWorldSize=120, so short ends are at x = ±60 from center of pitch
-    // But our pitch is square 120x120 in world, short ends of a football pitch are the goal ends
-    // We treat Z as the long axis: goals at z = ±(lawnWorldSize/2)
     buildGoal(0,-lawnWorldSize/2+2,0);
     buildGoal(0, lawnWorldSize/2-2,Math.PI);
     spawnFootballPlayers(lawnWorldSize);
-
-    // Start crowd sfx
     startStadiumSfx();
 }
 
@@ -869,14 +904,10 @@ function buildAllBleachers(size){
         for(let ci=0;ci<=3;ci++){ const col=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,numRows*rowH+4,8),cMat); col.position.set(-length/2+ci*(length/3),(numRows*rowH+4)/2,-numRows*rowDepth+1); g.add(col); }
         g.position.set(cx,0,cz); g.rotation.y=rotY; scene.add(g);
     }
-    // Place bleachers OUTSIDE the pitch on all 4 sides
-    // The pitch occupies -60 to +60 in both X and Z
-    // Long sides (along Z): bleachers at x = ±(size/2 + 2)
-    // Short sides (along X, i.e. goal ends): bleachers at z = ±(size/2 + 2)
-    buildStand( size/2+2, 0, size+16,-Math.PI/2); // East long side
-    buildStand(-size/2-2, 0, size+16, Math.PI/2); // West long side
-    buildStand(0,-size/2-2, size+16, 0);           // North short end
-    buildStand(0, size/2+2, size+16, Math.PI);     // South short end
+    buildStand( size/2+2, 0, size+16,-Math.PI/2);
+    buildStand(-size/2-2, 0, size+16, Math.PI/2);
+    buildStand(0,-size/2-2, size+16, 0);
+    buildStand(0, size/2+2, size+16, Math.PI);
 }
 
 function buildCrowdPerson(pg,x,y,z){
@@ -952,57 +983,39 @@ function setupGolfLevel(){
     lawnWorldSize=160; animatedFlag=null; animatedPond=null; pondCollider=null; bunkerZones=[]; animatedClouds=[];
     addSunAndClouds();
     buildGolfSurroundings();
-
-    // Flat terrain for golf (removed terrain deformation that was causing movement issues)
     lawnCanvas=document.createElement('canvas'); lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle='#1e4620'; lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
-    // Fairway
     lawnContext.fillStyle=COLOR_UNCUT;
     lawnContext.beginPath(); lawnContext.ellipse(256,300,120,200,0,0,Math.PI*2); lawnContext.fill();
-    // Green
     lawnContext.fillStyle='#7CFC00';
     lawnContext.beginPath(); lawnContext.arc(256,100,70,0,Math.PI*2); lawnContext.fill();
-    // Bunkers — sand color (NOT counted as cuttable)
     lawnContext.fillStyle='#edc9af';
     lawnContext.beginPath(); lawnContext.ellipse(175,115,30,45,Math.PI/4,0,Math.PI*2); lawnContext.fill();
     lawnContext.beginPath(); lawnContext.ellipse(340,235,25,35,-Math.PI/5,0,Math.PI*2); lawnContext.fill();
-    // Water
     lawnContext.fillStyle='#1e90ff';
     lawnContext.beginPath(); lawnContext.arc(355,330,55,0,Math.PI*2); lawnContext.fill();
-
-    // Count cuttable pixels: only the green (r>100 g>150) fairway pixels
-    // We count these AFTER drawing
     {
         const imageData=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;
         let count=0;
         for(let i=0;i<imageData.length;i+=4){
             const r=imageData[i],g2=imageData[i+1],b2=imageData[i+2];
-            // Fairway (green) or green (bright green): r<150 && g>100 && b<80
             if(g2>100&&r<200&&b2<100) count++;
         }
         totalCuttablePixels=Math.max(count,1);
     }
-
     pondCollider={cx:32,cz:22,rx:17,rz:17};
     bunkerZones=[{cx:-20,cz:-20,rx:9,rz:14},{cx:18,cz:3,rx:8,rz:11}];
-
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
-    // Use FLAT plane — terrain height was causing canMoveTo boundary failures
     lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
     lawn.rotation.x=-Math.PI/2; scene.add(lawn);
-
     buildGolfFence(lawnWorldSize);
-
-    // Flag at green position
     const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,10,8),new THREE.MeshStandardMaterial({color:0xffffff}));
     fp.position.set(0,5,-55); scene.add(fp);
     const fc=new THREE.Mesh(new THREE.BoxGeometry(4,2.5,0.1),new THREE.MeshStandardMaterial({color:0xff0000,side:THREE.DoubleSide}));
     fc.position.set(2,3.5,0); fp.add(fc); animatedFlag=fc;
-
     const pond=new THREE.Mesh(new THREE.CylinderGeometry(17,17,0.3,32),new THREE.MeshStandardMaterial({color:0x1a6ea8,transparent:true,opacity:0.82,roughness:0.05,metalness:0.2}));
     pond.position.set(32,0.2,22); scene.add(pond); animatedPond=pond;
-
     for(let i=0;i<60;i++){ const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20; spawnTree(Math.sin(a)*d,Math.cos(a)*d,0); }
     startGolfSfx();
 }
@@ -1033,12 +1046,9 @@ function buildGolfSurroundings(){
 // LEVEL 4 — SJÖTOMTEN
 // ══════════════════════════════════════════════════════════════════════════════
 function setupLakeLevel(){
-    // Use smaller world size so boundary isn't too far
     lawnWorldSize=180; animatedClouds=[]; trampolineKids=[];
     addSunAndClouds();
     const res=lawnTexResolution;
-
-    // FLAT terrain for level 4 too — remove terrain deformation causing movement issues
     lawnCanvas=document.createElement('canvas'); lawnCanvas.width=lawnCanvas.height=res;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle='#0f380f'; lawnContext.fillRect(0,0,res,res);
@@ -1049,22 +1059,16 @@ function setupLakeLevel(){
     lawnContext.fillStyle='#c2b280';
     lawnContext.fillRect(res*0.35,res*0.1,res*0.2,18); lawnContext.fillRect(res*0.8,res*0.05,res*0.18,18);
     lawnContext.fillRect(res*0.8,res*0.25,res*0.18,18); lawnContext.fillRect(res*0.35,res*0.92,res*0.25,20);
-
-    // Cuttable = green pixels
     {
         const imageData=lawnContext.getImageData(0,0,res,res).data;
         let count=0;
         for(let i=0;i<imageData.length;i+=4){ if(imageData[i]>80&&imageData[i+1]>100&&imageData[i+2]<80)count++; }
         totalCuttablePixels=Math.max(count,1);
     }
-
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
     lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
     lawn.rotation.x=-Math.PI/2; scene.add(lawn);
-
-    // Ground
     const world=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x0f380f})); world.rotation.x=-Math.PI/2; world.position.y=-0.2; scene.add(world);
-
     for(let i=0;i<50;i++){
         const tx=-80+Math.random()*20,tz=-80+Math.random()*160; spawnTree(tx,tz,0);
         const tx2=20+Math.random()*25,tz2=-50+Math.random()*30; spawnTree(tx2,tz2,0);
@@ -1201,16 +1205,13 @@ window.finishLevel=function(){ if(!gameActive)return; endGame('BANAN AVSLUTAD!')
 window.leaveLevel=function(){ stopLevelSfx(); gameActive=false; gameStarted=false; if(timerInterval)clearInterval(timerInterval); document.getElementById('hud').style.display='none'; document.getElementById('hud-buttons').style.display='none'; openLevelSelect(); };
 function updateTimer(){ if(!gameStarted||!gameActive)return; timeLeft--; const m=Math.floor(timeLeft/60),s=timeLeft%60; document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`; if(timeLeft<=0)endGame('TIDEN ÄR UTE!'); }
 
-// ── PROGRESS — counts CUT pixels (bright green) vs totalCuttablePixels ────────
 function calculateProgress(){
     if(!lawnContext) return;
     const d=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;
     let cut=0;
     if(currentLevel===2){
-        // For stadium overlay: count TRANSPARENT pixels (alpha=0 means erased = mowed)
         for(let i=0;i<d.length;i+=4){ if(d[i+3]<128) cut++; }
     } else {
-        // Count bright green (cut) pixels: R>150 && G>200
         for(let i=0;i<d.length;i+=4){ if(d[i]>150&&d[i+1]>200) cut++; }
     }
     const pct=Math.min(100,Math.floor((cut/totalCuttablePixels)*100));
@@ -1246,7 +1247,6 @@ function animate(){
         updateMowerPhysics();
         paintCutTrail();
         updateCameraFollow();
-        // Character leg animation
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){
             const legSwing=Math.sin(t*6)*0.55;
             charLeftLeg.rotation.x=legSwing;
@@ -1255,7 +1255,6 @@ function animate(){
             charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);
             charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);
         }
-        // Arm sway while walking
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){
             const armSwing=Math.sin(t*6)*0.15;
             charLeftArm.rotation.z=armSwing;
@@ -1277,14 +1276,10 @@ function animate(){
 
 // ── PHYSICS ───────────────────────────────────────────────────────────────────
 function canMoveTo(nx,nz){
-    // Use lawnWorldSize boundary — this is the ONLY boundary check
     const b=(lawnWorldSize/2)-mowerStats.radius;
     if(nx<-b||nx>b||nz<-b||nz>b)return false;
-    // Level 1: block house area
     if(currentLevel===1&&nx>-35&&nx<35&&nz>-55&&nz<-5)return false;
-    // Level 3: block pond
     if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}
-    // Level 4: block lake (left portion of map)
     if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;
     return true;
 }
