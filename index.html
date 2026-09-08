@@ -1433,6 +1433,7 @@
         <div class="setting-row"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
         <div class="setting-row"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
         <div class="setting-row"><span>TIDSBEGRÄNSNING</span><button class="toggle-btn" id="toggle-timer" onclick="toggleSetting('timer')">PÅ</button></div>
+        <div class="setting-row"><span>DYGN</span><button class="toggle-btn" id="toggle-night" onclick="toggleSetting('night')">DAG</button></div>
         <div class="setting-row">
             <span>JUKEBOX</span>
             <button class="arcade-btn" style="font-size:9px;padding:8px 14px;background:#8b008b;" onclick="openJukebox()">🎵 JUKEBOX</button>
@@ -1526,7 +1527,7 @@
     <div class="menu-panel minigames-panel">
         <div class="menu-kicker">BONUS</div>
         <h1 class="menu-title">MINISPEL</h1>
-        <p class="menu-subtitle">Fyra fristående småspel med mer fart, mål och kaos.</p>
+        <p class="menu-subtitle">Fem fristående småspel med mer fart, mål och kaos.</p>
 
         <button class="minigame-choice" onclick="openMaze()">
             <span class="mg-icon">🌿</span>
@@ -1546,6 +1547,11 @@
         <button class="minigame-choice" onclick="MiniGames.open('pattern')">
             <span class="mg-icon">✨</span>
             <span><span class="mg-name">MÖNSTERKLIPP</span><span class="mg-desc">Följ den lysande klippbanan och håll din precision-combo.</span></span>
+            <span class="mg-arrow">▶</span>
+        </button>
+        <button class="minigame-choice" onclick="MiniGames.open('hill')">
+            <span class="mg-icon">⛰️</span>
+            <span><span class="mg-name">BACKKLIPPAREN</span><span class="mg-desc">Kör så långt du kan över ändlösa kullar och tanka längs vägen.</span></span>
             <span class="mg-arrow">▶</span>
         </button>
 
@@ -2017,8 +2023,8 @@
         const weeds=[];
         for(let i=0;i<18;i++)weeds.push({x:rnd(35,445),y:rnd(45,385),r:rnd(10,17),dead:false,w:rnd(0,6)});
         const rocks=Array.from({length:7},()=>({x:rnd(45,435),y:rnd(55,375),r:rnd(13,20)}));
-        state={p:{x:240,y:210,vx:0,vy:0,ang:0},weeds,rocks,power:[],time:35,score:0,combo:0,comboT:0,spawnT:3,particles:[],trail:[]};
-        titleEl.textContent='KLIPPKAOS';msgEl.textContent='OGRÄS + COMBO + TIDSPOWERUPS';
+        state={p:{x:240,y:210,vx:0,vy:0,ang:0},weeds,rocks,power:[],time:35,score:0,combo:0,comboT:0,spawnT:3,particles:[],trail:[],strikes:0,rockCooldown:0};
+        titleEl.textContent='KLIPPKAOS';msgEl.textContent='OGRÄS + COMBO + 3 STENSMÄLLAR';
     }
     function updateChaos(dt){
         const v=inputVector(),p=state.p;
@@ -2028,7 +2034,7 @@
         state.trail.push({x:p.x,y:p.y,life:1});if(state.trail.length>110)state.trail.shift();
         state.trail.forEach(q=>q.life-=dt*.7);state.trail=state.trail.filter(q=>q.life>0);
 
-        state.time-=dt;state.comboT-=dt;if(state.comboT<=0)state.combo=0;
+        state.time-=dt;state.comboT-=dt;state.rockCooldown=Math.max(0,state.rockCooldown-dt);if(state.comboT<=0)state.combo=0;
         state.weeds.forEach(q=>{
             q.w+=dt*5;
             if(!q.dead&&dist(p.x,p.y,q.x,q.y)<q.r+17){
@@ -2046,8 +2052,16 @@
                 const nx=(p.x-r.x)/(d||1),ny=(p.y-r.y)/(d||1);
                 p.x=r.x+nx*(r.r+19);p.y=r.y+ny*(r.r+19);
                 p.vx=nx*150;p.vy=ny*150;state.combo=0;state.comboT=0;
-                msgEl.textContent='KLONK! COMBON FÖRSVANN';
-                spark(p.x,p.y,'#cccccc',7);
+                if(state.rockCooldown<=0){
+                    state.strikes++;
+                    state.rockCooldown=.85;
+                    spark(p.x,p.y,'#cccccc',7);
+                    if(state.strikes>=3){
+                        finish('3 STENSMÄLLAR — GAME OVER');
+                        return;
+                    }
+                    msgEl.textContent=`KLONK! ${state.strikes}/3 STENSMÄLLAR`;
+                }
             }
         });
         state.spawnT-=dt;
@@ -2059,7 +2073,7 @@
         state.power=state.power.filter(q=>q.life>0);
         updateParticles(dt);
         if(state.time<=0)finish('SLUT! POÄNG '+state.score);
-        scoreEl.textContent=`${state.score}  x${Math.max(1,state.combo)}  ${Math.max(0,state.time).toFixed(1)}s`;
+        scoreEl.textContent=`${state.score}  x${Math.max(1,state.combo)}  🪨 ${state.strikes}/3  ${Math.max(0,state.time).toFixed(1)}s`;
     }
     function drawChaos(ts){
         grassBackground(480,420,ts*.02);
@@ -2074,11 +2088,11 @@
     function resetRally(){
         setCanvas(420,500);
         const gates=[];
-        for(let i=0;i<9;i++)gates.push({y:440-i*115,x:rnd(90,330),w:rnd(90,135),passed:false});
+        for(let i=0;i<14;i++)gates.push({y:440-i*115,x:rnd(90,330),w:rnd(90,135),passed:false});
         const beds=[];
-        for(let i=0;i<13;i++)beds.push({x:rnd(35,385),y:rnd(-650,420),w:rnd(35,70),h:rnd(24,45)});
-        state={p:{x:210,y:400,vx:0,ang:0},gates,beds,scroll:0,speed:110,time:36,gate:0,particles:[],finished:false};
-        titleEl.textContent='TRÄDGÅRDSRALLY';msgEl.textContent='PASSERA ALLA GRINDAR';
+        for(let i=0;i<20;i++)beds.push({x:rnd(35,385),y:rnd(-1250,420),w:rnd(35,70),h:rnd(24,45)});
+        state={p:{x:210,y:400,vx:0,ang:0},gates,beds,scroll:0,speed:110,time:52,gate:0,particles:[],finished:false};
+        titleEl.textContent='TRÄDGÅRDSRALLY';msgEl.textContent='PASSERA ALLA 14 GRINDAR';
     }
     function updateRally(dt){
         const v=inputVector(),p=state.p;
@@ -2088,7 +2102,7 @@
         state.gates.forEach((g,i)=>{
             const sy=g.y+state.scroll;
             if(!g.passed&&sy>385&&sy<430){
-                if(Math.abs(p.x-g.x)<g.w/2){g.passed=true;state.gate++;spark(p.x,392,'#ffe85f',14);msgEl.textContent='GRIND '+state.gate+'/9';}
+                if(Math.abs(p.x-g.x)<g.w/2){g.passed=true;state.gate++;spark(p.x,392,'#ffe85f',14);msgEl.textContent='GRIND '+state.gate+'/14';}
                 else {state.time-=2;g.passed=true;state.gate++;msgEl.textContent='MISS! -2 SEK';}
             }
         });
@@ -2099,9 +2113,9 @@
             }
         }
         updateParticles(dt);
-        if(state.gate>=9)finish('MÅL! '+Math.max(0,state.time).toFixed(1)+'s KVAR');
+        if(state.gate>=14)finish('MÅL! '+Math.max(0,state.time).toFixed(1)+'s KVAR');
         else if(state.time<=0)finish('TIDEN ÄR UTE');
-        scoreEl.textContent=`GRIND ${state.gate}/9   ${Math.max(0,state.time).toFixed(1)}s`;
+        scoreEl.textContent=`GRIND ${state.gate}/14   ${Math.max(0,state.time).toFixed(1)}s`;
     }
     function drawRally(ts){
         grassBackground(420,500,state.scroll*.25);
@@ -2165,9 +2179,201 @@
         drawParticles();drawMower(state.p.x,state.p.y,42,state.p.ang);
     }
 
+
+    // ── BACKKLIPPAREN — endless hill climber ────────────────────────────
+    // Side-view, intentionally simple arcade physics. Terrain is generated
+    // mathematically, so the course can continue indefinitely without assets.
+    function hillTerrainY(wx){
+        const difficulty=Math.min(1.75,1+wx/9000);
+        return 330
+            +Math.sin(wx*.0062)*42*difficulty
+            +Math.sin(wx*.0135+1.7)*18*difficulty
+            +Math.sin(wx*.00215+0.8)*28;
+    }
+    function hillSlope(wx){
+        const e=3;
+        return Math.atan2(hillTerrainY(wx+e)-hillTerrainY(wx-e),e*2);
+    }
+    function ensureHillFuel(){
+        while(state.nextFuelX<state.x+1700){
+            const x=state.nextFuelX;
+            state.fuels.push({x,got:false});
+            state.nextFuelX+=rnd(620,860);
+        }
+        state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-400);
+    }
+    function resetHill(){
+        setCanvas(520,420);
+        const startY=hillTerrainY(0)-25;
+        state={
+            x:0,y:startY,vy:0,vx:58,ang:hillSlope(0),angVel:0,
+            fuel:100,fuels:[],nextFuelX:560,particles:[],
+            airborne:false,bestX:0
+        };
+        ensureHillFuel();
+        titleEl.textContent='BACKKLIPPAREN';
+        msgEl.textContent='KÖR HÖGER • HITTA BRÄNSLE • HÅLL DIG PÅ HJULEN';
+    }
+    function updateHill(dt){
+        const v=inputVector();
+        const throttle=clamp(v.x+(keys.ArrowUp||keys.w||keys.W?1:0)-(keys.ArrowDown||keys.s||keys.S?1:0),-1,1);
+
+        // Forward drive with mild drag; reverse/brake is deliberately weaker.
+        const drive=throttle>=0?82*throttle:58*throttle;
+        state.vx+=drive*dt;
+        state.vx-=state.vx*0.11*dt;
+        state.vx=clamp(state.vx,-38,150);
+
+        const ground=hillTerrainY(state.x);
+        const targetY=ground-23;
+        const onGround=state.y>=targetY-3 && state.vy>=-25;
+
+        if(onGround){
+            state.y=targetY;
+            state.vy=0;
+            state.airborne=false;
+            const slope=hillSlope(state.x);
+            const slopePull=Math.sin(slope)*42;
+            state.vx+=slopePull*dt;
+
+            // Lean toward the terrain but keep some inertia over crests.
+            let da=slope-state.ang;
+            while(da>Math.PI)da-=Math.PI*2;
+            while(da<-Math.PI)da+=Math.PI*2;
+            state.angVel+=da*7.5*dt;
+            state.angVel*=Math.pow(.22,dt);
+            state.ang+=state.angVel*dt;
+
+            // Crest launch.
+            const ahead=hillTerrainY(state.x+18)-hillTerrainY(state.x);
+            if(state.vx>80 && ahead<-8){
+                state.vy=-Math.min(90,state.vx*.42);
+                state.airborne=true;
+            }
+        }else{
+            state.airborne=true;
+            state.vy+=185*dt;
+            state.y+=state.vy*dt;
+
+            // Horizontal control gives a small mid-air pitch correction.
+            state.angVel+=throttle*1.8*dt;
+            state.angVel*=Math.pow(.82,dt);
+            state.ang+=state.angVel*dt;
+
+            if(state.y>=targetY){
+                state.y=targetY;
+                state.vy=0;
+                state.airborne=false;
+                const slope=hillSlope(state.x);
+                let diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
+                if(Math.abs(diff)>1.65 && Math.abs(state.vx)>28){
+                    finish('KRASCH! '+Math.floor(state.x/10)+' m');
+                    return;
+                }
+                state.vx*=Math.max(.45,1-Math.abs(diff)*.25);
+                state.ang=slope;
+                state.angVel=0;
+            }
+        }
+
+        state.x+=state.vx*dt;
+        if(state.x<0){state.x=0;state.vx=Math.max(0,state.vx);}
+
+        // Fuel is always consumed; hard driving costs a little more.
+        state.fuel-=dt*(1.45+Math.max(0,throttle)*.8+Math.abs(state.vx)/280);
+        ensureHillFuel();
+
+        for(const f of state.fuels){
+            if(f.got)continue;
+            const fy=hillTerrainY(f.x)-42;
+            if(Math.abs(f.x-state.x)<30 && Math.abs(fy-state.y)<48){
+                f.got=true;
+                state.fuel=Math.min(100,state.fuel+44);
+                msgEl.textContent='TANKAT! +44%';
+                spark(145,250,'#ffdf55',18);
+            }
+        }
+
+        updateParticles(dt);
+        state.bestX=Math.max(state.bestX,state.x);
+        if(state.fuel<=0){
+            state.fuel=0;
+            finish('SLUT PÅ BRÄNSLE — '+Math.floor(state.bestX/10)+' m');
+            return;
+        }
+        scoreEl.textContent=`${Math.floor(state.bestX/10)} m   ⛽ ${Math.ceil(state.fuel)}%`;
+    }
+    function drawHill(ts){
+        const w=520,h=420;
+        const camX=Math.max(0,state.x-135);
+
+        // Sky.
+        const sky=ctx.createLinearGradient(0,0,0,h);
+        sky.addColorStop(0,'#7fc9ef');sky.addColorStop(1,'#d8ecbb');
+        ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
+
+        // Distant hills for depth.
+        ctx.fillStyle='rgba(62,104,66,.32)';
+        ctx.beginPath();ctx.moveTo(0,h);
+        for(let sx=0;sx<=w;sx+=8){
+            const wx=camX+sx*.8;
+            const y=275+Math.sin(wx*.0028)*30+Math.sin(wx*.006+1)*14;
+            ctx.lineTo(sx,y);
+        }
+        ctx.lineTo(w,h);ctx.closePath();ctx.fill();
+
+        // Main ground.
+        ctx.fillStyle='#3f7b39';
+        ctx.beginPath();ctx.moveTo(0,h);
+        for(let sx=0;sx<=w;sx+=4){
+            const wx=camX+sx;
+            ctx.lineTo(sx,hillTerrainY(wx));
+        }
+        ctx.lineTo(w,h);ctx.closePath();ctx.fill();
+
+        ctx.strokeStyle='#a9d36b';ctx.lineWidth=5;
+        ctx.beginPath();
+        for(let sx=0;sx<=w;sx+=4){
+            const y=hillTerrainY(camX+sx);
+            if(sx===0)ctx.moveTo(sx,y);else ctx.lineTo(sx,y);
+        }
+        ctx.stroke();
+
+        // Fuel cans.
+        state.fuels.forEach(f=>{
+            if(f.got)return;
+            const sx=f.x-camX;
+            if(sx<-40||sx>w+40)return;
+            const sy=hillTerrainY(f.x)-30;
+            ctx.fillStyle='#c92520';ctx.fillRect(sx-10,sy-20,20,24);
+            ctx.fillStyle='#f6d34d';ctx.fillRect(sx-6,sy-16,12,5);
+            ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+4,sy-25,7,7);
+            ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';
+            ctx.fillText('FUEL',sx,sy-27);
+        });
+
+        // HUD fuel bar.
+        ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(12,12,168,24);
+        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';ctx.fillRect(16,16,1.60*state.fuel,16);
+        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,168,24);
+        ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';
+        ctx.fillText('BRÄNSLE',18,29);
+
+        // Mower uses the existing top-down sprite as a tiny arcade side-view
+        // stand-in; rotation follows the terrain/air pitch.
+        const sx=state.x-camX,sy=state.y;
+        drawMower(sx,sy,48,state.ang+Math.PI/2);
+
+        drawParticles();
+    }
+
     function reset(){
         gameOver=false;keys={};last=performance.now();
-        if(active==='chaos')resetChaos();else if(active==='rally')resetRally();else resetPattern();
+        if(active==='chaos')resetChaos();
+        else if(active==='rally')resetRally();
+        else if(active==='pattern')resetPattern();
+        else if(active==='hill')resetHill();
+        else resetPattern();
     }
     function finish(text){if(gameOver)return;gameOver=true;msgEl.textContent=text+' — tryck IGEN';}
     function loop(ts){
@@ -2176,11 +2382,13 @@
         if(!gameOver){
             if(active==='chaos')updateChaos(dt);
             else if(active==='rally')updateRally(dt);
-            else updatePattern(dt);
+            else if(active==='pattern')updatePattern(dt);
+            else if(active==='hill')updateHill(dt);
         }
         if(active==='chaos')drawChaos(ts);
         else if(active==='rally')drawRally(ts);
-        else drawPattern(ts);
+        else if(active==='pattern')drawPattern(ts);
+        else if(active==='hill')drawHill(ts);
     }
     function keyDown(e){keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();}
     function keyUp(e){keys[e.key]=false;}
@@ -2247,7 +2455,7 @@ const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
-const settings = { music:true, sfx:true, timedMode:true };
+const settings = { music:true, sfx:true, timedMode:true, nightMode:false };
 
 // ── JUKEBOX ───────────────────────────────────────────────────────────────────
 const jukeboxTracks = [
@@ -2303,7 +2511,7 @@ document.addEventListener('click', ()=>{ if(settings.music && bgMusic.paused) bg
 
 const sfxEls = { fan1:document.getElementById('sfx-fan1'), fan2:document.getElementById('sfx-fan2'), fan3:document.getElementById('sfx-fan3'), swing:document.getElementById('sfx-swing'), fore:document.getElementById('sfx-fore') };
 const mowerSfx = document.getElementById('sfx-mower');
-mowerSfx.volume = 0.5;
+mowerSfx.volume = 0.35; // v40: all mower engine clips 30% lower than before
 let mowerSfxPlaying = false;
 const mowerSfxFiles = { standard:'./handjag.mp3', klippo:'./klippo.mp3', ts112:'./rideon.mp3', combine:'./combine.mp3' };
 
@@ -2331,6 +2539,7 @@ window.toggleSetting=function(key){
     if(key==='music'){settings.music=!settings.music; if(settings.music)bgMusic.play().catch(()=>{}); else bgMusic.pause();}
     else if(key==='sfx'){settings.sfx=!settings.sfx; if(!settings.sfx)stopMowerSfx();}
     else if(key==='timer'){settings.timedMode=!settings.timedMode;}
+    else if(key==='night'){settings.nightMode=!settings.nightMode;}
     updateSettingsUI();
 };
 function updateSettingsUI(){
@@ -2338,6 +2547,12 @@ function updateSettingsUI(){
         const b=document.getElementById(id); const on=settings[k];
         b.textContent=on?'PÅ':'AV'; b.className='toggle-btn'+(on?'':' off');
     });
+
+    const nightBtn=document.getElementById('toggle-night');
+    if(nightBtn){
+        nightBtn.textContent=settings.nightMode?'NATT':'DAG';
+        nightBtn.className='toggle-btn'+(settings.nightMode?'':' off');
+    }
 }
 
 // ── THREE CORE ────────────────────────────────────────────────────────────────
@@ -2692,8 +2907,37 @@ function positioned(obj,x,y,z){
 }
 
 function applyOutdoorLighting(){
-    // Bright stylised Scandinavian summer daylight: warm key light,
-    // cool sky fill and readable shadows without photorealistic heaviness.
+    if(settings.nightMode){
+        // Arcade-readable night: dark sky, cool ambient fill and directional
+        // moonlight. Strong enough to keep grass/obstacles legible on phones.
+        const hemi=new THREE.HemisphereLight(0x456da6,0x1b2813,0.74);
+        scene.add(hemi);
+
+        const moonLight=new THREE.DirectionalLight(0xc8ddff,1.70);
+        moonLight.position.set(95,125,-120);
+        moonLight.castShadow=true;
+        moonLight.shadow.mapSize.set(1024,1024);
+        moonLight.shadow.camera.near=10;
+        moonLight.shadow.camera.far=320;
+        moonLight.shadow.camera.left=-115;
+        moonLight.shadow.camera.right=115;
+        moonLight.shadow.camera.top=115;
+        moonLight.shadow.camera.bottom=-115;
+        moonLight.shadow.bias=-0.0008;
+        moonLight.shadow.normalBias=0.025;
+        scene.add(moonLight);
+
+        const fill=new THREE.DirectionalLight(0x667fb1,0.28);
+        fill.position.set(-55,35,75);
+        scene.add(fill);
+
+        scene.background=new THREE.Color(0x061021);
+        scene.fog=new THREE.Fog(0x081426,105,310);
+        addNightSky();
+        return;
+    }
+
+    // Established bright Scandinavian summer daylight.
     const hemi=new THREE.HemisphereLight(0xbfe5ff,0x536b32,1.25);
     scene.add(hemi);
 
@@ -2711,14 +2955,53 @@ function applyOutdoorLighting(){
     sunLight.shadow.normalBias=0.025;
     scene.add(sunLight);
 
-    // Very soft frontal fill prevents the mower's shaded side becoming black.
     const fill=new THREE.DirectionalLight(0xb8d7ff,0.42);
     fill.position.set(65,45,80);
     scene.add(fill);
 
-    // Slightly lighter atmospheric distance than the old flat fog.
     scene.background=new THREE.Color(0x8fcff0);
     scene.fog=new THREE.Fog(0x8fcff0,105,310);
+}
+
+function addNightSky(){
+    // Moon disk + halo.
+    const moon=new THREE.Mesh(
+        new THREE.SphereGeometry(7.5,20,16),
+        new THREE.MeshBasicMaterial({color:0xe4efff})
+    );
+    moon.position.set(115,135,-190);
+    scene.add(moon);
+
+    const halo=new THREE.Mesh(
+        new THREE.SphereGeometry(11.5,20,16),
+        new THREE.MeshBasicMaterial({color:0x9fc7ff,transparent:true,opacity:0.10})
+    );
+    halo.position.copy(moon.position);
+    scene.add(halo);
+
+    // Lightweight upper-hemisphere star field.
+    const count=650;
+    const pos=new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+        const a=Math.random()*Math.PI*2;
+        const y=55+Math.random()*250;
+        const r=260+Math.random()*240;
+        pos[i*3]=Math.cos(a)*r;
+        pos[i*3+1]=y;
+        pos[i*3+2]=Math.sin(a)*r;
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const mat=new THREE.PointsMaterial({
+        color:0xffffff,
+        size:1.25,
+        sizeAttenuation:true,
+        transparent:true,
+        opacity:0.92,
+        depthWrite:false
+    });
+    const stars=new THREE.Points(geo,mat);
+    scene.add(stars);
 }
 
 function tuneSceneMaterials(){
@@ -2750,16 +3033,113 @@ function tuneSceneMaterials(){
 }
 
 function addSunAndClouds(){
-    const sun=new THREE.Mesh(new THREE.SphereGeometry(8,16,16),new THREE.MeshBasicMaterial({color:0xffee88})); sun.position.set(120,160,-200); scene.add(sun);
-    const halo=new THREE.Mesh(new THREE.SphereGeometry(12,16,16),new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:0.15})); halo.position.copy(sun.position); scene.add(halo);
     animatedClouds=[];
+    if(settings.nightMode)return;
+
+    const sun=new THREE.Mesh(
+        new THREE.SphereGeometry(8,16,16),
+        new THREE.MeshBasicMaterial({color:0xffee88})
+    );
+    sun.position.set(120,160,-200);
+    scene.add(sun);
+
+    const halo=new THREE.Mesh(
+        new THREE.SphereGeometry(12,16,16),
+        new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:0.15})
+    );
+    halo.position.copy(sun.position);
+    scene.add(halo);
+
     const cMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.88});
     for(let i=0;i<14;i++){
         const cg=new THREE.Group();
-        for(let p=0;p<3+Math.floor(Math.random()*4);p++){ const puff=new THREE.Mesh(new THREE.SphereGeometry(5+Math.random()*7,7,5),cMat); puff.position.set((Math.random()-0.5)*18,(Math.random()-0.5)*4,(Math.random()-0.5)*8); cg.add(puff); }
-        cg.position.set((Math.random()-0.5)*600,80+Math.random()*60,(Math.random()-0.5)*600); scene.add(cg);
+        for(let p=0;p<3+Math.floor(Math.random()*4);p++){
+            const puff=new THREE.Mesh(
+                new THREE.SphereGeometry(5+Math.random()*7,7,5),
+                cMat
+            );
+            puff.position.set(
+                (Math.random()-0.5)*18,
+                (Math.random()-0.5)*4,
+                (Math.random()-0.5)*8
+            );
+            cg.add(puff);
+        }
+        cg.position.set(
+            (Math.random()-0.5)*600,
+            80+Math.random()*60,
+            (Math.random()-0.5)*600
+        );
+        scene.add(cg);
         animatedClouds.push({mesh:cg,speed:0.8+Math.random()*1.8});
     }
+}
+
+// Shared procedural lighting fixture. The fixture itself is visible in day
+// and night; its emissive bulb and actual light output are active only at night.
+function buildOutdoorLampPost(x,z,groundY=0,height=9,range=50,intensity=3.0){
+    const g=new THREE.Group();
+    const postMat=new THREE.MeshStandardMaterial({color:0x35373b,metalness:0.55,roughness:0.5});
+    const bulbMat=new THREE.MeshStandardMaterial({
+        color:settings.nightMode?0xfff0b5:0xd8d2b8,
+        emissive:settings.nightMode?0xffd56a:0x000000,
+        emissiveIntensity:settings.nightMode?2.5:0,
+        roughness:0.35
+    });
+
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.16,.22,height,8),postMat);
+    pole.position.y=height/2; g.add(pole);
+
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(2.0,.18,.18),postMat);
+    arm.position.set(.85,height-.25,0); g.add(arm);
+
+    const lamp=new THREE.Mesh(new THREE.BoxGeometry(1.0,.42,.72),bulbMat);
+    lamp.position.set(1.65,height-.48,0); g.add(lamp);
+
+    g.position.set(x,groundY,z);
+    scene.add(g);
+
+    if(settings.nightMode){
+        const light=new THREE.PointLight(0xffd98b,intensity,range,2);
+        light.position.set(x+1.65,groundY+height-.65,z);
+        light.castShadow=false;
+        scene.add(light);
+    }
+    return g;
+}
+
+function buildVillaStreetLights(){
+    // Road is centred at z=62, with sidewalks at 51 and 73.
+    [-220,-110,0,110,220].forEach((x,i)=>{
+        const z=i%2===0?49:75;
+        const post=buildOutdoorLampPost(x,z,0,10,58,3.3);
+        if(z>62)post.rotation.y=Math.PI;
+    });
+}
+
+function buildGolfCourseLights(){
+    [
+        [-58,-48],[58,-48],
+        [-58,48],[58,48]
+    ].forEach(([x,z])=>{
+        // Slightly taller, softer course fixtures.
+        const post=buildOutdoorLampPost(x,z,0,11,60,2.7);
+        post.rotation.y=Math.atan2(-x,-z);
+    });
+}
+
+function buildFanbyvikenStreetLights(){
+    // Fixtures follow the two existing road strips from the Level 4 item map.
+    const pts=[
+        [1540,150],[1540,320],[1540,500],[1540,680],
+        [1320,350],[1440,350]
+    ];
+    pts.forEach(([px,py],i)=>{
+        const p=level4MapToWorld(px,py);
+        const y=level4HeightAt(p.x,p.z);
+        const post=buildOutdoorLampPost(p.x,p.z,y,9.5,55,3.2);
+        post.rotation.y=(i<4)?Math.PI/2:0;
+    });
 }
 
 function buildCharacter(pose){
@@ -3022,6 +3402,7 @@ function setupVillaLevel(){
     for(let i=-900;i<900;i+=20){const d=new THREE.Mesh(new THREE.PlaneGeometry(10,0.8),mMat);d.rotation.x=-Math.PI/2;d.position.set(i,0.06,62);scene.add(d);}
     const swMat=new THREE.MeshStandardMaterial({color:0xbbbbaa});
     [51,73].forEach(sz=>{const sw=new THREE.Mesh(new THREE.PlaneGeometry(2000,6),swMat);sw.rotation.x=-Math.PI/2;sw.position.set(0,0.04,sz);scene.add(sw);});
+    buildVillaStreetLights();
     // Bana 1 villa street is aligned to the actual playable lawn.
     //
     // The mowable lawn is 100 x 100 world units, centered at x=0,z=0.
@@ -3217,7 +3598,43 @@ function buildAllBleachers(size){
 }
 function buildCrowdPerson(pg,x,y,z){const skins=[0xffcc99,0xcc9966,0x885533,0xffddbb],jerseys=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff];const sm=new THREE.MeshStandardMaterial({color:skins[Math.floor(Math.random()*skins.length)]}),jm=new THREE.MeshStandardMaterial({color:jerseys[Math.floor(Math.random()*jerseys.length)]});const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,1),jm);body.position.set(x,y,z);pg.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(0.7,6,6),sm);head.position.set(x,y+1.6,z);pg.add(head);if(Math.random()>0.5){const ai={left:null,right:null,phase:Math.random()*Math.PI*2};[-1.2,1.2].forEach((ax,idx)=>{const arm=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.6,0.5),jm);arm.position.set(x+ax,y+0.8,z);arm.rotation.z=ax>0?-0.8:0.8;pg.add(arm);if(idx===0)ai.left=arm;else ai.right=arm;});animatedCrowdArms.push(ai);}}
 function buildGoal(x,z,rotY){const gm=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.5});const g=new THREE.Group();[-9,9].forEach(ox=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,8,8),gm);p.position.set(ox,4,0);g.add(p);});const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,18,8),gm);bar.rotation.z=Math.PI/2;bar.position.set(0,8,0);g.add(bar);const net=new THREE.Mesh(new THREE.BoxGeometry(18,8,5),new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.25,wireframe:true}));net.position.set(0,4,-2.5);g.add(net);g.position.set(x,0.1,z);g.rotation.y=rotY;scene.add(g);}
-function buildFloodlightPoles(size){const pm=new THREE.MeshStandardMaterial({color:0xddddcc,metalness:0.5}),lm=new THREE.MeshStandardMaterial({color:0xccccaa,emissive:0x888866,emissiveIntensity:0.5});[[-size/2-8,-size/2-8],[size/2+8,-size/2-8],[-size/2-8,size/2+8],[size/2+8,size/2+8]].forEach(([px,pz])=>{const pole=new THREE.Mesh(new THREE.CylinderGeometry(1,1.5,45,8),pm);pole.position.set(px,22.5,pz);scene.add(pole);const head=new THREE.Mesh(new THREE.BoxGeometry(10,2,6),lm);head.position.set(px,46,pz);scene.add(head);const pl=new THREE.PointLight(0xfff5cc,1.5,200);pl.position.set(px,45,pz);scene.add(pl);});}
+function buildFloodlightPoles(size){
+    const pm=new THREE.MeshStandardMaterial({color:0xddddcc,metalness:0.5});
+    const lm=new THREE.MeshStandardMaterial({
+        color:settings.nightMode?0xfff5cc:0xccccaa,
+        emissive:settings.nightMode?0xffe6a0:0x444433,
+        emissiveIntensity:settings.nightMode?3.0:0.25
+    });
+
+    [
+        [-size/2-8,-size/2-8],
+        [ size/2+8,-size/2-8],
+        [-size/2-8, size/2+8],
+        [ size/2+8, size/2+8]
+    ].forEach(([px,pz])=>{
+        const pole=new THREE.Mesh(new THREE.CylinderGeometry(1,1.5,45,8),pm);
+        pole.position.set(px,22.5,pz);
+        scene.add(pole);
+
+        const head=new THREE.Mesh(new THREE.BoxGeometry(10,2,6),lm);
+        head.position.set(px,46,pz);
+        scene.add(head);
+
+        if(settings.nightMode){
+            const spot=new THREE.SpotLight(0xffefc2,10.5,205,Math.PI/4.3,0.60,1.25);
+            spot.position.set(px,45,pz);
+            spot.target.position.set(0,0,0);
+            spot.castShadow=false;
+            scene.add(spot);
+            scene.add(spot.target);
+
+            // Small local glow at the fixture head.
+            const glow=new THREE.PointLight(0xfff0c2,2.0,55,2);
+            glow.position.set(px,45,pz);
+            scene.add(glow);
+        }
+    });
+}
 function spawnFootballPlayers(pitchSize){
     const half=pitchSize/2-8;
     const teams=[
@@ -3391,6 +3808,7 @@ function buildPlayerMesh(team){const g=new THREE.Group();const sk=new THREE.Mesh
 function setupGolfLevel(){
     lawnWorldSize=168;animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedClouds=[];
     addSunAndClouds();buildGolfSurroundings();
+    buildGolfCourseLights();
 
     const res=lawnTexResolution;
 
@@ -4229,6 +4647,7 @@ function setupLakeLevel(){
     // Roads from the user's item map. The former white ditch strips are removed.
     l4Strip([1510,80],[1605,770],9,0x555555);
     l4Strip([1280,330],[1545,370],6,0x555555);
+    buildFanbyvikenStreetLights();
 
     // Plant borders replacing the old ditch markings.
     l4PlantLine(377,723,785,775,20,34001);
