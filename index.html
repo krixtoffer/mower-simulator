@@ -2917,6 +2917,156 @@ function l4HouseGLB(assetId,px,py,wpx,hpx,rotation=0,placeholderColor=0x777777){
         // On genuine load failure, keep the placeholder visible.
     });
 }
+
+function l4MakeBoardedWall(parent,w,h,depth,boardSize,mat,vertical=false){
+    const count=Math.max(1,Math.floor((vertical?w:h)/boardSize));
+    if(vertical){
+        const bw=w/count;
+        for(let i=0;i<count;i++){
+            const b=new THREE.Mesh(
+                new THREE.BoxGeometry(Math.max(.12,bw*.92),h,depth),
+                mat
+            );
+            b.position.set(-w/2+bw*(i+.5),h/2,0);
+            b.castShadow=true;b.receiveShadow=true;parent.add(b);
+        }
+    }else{
+        const bh=h/count;
+        for(let i=0;i<count;i++){
+            const b=new THREE.Mesh(
+                new THREE.BoxGeometry(w,Math.max(.12,bh*.90),depth),
+                mat
+            );
+            b.position.set(0,bh*(i+.5),0);
+            b.castShadow=true;b.receiveShadow=true;parent.add(b);
+        }
+    }
+}
+
+function l4CustomHouse2(px,py,wpx,hpx,rotation=0){
+    const range=level4HouseTerrainRange(px,py,wpx,hpx);
+    const w=Math.max(8,range.worldW*.90);
+    const d=Math.max(7,range.worldD*.88);
+    const wallH=Math.max(6,Math.min(10,w*.42));
+    const g=new THREE.Group();
+
+    const grey=new THREE.MeshStandardMaterial({color:0x747474,roughness:.95});
+    const darkGrey=new THREE.MeshStandardMaterial({color:0x555555,roughness:1});
+    const frameMat=new THREE.MeshStandardMaterial({color:0x292929,roughness:.72});
+    const glassMat=new THREE.MeshStandardMaterial({
+        color:0x9cc7dc,roughness:.18,metalness:.05,transparent:true,opacity:.82
+    });
+    const roofMat=new THREE.MeshStandardMaterial({color:0x3e3e3e,roughness:.9});
+
+    // Back wall and side walls: horizontal wooden boards.
+    const back=new THREE.Group();
+    l4MakeBoardedWall(back,w,wallH,.24,.65,grey,false);
+    back.position.z=-d/2;
+    g.add(back);
+
+    [-1,1].forEach(side=>{
+        const sideG=new THREE.Group();
+        // Build as horizontal-board strips, then rotate to become a side wall.
+        l4MakeBoardedWall(sideG,d,wallH,.24,.65,grey,false);
+        sideG.rotation.y=Math.PI/2;
+        sideG.position.x=side*w/2;
+        g.add(sideG);
+    });
+
+    // Front is almost entirely glazing: three large panes.
+    const frameT=.22;
+    const frontZ=d/2+.02;
+    const glassH=wallH*.80;
+    const glassY=wallH*.48;
+    const paneW=(w*.91)/3;
+    for(let i=0;i<3;i++){
+        const pane=new THREE.Mesh(
+            new THREE.PlaneGeometry(paneW*.94,glassH),
+            glassMat
+        );
+        pane.position.set(-w*.455+paneW*(i+.5),glassY,frontZ);
+        pane.material.side=THREE.DoubleSide;
+        g.add(pane);
+    }
+    // Window frames.
+    const topF=new THREE.Mesh(new THREE.BoxGeometry(w*.94,frameT,.20),frameMat);
+    topF.position.set(0,glassY+glassH/2,frontZ+.01);g.add(topF);
+    const botF=topF.clone();botF.position.y=glassY-glassH/2;g.add(botF);
+    for(let i=0;i<=3;i++){
+        const vf=new THREE.Mesh(new THREE.BoxGeometry(frameT,glassH,.20),frameMat);
+        vf.position.set(-w*.455+paneW*i,glassY,frontZ+.01);g.add(vf);
+    }
+
+    // Single-slope roof: highest at glazed/front wall, lowest at back.
+    const over=.65;
+    const roofW=w+over*2, roofD=d+over*2;
+    const rise=Math.max(2.4,wallH*.35);
+    const slope=Math.atan2(rise,roofD);
+    const roofLen=Math.sqrt(roofD*roofD+rise*rise);
+    const roof=new THREE.Mesh(
+        new THREE.BoxGeometry(roofW,.34,roofLen),
+        roofMat
+    );
+    roof.rotation.x=slope;
+    roof.position.set(0,wallH+rise/2+.12,0);
+    roof.castShadow=true;roof.receiveShadow=true;g.add(roof);
+
+    g.position.set(range.x,range.maxY+.05,range.z);
+    g.rotation.y=rotation;
+    scene.add(g);
+    l4HouseFoundation(range);
+    l4HouseLabel(2,range.x,range.maxY+wallH+rise+6,range.z);
+    return g;
+}
+
+function l4CustomHouse6(px,py,wpx,hpx,rotation=0){
+    const range=level4HouseTerrainRange(px,py,wpx,hpx);
+    const w=Math.max(8,range.worldW*.90);
+    const d=Math.max(7,range.worldD*.88);
+    const wallH=Math.max(6,Math.min(10,w*.42));
+    const g=new THREE.Group();
+
+    const black=new THREE.MeshStandardMaterial({color:0x171717,roughness:.96});
+    const roofMat=new THREE.MeshStandardMaterial({color:0x0d0d0d,roughness:.9});
+    const trim=new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:.9});
+
+    // Vertical timber boards on all walls.
+    const front=new THREE.Group();
+    l4MakeBoardedWall(front,w,wallH,.24,.48,black,true);
+    front.position.z=d/2;g.add(front);
+
+    const back=new THREE.Group();
+    l4MakeBoardedWall(back,w,wallH,.24,.48,black,true);
+    back.position.z=-d/2;g.add(back);
+
+    [-1,1].forEach(side=>{
+        const sg=new THREE.Group();
+        l4MakeBoardedWall(sg,d,wallH,.24,.48,black,true);
+        sg.rotation.y=Math.PI/2;
+        sg.position.x=side*w/2;
+        g.add(sg);
+    });
+
+    // Simple dark shallow gable-like roof so it reads as a compact wooden house.
+    const roof=new THREE.Mesh(
+        new THREE.BoxGeometry(w+.8,.45,d+.8),
+        roofMat
+    );
+    roof.position.y=wallH+.23;
+    roof.castShadow=true;roof.receiveShadow=true;g.add(roof);
+
+    // Minimal trim to make the box legible at mobile scale.
+    const trimTop=new THREE.Mesh(new THREE.BoxGeometry(w+.2,.22,.22),trim);
+    trimTop.position.set(0,wallH-.15,d/2+.13);g.add(trimTop);
+
+    g.position.set(range.x,range.maxY+.05,range.z);
+    g.rotation.y=rotation;
+    scene.add(g);
+    l4HouseFoundation(range);
+    l4HouseLabel(6,range.x,range.maxY+wallH+6,range.z);
+    return g;
+}
+
 function l4FenceRect(x1,y1,x2,y2){
     const a=level4MapToWorld(x1,y1),b=level4MapToWorld(x2,y2);
     const runs=[[a.x,a.z,b.x,a.z],[b.x,a.z,b.x,b.z],[b.x,b.z,a.x,b.z],[a.x,b.z,a.x,a.z]];
@@ -3048,20 +3198,70 @@ function setupLakeLevel(){
     // 3 + 4 + 5 = house8.glb
     // 7 = house7.glb
     // 2 + 6 remain color-coded boxes until their GLBs are assigned.
-    l4HouseGLB('house9',1213,515,92,96,0,0xff3030);     // 1
-    l4ColorBox(2,1302,445,45,57,0xff8c1a);  // 2 ORANGE — still temporary
+    l4HouseGLB('house9',1213,515,92,96,Math.PI/2,0xff3030);     // 1
+    l4CustomHouse2(1302,445,45,57,0);        // 2 custom grey horizontal-board house
     l4HouseGLB('house8',1288,377,34,39,0,0xffe229);     // 3
     l4HouseGLB('house8',1348,391,37,39,0,0x30d94b);     // 4
-    l4HouseGLB('house8',847,351,35,30,0,0x2878ff);      // 5
-    l4ColorBox(6,348,270,49,44,0xa838e8);   // 6 PURPLE — still temporary
-    l4HouseGLB('house7',315,618,66,49,0,0x22d6d6);      // 7
+    l4HouseGLB('house8',847,351,35,30,Math.PI/2,0x2878ff);      // 5
+    l4CustomHouse6(348,270,49,44,0);         // 6 custom black vertical-board house
+    l4HouseGLB('house7',315,618,66,49,Math.PI/2,0x22d6d6);      // 7
     l4HouseGLB('house9',1112,100,126,61,0,0xff74b8);    // 8
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
 function spawnRedHouse(x,z,h,isT){const hg=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(16,10,12),new THREE.MeshStandardMaterial({color:0x9e3838}));body.position.y=5;hg.add(body);const roof=new THREE.Mesh(new THREE.ConeGeometry(12,6,4),new THREE.MeshStandardMaterial({color:0x333333}));roof.position.y=13;roof.rotation.y=Math.PI/4;hg.add(roof);if(isT){const dk=new THREE.Mesh(new THREE.BoxGeometry(22,1,16),new THREE.MeshStandardMaterial({color:0x8b5a2b}));dk.position.set(-8,4,0);hg.add(dk);const pm=new THREE.MeshStandardMaterial({color:0x5c4033});for(let pz=-6;pz<=6;pz+=6){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,10),pm);p.position.set(-16,-1,pz);hg.add(p);}}hg.position.set(x,h,z);scene.add(hg);}
-function spawnTrampoline(x,z,h){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0x111111}),pm=new THREE.MeshStandardMaterial({color:0x333333}),netMat=new THREE.MeshStandardMaterial({color:0x888888,transparent:true,opacity:0.5,side:THREE.DoubleSide}),blueMat=new THREE.MeshStandardMaterial({color:0x0000ff});const frame=new THREE.Mesh(new THREE.TorusGeometry(4,0.25,8,32),pm);frame.rotation.x=Math.PI/2;frame.position.y=1.25;g.add(frame);const canvas2=new THREE.Mesh(new THREE.CylinderGeometry(4,4,0.2,24),bm);canvas2.position.y=1.2;g.add(canvas2);const pad=new THREE.Mesh(new THREE.TorusGeometry(4,0.4,8,24),blueMat);pad.rotation.x=Math.PI/2;pad.position.y=1.25;g.add(pad);for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2,6),pm);leg.position.set(Math.sin(a)*3.5,0.6,Math.cos(a)*3.5);g.add(leg);}const net=new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,5,24,1,true),netMat);net.position.y=3.7;g.add(net);for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,5.5,6),pm);pole.position.set(Math.sin(a)*4.2,3.7,Math.cos(a)*4.2);g.add(pole);}const topRing=new THREE.Mesh(new THREE.TorusGeometry(4.3,0.12,6,24),pm);topRing.rotation.x=Math.PI/2;topRing.position.y=6.2;g.add(topRing);for(let k=0;k<2;k++){const kid=buildKidMesh();kid.position.set(k===0?-1.5:1.5,1.4,k===0?0.5:-0.5);g.add(kid);trampolineKids.push({mesh:kid,baseY:1.4,phase:k*Math.PI,amplitude:2.5});}g.position.set(x,h,z);scene.add(g);}
-function buildKidMesh(){const g=new THREE.Group();const cols=[0xff4444,0x4444ff,0x44ff44,0xffaa00];const bm=new THREE.MeshStandardMaterial({color:cols[Math.floor(Math.random()*cols.length)]}),sm=new THREE.MeshStandardMaterial({color:0xffcc99}),lm=new THREE.MeshStandardMaterial({color:0x333399});const body=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.5,0.7),bm);body.position.y=1.5;g.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(0.6,8,8),sm);head.position.y=2.6;g.add(head);[-0.8,0.8].forEach(ax=>{const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.2,6),bm);arm.position.set(ax,2.2,0);arm.rotation.z=ax>0?-1.2:1.2;g.add(arm);});[-0.35,0.35].forEach(lx=>{const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.2,6),lm);leg.position.set(lx,0.6,0);g.add(leg);});return g;}
+function spawnTrampoline(x,z,h){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0x111111}),pm=new THREE.MeshStandardMaterial({color:0x333333}),netMat=new THREE.MeshStandardMaterial({color:0x888888,transparent:true,opacity:0.5,side:THREE.DoubleSide}),blueMat=new THREE.MeshStandardMaterial({color:0x0000ff});const frame=new THREE.Mesh(new THREE.TorusGeometry(4,0.25,8,32),pm);frame.rotation.x=Math.PI/2;frame.position.y=1.25;g.add(frame);const canvas2=new THREE.Mesh(new THREE.CylinderGeometry(4,4,0.2,24),bm);canvas2.position.y=1.2;g.add(canvas2);const pad=new THREE.Mesh(new THREE.TorusGeometry(4,0.4,8,24),blueMat);pad.rotation.x=Math.PI/2;pad.position.y=1.25;g.add(pad);for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2,6),pm);leg.position.set(Math.sin(a)*3.5,0.6,Math.cos(a)*3.5);g.add(leg);}const net=new THREE.Mesh(new THREE.CylinderGeometry(4.3,4.3,5,24,1,true),netMat);net.position.y=3.7;g.add(net);for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,5.5,6),pm);pole.position.set(Math.sin(a)*4.2,3.7,Math.cos(a)*4.2);g.add(pole);}const topRing=new THREE.Mesh(new THREE.TorusGeometry(4.3,0.12,6,24),pm);topRing.rotation.x=Math.PI/2;topRing.position.y=6.2;g.add(topRing);for(let k=0;k<2;k++){const kid=buildKidMesh(k===0?'sunhat':'blond');kid.position.set(k===0?-1.5:1.5,1.4,k===0?0.5:-0.5);g.add(kid);trampolineKids.push({mesh:kid,baseY:1.4,phase:k*Math.PI,amplitude:2.5});}g.position.set(x,h,z);scene.add(g);}
+function buildKidMesh(style='plain'){
+    const g=new THREE.Group();
+    const cols=style==='sunhat'?[0xff6b6b]:[0x5f7cff];
+    const bm=new THREE.MeshStandardMaterial({color:cols[0]});
+    const sm=new THREE.MeshStandardMaterial({color:0xffcc99});
+    const lm=new THREE.MeshStandardMaterial({color:style==='sunhat'?0x335599:0x303030});
+
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.5,0.7),bm);
+    body.position.y=1.5;g.add(body);
+
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.6,8,8),sm);
+    head.position.y=2.6;g.add(head);
+
+    if(style==='sunhat'){
+        const hatMat=new THREE.MeshStandardMaterial({color:0xf2c66d,roughness:.9});
+        const brim=new THREE.Mesh(new THREE.CylinderGeometry(.92,.92,.12,16),hatMat);
+        brim.position.y=3.18;g.add(brim);
+        const crown=new THREE.Mesh(new THREE.CylinderGeometry(.52,.62,.45,12),hatMat);
+        crown.position.y=3.42;g.add(crown);
+    }else if(style==='blond'){
+        const hairMat=new THREE.MeshStandardMaterial({color:0xd7b35a,roughness:.9});
+        const hair=new THREE.Mesh(
+            new THREE.SphereGeometry(.66,10,8,0,Math.PI*2,0,Math.PI/2),
+            hairMat
+        );
+        hair.position.y=2.87;
+        hair.scale.set(1.06,.75,1.04);
+        g.add(hair);
+
+        // Tiny dark round glasses reinforce the playful "Harry Potter-ish" read.
+        const glassMat=new THREE.MeshStandardMaterial({color:0x2b2b2b});
+        [-.24,.24].forEach(x=>{
+            const ring=new THREE.Mesh(new THREE.TorusGeometry(.16,.035,6,12),glassMat);
+            ring.position.set(x,2.66,.56);
+            g.add(ring);
+        });
+    }
+
+    [-0.8,0.8].forEach(ax=>{
+        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.2,6),bm);
+        arm.position.set(ax,2.2,0);
+        arm.rotation.z=ax>0?-1.2:1.2;
+        g.add(arm);
+    });
+    [-0.35,0.35].forEach(lx=>{
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.2,6),lm);
+        leg.position.set(lx,0.6,0);
+        g.add(leg);
+    });
+    return g;
+}
 
 window.openShowroom=function(mowerId){
     inspectingMowerId=mowerId;const data=mowerData[mowerId];
