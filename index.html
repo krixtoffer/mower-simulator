@@ -1181,23 +1181,16 @@ window.confirmStartLevel=function(){
     const spawn=spawnMap[currentLevel]||{x:0,z:0};
     mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
     mowerGroup.rotation.y=mowerStats.rotation;
-
-    // Snap camera immediately to a valid chase-camera pose.
-    // This avoids starting at THREE.Camera's default (0,0,0), which can
-    // momentarily point upward / sit inside the player model.
-    const cd=selectedMower==='combine'?46:selectedMower==='ts112'?38:32;
-    const ch=selectedMower==='combine'?34:selectedMower==='ts112'?30:26;
-    const forwardX=Math.sin(mowerStats.rotation);
-    const forwardZ=Math.cos(mowerStats.rotation);
+    // Start in the same chase-camera geometry used by the proven gras13 build.
     camera.position.set(
-        mowerGroup.position.x-forwardX*cd,
-        mowerGroup.position.y+ch,
-        mowerGroup.position.z-forwardZ*cd
+        mowerGroup.position.x-Math.sin(mowerStats.rotation)*20,
+        mowerGroup.position.y+16,
+        mowerGroup.position.z-Math.cos(mowerStats.rotation)*20
     );
     camera.lookAt(
-        mowerGroup.position.x+forwardX*8,
-        mowerGroup.position.y+3.5,
-        mowerGroup.position.z+forwardZ*8
+        mowerGroup.position.x,
+        mowerGroup.position.y+2,
+        mowerGroup.position.z
     );
     camera.updateProjectionMatrix();
 
@@ -1247,34 +1240,54 @@ function animate(){
 }
 
 function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>-35&&nx<35&&nz>-55&&nz<-5)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
-function updateMowerPhysics(){if(!mowerGroup)return;let ti=0;if(inputs.left)ti=1;if(inputs.right)ti=-1;if(inputs.joyX!==0)ti=-inputs.joyX;mowerStats.rotation+=mowerStats.turnSpeed*ti;mowerGroup.rotation.y=mowerStats.rotation;let fi=0;if(inputs.up)fi=1;if(inputs.down)fi=-1;if(inputs.joyY!==0)fi=-inputs.joyY;if(fi!==0)mowerStats.speed+=mowerStats.acceleration*fi;else mowerStats.speed*=mowerStats.deceleration;mowerStats.speed=THREE.MathUtils.clamp(mowerStats.speed,-mowerStats.maxSpeed/2,mowerStats.maxSpeed);const nx=mowerGroup.position.x+Math.sin(mowerStats.rotation)*mowerStats.speed;const nz=mowerGroup.position.z+Math.cos(mowerStats.rotation)*mowerStats.speed;if(canMoveTo(nx,nz)){mowerGroup.position.x=nx;mowerGroup.position.z=nz;mowerGroup.position.y=0;}else mowerStats.speed=0;}
+function updateMowerPhysics(){
+    if(!mowerGroup)return;
+
+    // Keep the proven control equations from gras13.html.
+    let turnInput=0;
+    if(inputs.left) turnInput=1;
+    if(inputs.right) turnInput=-1;
+    if(inputs.joyX!==0) turnInput=-inputs.joyX;
+    mowerStats.rotation+=mowerStats.turnSpeed*turnInput;
+    mowerGroup.rotation.y=mowerStats.rotation;
+
+    let forwardInput=0;
+    if(inputs.up) forwardInput=1;
+    if(inputs.down) forwardInput=-1;
+    if(inputs.joyY!==0) forwardInput=-inputs.joyY;
+
+    if(forwardInput!==0) mowerStats.speed+=mowerStats.acceleration*forwardInput;
+    else mowerStats.speed*=mowerStats.deceleration;
+
+    mowerStats.speed=THREE.MathUtils.clamp(
+        mowerStats.speed,
+        -mowerStats.maxSpeed/2,
+        mowerStats.maxSpeed
+    );
+
+    const newX=mowerGroup.position.x+Math.sin(mowerStats.rotation)*mowerStats.speed;
+    const newZ=mowerGroup.position.z+Math.cos(mowerStats.rotation)*mowerStats.speed;
+
+    if(canMoveTo(newX,newZ)){
+        mowerGroup.position.x=newX;
+        mowerGroup.position.z=newZ;
+        // Unlike the old flat prototype, the new levels have terrain.
+        // Never force Y back to zero: follow the terrain surface.
+        mowerGroup.position.y=getTerrainHeight(newX,newZ);
+    } else {
+        mowerStats.speed=0;
+    }
+}
 function paintCutTrail(){if(!lawnContext||!mowerGroup)return;if(currentLevel===3&&bunkerZones.length>0){for(const bz of bunkerZones){const ex=(mowerGroup.position.x-bz.cx)/bz.rx,ez=(mowerGroup.position.z-bz.cz)/bz.rz;if(ex*ex+ez*ez<1.0)return;}}const uvX=(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;const uvY=(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;const tx=uvX*lawnTexResolution,ty=uvY*lawnTexResolution;const lx=lawnCanvas.lastPaintedX||tx,ly=lawnCanvas.lastPaintedY||ty;if(Math.abs(mowerStats.speed)>0.001){if(currentLevel===2){lawnContext.globalCompositeOperation='destination-out';lawnContext.strokeStyle='rgba(0,0,0,1)';}else if(currentLevel===3){lawnContext.strokeStyle='#5ad85a';}else{lawnContext.strokeStyle=COLOR_CUT;}lawnContext.lineWidth=(mowerStats.cutWidth/lawnWorldSize)*lawnTexResolution;lawnContext.lineCap='round';lawnContext.beginPath();lawnContext.moveTo(lx,ly);lawnContext.lineTo(tx,ty);lawnContext.stroke();if(currentLevel===2)lawnContext.globalCompositeOperation='source-over';lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;lawnTexture.needsUpdate=true;}else{lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;}}
 function updateCameraFollow(){
     if(!mowerGroup)return;
-
-    // Higher and farther third-person camera for a clearer mobile view.
-    const cd=selectedMower==='combine'?46:selectedMower==='ts112'?38:32;
-    const ch=selectedMower==='combine'?34:selectedMower==='ts112'?30:26;
-
-    const forwardX=Math.sin(mowerStats.rotation);
-    const forwardZ=Math.cos(mowerStats.rotation);
-
-    const desiredPos=new THREE.Vector3(
-        mowerGroup.position.x-forwardX*cd,
-        mowerGroup.position.y+ch,
-        mowerGroup.position.z-forwardZ*cd
+    const offset=new THREE.Vector3(
+        -Math.sin(mowerStats.rotation)*20,
+        16,
+        -Math.cos(mowerStats.rotation)*20
     );
-
-    // Aim slightly ahead of the mower instead of straight at its feet.
-    const lookAhead=8;
-    const target=new THREE.Vector3(
-        mowerGroup.position.x+forwardX*lookAhead,
-        mowerGroup.position.y+3.5,
-        mowerGroup.position.z+forwardZ*lookAhead
-    );
-
-    camera.position.lerp(desiredPos,0.12);
-    camera.lookAt(target);
+    camera.position.lerp(mowerGroup.position.clone().add(offset),0.1);
+    camera.lookAt(mowerGroup.position.x,mowerGroup.position.y+2,mowerGroup.position.z);
 }
 
 function setupJoystick(){const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');let active=false,cx2,cy2,mr;zone.addEventListener('touchstart',e=>{e.preventDefault();active=true;const r=zone.getBoundingClientRect();cx2=r.left+r.width/2;cy2=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;upd(e.touches[0]);},{passive:false});zone.addEventListener('touchmove',e=>{e.preventDefault();if(active)upd(e.touches[0]);},{passive:false});const rst=()=>{active=false;knob.style.transform='translate(-50%,-50%)';inputs.joyX=inputs.joyY=0;};zone.addEventListener('touchend',rst);zone.addEventListener('touchcancel',rst);function upd(t){let dx=t.clientX-cx2,dy=t.clientY-cy2,d=Math.sqrt(dx*dx+dy*dy);if(d>mr){const a=Math.atan2(dy,dx);dx=Math.cos(a)*mr;dy=Math.sin(a)*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;inputs.joyX=dx/mr;inputs.joyY=dy/mr;}}
