@@ -1145,22 +1145,71 @@ window.confirmStartLevel=function(){
     document.getElementById('level-intro-screen').style.display='none';
     document.getElementById('hud').style.display='flex';
     document.getElementById('hud-buttons').style.display='flex';
+
+    // Fully reset transient level state.
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
-    animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedAnimals=[];trampolineKids=[];stadiumOverlayMesh=null;
+    animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
+    animatedAnimals=[];trampolineKids=[];stadiumOverlayMesh=null;
+    lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
+
     while(scene.children.length>0)scene.remove(scene.children[0]);
     scene.add(new THREE.AmbientLight(0xffffff,0.7));
-    const dl=new THREE.DirectionalLight(0xffffff,1.0);dl.position.set(50,100,-150);scene.add(dl);
-    buildMowerAndCharacter();
+    const dl=new THREE.DirectionalLight(0xffffff,1.0);
+    dl.position.set(50,100,-150);
+    scene.add(dl);
+
+    // Build the level first so lawnWorldSize and all terrain are final
+    // before the mower and camera are positioned.
     if(currentLevel===1)      setupVillaLevel();
     else if(currentLevel===2) setupStadiumLevel();
     else if(currentLevel===3) setupGolfLevel();
     else if(currentLevel===4) setupLakeLevel();
-    timeLeft=90;currentProgress=0;
+
+    // Do NOT inherit the previous level's mower coordinates.
+    mowerGroup=null;
+    mowerStats.speed=0;
+    mowerStats.rotation=Math.PI;
+    buildMowerAndCharacter();
+
+    // Explicit safe spawn points for each level.
+    const spawnMap={
+        1:{x:0,z:25},
+        2:{x:0,z:0},
+        3:{x:0,z:50},
+        4:{x:25,z:55}
+    };
+    const spawn=spawnMap[currentLevel]||{x:0,z:0};
+    mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
+    mowerGroup.rotation.y=mowerStats.rotation;
+
+    // Snap camera immediately to a valid chase-camera pose.
+    // This avoids starting at THREE.Camera's default (0,0,0), which can
+    // momentarily point upward / sit inside the player model.
+    const cd=selectedMower==='combine'?46:selectedMower==='ts112'?38:32;
+    const ch=selectedMower==='combine'?34:selectedMower==='ts112'?30:26;
+    const forwardX=Math.sin(mowerStats.rotation);
+    const forwardZ=Math.cos(mowerStats.rotation);
+    camera.position.set(
+        mowerGroup.position.x-forwardX*cd,
+        mowerGroup.position.y+ch,
+        mowerGroup.position.z-forwardZ*cd
+    );
+    camera.lookAt(
+        mowerGroup.position.x+forwardX*8,
+        mowerGroup.position.y+3.5,
+        mowerGroup.position.z+forwardZ*8
+    );
+    camera.updateProjectionMatrix();
+
+    timeLeft=90;currentProgress=0;currentStars=0;
     document.getElementById('progress').innerText='0';
+    renderStars('hud-stars',0);
     document.getElementById('timer').innerText=settings.timedMode?'01:30':'∞';
+
     gameStarted=true;gameActive=true;
     if(timerInterval)clearInterval(timerInterval);
     if(settings.timedMode)timerInterval=setInterval(updateTimer,1000);
+
     mowerSfx.src=mowerSfxFiles[selectedMower]||'./handjag.mp3';
     mowerSfxPlaying=false;
     clock.start();
@@ -1200,7 +1249,33 @@ function animate(){
 function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>-35&&nx<35&&nz>-55&&nz<-5)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
 function updateMowerPhysics(){if(!mowerGroup)return;let ti=0;if(inputs.left)ti=1;if(inputs.right)ti=-1;if(inputs.joyX!==0)ti=-inputs.joyX;mowerStats.rotation+=mowerStats.turnSpeed*ti;mowerGroup.rotation.y=mowerStats.rotation;let fi=0;if(inputs.up)fi=1;if(inputs.down)fi=-1;if(inputs.joyY!==0)fi=-inputs.joyY;if(fi!==0)mowerStats.speed+=mowerStats.acceleration*fi;else mowerStats.speed*=mowerStats.deceleration;mowerStats.speed=THREE.MathUtils.clamp(mowerStats.speed,-mowerStats.maxSpeed/2,mowerStats.maxSpeed);const nx=mowerGroup.position.x+Math.sin(mowerStats.rotation)*mowerStats.speed;const nz=mowerGroup.position.z+Math.cos(mowerStats.rotation)*mowerStats.speed;if(canMoveTo(nx,nz)){mowerGroup.position.x=nx;mowerGroup.position.z=nz;mowerGroup.position.y=0;}else mowerStats.speed=0;}
 function paintCutTrail(){if(!lawnContext||!mowerGroup)return;if(currentLevel===3&&bunkerZones.length>0){for(const bz of bunkerZones){const ex=(mowerGroup.position.x-bz.cx)/bz.rx,ez=(mowerGroup.position.z-bz.cz)/bz.rz;if(ex*ex+ez*ez<1.0)return;}}const uvX=(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;const uvY=(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;const tx=uvX*lawnTexResolution,ty=uvY*lawnTexResolution;const lx=lawnCanvas.lastPaintedX||tx,ly=lawnCanvas.lastPaintedY||ty;if(Math.abs(mowerStats.speed)>0.001){if(currentLevel===2){lawnContext.globalCompositeOperation='destination-out';lawnContext.strokeStyle='rgba(0,0,0,1)';}else if(currentLevel===3){lawnContext.strokeStyle='#5ad85a';}else{lawnContext.strokeStyle=COLOR_CUT;}lawnContext.lineWidth=(mowerStats.cutWidth/lawnWorldSize)*lawnTexResolution;lawnContext.lineCap='round';lawnContext.beginPath();lawnContext.moveTo(lx,ly);lawnContext.lineTo(tx,ty);lawnContext.stroke();if(currentLevel===2)lawnContext.globalCompositeOperation='source-over';lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;lawnTexture.needsUpdate=true;}else{lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;}}
-function updateCameraFollow(){if(!mowerGroup)return;const cd=selectedMower==='combine'?32:selectedMower==='ts112'?24:20;const ch=selectedMower==='combine'?22:selectedMower==='ts112'?18:16;const off=new THREE.Vector3(-Math.sin(mowerStats.rotation)*cd,ch,-Math.cos(mowerStats.rotation)*cd);camera.position.lerp(mowerGroup.position.clone().add(off),0.1);camera.lookAt(mowerGroup.position.x,mowerGroup.position.y+2,mowerGroup.position.z);}
+function updateCameraFollow(){
+    if(!mowerGroup)return;
+
+    // Higher and farther third-person camera for a clearer mobile view.
+    const cd=selectedMower==='combine'?46:selectedMower==='ts112'?38:32;
+    const ch=selectedMower==='combine'?34:selectedMower==='ts112'?30:26;
+
+    const forwardX=Math.sin(mowerStats.rotation);
+    const forwardZ=Math.cos(mowerStats.rotation);
+
+    const desiredPos=new THREE.Vector3(
+        mowerGroup.position.x-forwardX*cd,
+        mowerGroup.position.y+ch,
+        mowerGroup.position.z-forwardZ*cd
+    );
+
+    // Aim slightly ahead of the mower instead of straight at its feet.
+    const lookAhead=8;
+    const target=new THREE.Vector3(
+        mowerGroup.position.x+forwardX*lookAhead,
+        mowerGroup.position.y+3.5,
+        mowerGroup.position.z+forwardZ*lookAhead
+    );
+
+    camera.position.lerp(desiredPos,0.12);
+    camera.lookAt(target);
+}
 
 function setupJoystick(){const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');let active=false,cx2,cy2,mr;zone.addEventListener('touchstart',e=>{e.preventDefault();active=true;const r=zone.getBoundingClientRect();cx2=r.left+r.width/2;cy2=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;upd(e.touches[0]);},{passive:false});zone.addEventListener('touchmove',e=>{e.preventDefault();if(active)upd(e.touches[0]);},{passive:false});const rst=()=>{active=false;knob.style.transform='translate(-50%,-50%)';inputs.joyX=inputs.joyY=0;};zone.addEventListener('touchend',rst);zone.addEventListener('touchcancel',rst);function upd(t){let dx=t.clientX-cx2,dy=t.clientY-cy2,d=Math.sqrt(dx*dx+dy*dy);if(d>mr){const a=Math.atan2(dy,dx);dx=Math.cos(a)*mr;dy=Math.sin(a)*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;inputs.joyX=dx/mr;inputs.joyY=dy/mr;}}
 function handleKeyDown(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=true;if(k==='s'||k==='arrowdown')inputs.down=true;if(k==='a'||k==='arrowleft')inputs.left=true;if(k==='d'||k==='arrowright')inputs.right=true;}
