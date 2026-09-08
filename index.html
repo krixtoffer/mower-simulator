@@ -2322,7 +2322,12 @@ const sceneryAssets={
     birch04:{path:'./BirchTree_4.glb',height:16,castShadow:true,receiveShadow:true},
     tree1:{path:'./tree1.glb',height:15,castShadow:true,receiveShadow:true},
     tree2:{path:'./tree2.glb',height:15,castShadow:true,receiveShadow:true},
-    bush1:{path:'./bush1.glb',height:3.2,castShadow:true,receiveShadow:true}
+    bush1:{path:'./bush1.glb',height:3.2,castShadow:true,receiveShadow:true},
+    plant1:{path:'./plant1.glb',height:2.2,castShadow:true,receiveShadow:true},
+    plant2:{path:'./plant2.glb',height:2.2,castShadow:true,receiveShadow:true},
+    plant3:{path:'./plant3.glb',height:2.2,castShadow:true,receiveShadow:true},
+    plant4:{path:'./plant4.glb',height:2.2,castShadow:true,receiveShadow:true},
+    plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -3762,6 +3767,86 @@ function l4CustomHouse6(px,py,wpx,hpx,rotation=0){
     return g;
 }
 
+
+// v34 Fanbyviken planting helpers.
+// Seeded random keeps the "random" beds visually stable between reloads.
+function l4SeededRandom(seed){
+    let s=seed>>>0;
+    return ()=>{
+        s=(s*1664525+1013904223)>>>0;
+        return s/4294967296;
+    };
+}
+function l4SpawnGroundedAsset(id,px,py,rotation=0,scale=1){
+    const p=level4MapToWorld(px,py);
+    const opts={x:p.x,y:level4HeightAt(p.x,p.z),z:p.z,rotation,scale};
+    const now=spawnSceneryGLB(id,opts);
+    if(now)return now;
+    whenSceneryResolved(id,status=>{
+        if(status==='ready')spawnSceneryGLB(id,opts);
+    });
+    return null;
+}
+function l4PlantLine(x1,y1,x2,y2,count,seed){
+    const rnd=l4SeededRandom(seed);
+    const ids=['plant1','plant2','plant3','plant4'];
+    for(let i=0;i<count;i++){
+        // Even overall coverage, with modest random along-line spacing and
+        // maximum ±5 map-coordinate jitter in X/Y around the requested line.
+        const base=(i+.5)/count;
+        const f=Math.max(0,Math.min(1,base+(rnd()-.5)*(.72/count)));
+        const px=x1+(x2-x1)*f+(rnd()*10-5);
+        const py=y1+(y2-y1)*f+(rnd()*10-5);
+        const id=ids[Math.floor(rnd()*ids.length)];
+        l4SpawnGroundedAsset(id,px,py,rnd()*Math.PI*2,.82+rnd()*.34);
+    }
+}
+function l4PlantScatter(x1,y1,x2,y2,count,ids,seed,minScale=.8,maxScale=1.15){
+    const rnd=l4SeededRandom(seed);
+    for(let i=0;i<count;i++){
+        const px=x1+rnd()*(x2-x1);
+        const py=y1+rnd()*(y2-y1);
+        const id=ids[Math.floor(rnd()*ids.length)];
+        l4SpawnGroundedAsset(id,px,py,rnd()*Math.PI*2,minScale+rnd()*(maxScale-minScale));
+    }
+}
+function l4WoodFenceRect(x1,y1,x2,y2){
+    const wood=new THREE.MeshStandardMaterial({color:0x8b623f,roughness:.96});
+    const postMat=new THREE.MeshStandardMaterial({color:0x6f492f,roughness:1});
+    const corners=[
+        [x1,y1,x2,y1],[x2,y1,x2,y2],[x2,y2,x1,y2],[x1,y2,x1,y1]
+    ];
+
+    corners.forEach(([ax,ay,bx,by])=>{
+        const a=level4MapToWorld(ax,ay),b=level4MapToWorld(bx,by);
+        const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz);
+        const segments=Math.max(2,Math.ceil(L/3.6));
+
+        for(let i=0;i<segments;i++){
+            const f=(i+.5)/segments;
+            const x=a.x+dx*f,z=a.z+dz*f;
+            const y=level4HeightAt(x,z);
+            const railLen=L/segments*.96;
+            for(const ry of [1.15,2.05]){
+                const rail=new THREE.Mesh(new THREE.BoxGeometry(railLen,.22,.22),wood);
+                rail.rotation.y=-Math.atan2(dz,dx);
+                rail.position.set(x,y+ry,z);
+                rail.castShadow=true;rail.receiveShadow=true;scene.add(rail);
+            }
+        }
+
+        // Posts follow the actual terrain around the perimeter.
+        for(let i=0;i<=segments;i++){
+            const f=i/segments;
+            const x=a.x+dx*f,z=a.z+dz*f;
+            const y=level4HeightAt(x,z);
+            const post=new THREE.Mesh(new THREE.BoxGeometry(.34,2.65,.34),postMat);
+            post.position.set(x,y+1.325,z);
+            post.castShadow=true;post.receiveShadow=true;scene.add(post);
+        }
+    });
+}
+
 function l4FenceRect(x1,y1,x2,y2){
     const a=level4MapToWorld(x1,y1),b=level4MapToWorld(x2,y2);
     const runs=[[a.x,a.z,b.x,a.z],[b.x,a.z,b.x,b.z],[b.x,b.z,a.x,b.z],[a.x,b.z,a.x,a.z]];
@@ -3882,17 +3967,30 @@ function setupLakeLevel(){
     water.position.set(-141,.04,0);
     scene.add(water);
 
-    // Road and ditches from the user's item map.
+    // Roads from the user's item map. The former white ditch strips are removed.
     l4Strip([1510,80],[1605,770],9,0x555555);
     l4Strip([1280,330],[1545,370],6,0x555555);
-    l4Strip([335,715],[810,780],1.8,0xd9d5b9);
-    l4Strip([880,174],[1220,215],1.8,0xd9d5b9);
+
+    // Plant borders replacing the old ditch markings.
+    l4PlantLine(377,723,785,775,20,34001);
+    l4PlantLine(910,177,1206,211,20,34002);
 
     // Forest masses: cheap trees for density, occasional GLB trees for variety.
     l4Forest(180,85,405,710,52);
     l4Forest(545,10,975,410,64);
     l4Forest(825,515,1515,700,50);
     l4Forest(1280,200,1455,345,20);
+
+    // Exact user-specified tree/bush placements.
+    l4SpawnGroundedAsset('tree1',1024,259,0,1);
+    l4SpawnGroundedAsset('bush1',1024,289,0,1);
+    l4SpawnGroundedAsset('tree1',1066,283,0,1);
+    l4SpawnGroundedAsset('bush1',1066,313,0,1);
+    l4SpawnGroundedAsset('tree1',1119,299,0,1);
+    l4SpawnGroundedAsset('bush1',1119,329,0,1);
+
+    // Plant5 bed: 25 plants inside the requested rectangle.
+    l4PlantScatter(548,346,864,418,25,['plant5'],34003,.78,1.18);
 
     // Explicit lighter-green tree markers.
     [[902,287],[925,298],[946,294],[963,309],[980,318],
@@ -3908,14 +4006,15 @@ function setupLakeLevel(){
         l4Asset('bush1',w.x,w.z,Math.random()*Math.PI*2,.9+Math.random()*.15);
     });
 
-    // Cyan agriculture plot: fence + several bushes.
-    l4FenceRect(725,560,785,637);
-    for(let y=575;y<=622;y+=15){
-        for(let x=738;x<=772;x+=17){
-            const w=level4MapToWorld(x,y);
-            l4Asset('bush1',w.x,w.z,0,.65);
-        }
-    }
+    // Vegetable patch: wooden perimeter fence and mixed crop plants.
+    l4WoodFenceRect(728,560,786,636);
+    l4PlantScatter(
+        734,567,780,629,
+        24,
+        ['plant1','plant2','plant3','plant4','plant5'],
+        34004,
+        .68,.98
+    );
 
     // Existing trampoline with two jumping children.
     {
