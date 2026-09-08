@@ -1416,6 +1416,55 @@
                 font-size:10px !important;
             }
         }
+
+        /* Hill-climber split controls: rotation on left, throttle/brake on right. */
+        #hill-controls {
+            display:none;
+            position:absolute;
+            left:0; right:0; bottom:10px;
+            z-index:360;
+            pointer-events:none;
+            justify-content:space-between;
+            align-items:flex-end;
+            padding:0 18px;
+            box-sizing:border-box;
+        }
+        #hill-controls.show { display:flex; }
+        .hill-control-cluster {
+            display:grid;
+            grid-template-columns:repeat(2,64px);
+            gap:10px;
+            pointer-events:auto;
+        }
+        .hill-control-btn {
+            width:64px;height:64px;
+            border:3px solid #00ffff;
+            background:rgba(10,0,35,.72);
+            color:#fff;
+            font-family:'Press Start 2P',monospace;
+            font-size:20px;
+            box-shadow:3px 3px 0 #ff00ff;
+            touch-action:none;
+            user-select:none;
+        }
+        .hill-control-btn:active,.hill-control-btn.active {
+            background:#8b008b;
+            border-color:#ffff00;
+        }
+        .hill-control-label {
+            grid-column:1 / -1;
+            text-align:center;
+            color:#ffff00;
+            font-family:'Press Start 2P',monospace;
+            font-size:6px;
+            text-shadow:1px 1px #000;
+        }
+        @media(max-width:600px){
+            .hill-control-cluster{grid-template-columns:repeat(2,56px);gap:8px}
+            .hill-control-btn{width:56px;height:56px;font-size:18px}
+            #hill-controls{padding:0 10px;bottom:6px}
+        }
+
 </style>
 </head>
 <body>
@@ -1489,6 +1538,18 @@
         <div id="arcade-mg-joystick" class="mini-joystick-zone" aria-label="Styrspak">
             <div id="arcade-mg-joystick-knob" class="mini-joystick-knob"></div>
         </div>
+</div>
+<div id="hill-controls" aria-label="Backklipparen kontroller">
+    <div class="hill-control-cluster">
+        <div class="hill-control-label">ROTERA</div>
+        <button class="hill-control-btn" data-hill="rotL">↶</button>
+        <button class="hill-control-btn" data-hill="rotR">↷</button>
+    </div>
+    <div class="hill-control-cluster">
+        <div class="hill-control-label">KÖR</div>
+        <button class="hill-control-btn" data-hill="brake">▮</button>
+        <button class="hill-control-btn" data-hill="gas">▶</button>
+    </div>
 </div>
 </div>
 
@@ -1942,6 +2003,9 @@
     const msgEl=document.getElementById('arcade-mg-msg');
     let active=null,raf=0,last=0,keys={},state=null,gameOver=false,mowerSprite=null;
     let miniJoyX=0,miniJoyY=0;
+    const hillInput={gas:false,brake:false,rotL:false,rotR:false};
+    const hillMowerImage=new Image();
+    hillMowerImage.src='./2dmower.png';
 
     function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
     function rnd(a,b){return a+Math.random()*(b-a);}
@@ -2181,161 +2245,226 @@
 
 
     // ── BACKKLIPPAREN — endless hill climber ────────────────────────────
-    // Side-view, intentionally simple arcade physics. Terrain is generated
-    // mathematically, so the course can continue indefinitely without assets.
+    // v42: faster, lower gravity, more jagged terrain, sparse fuel,
+    // genuine flip risk and separate throttle / air-rotation controls.
     function hillTerrainY(wx){
-        const difficulty=Math.min(1.75,1+wx/9000);
-        return 330
-            +Math.sin(wx*.0062)*42*difficulty
-            +Math.sin(wx*.0135+1.7)*18*difficulty
-            +Math.sin(wx*.00215+0.8)*28;
+        // Multi-frequency deterministic terrain. Long hills establish rhythm;
+        // short waves and sharp harmonics produce risky lips and troughs.
+        const d=Math.min(1.9,1+wx/7000);
+        const base=318
+            +Math.sin(wx*.0042)*42*d
+            +Math.sin(wx*.0089+1.3)*31*d
+            +Math.sin(wx*.0175+2.1)*19*d
+            +Math.sin(wx*.031+0.4)*10*d;
+
+        // Triangular-ish harmonic makes crests less smooth without randomness
+        // changing between frames.
+        const jag=Math.asin(Math.sin(wx*.0122+0.7))*(18/Math.PI)*d;
+        return base+jag;
     }
     function hillSlope(wx){
-        const e=3;
+        const e=2.5;
         return Math.atan2(hillTerrainY(wx+e)-hillTerrainY(wx-e),e*2);
     }
     function ensureHillFuel(){
-        while(state.nextFuelX<state.x+1700){
+        while(state.nextFuelX<state.x+2400){
             const x=state.nextFuelX;
             state.fuels.push({x,got:false});
-            state.nextFuelX+=rnd(620,860);
+            // Deliberately sparse: usually one can every 1100–1550 world units.
+            state.nextFuelX+=rnd(1100,1550);
         }
-        state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-400);
+        state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-500);
     }
     function resetHill(){
         setCanvas(520,420);
-        const startY=hillTerrainY(0)-25;
+        const startY=hillTerrainY(0)-24;
         state={
-            x:0,y:startY,vy:0,vx:58,ang:hillSlope(0),angVel:0,
-            fuel:100,fuels:[],nextFuelX:560,particles:[],
-            airborne:false,bestX:0
+            x:0,y:startY,vy:0,vx:92,
+            ang:hillSlope(0),angVel:0,
+            fuel:100,fuels:[],nextFuelX:1150,
+            particles:[],bestX:0,
+            airborne:false,airRot:0,lastAng:hillSlope(0),
+            flips:0,flipScore:0,groundGrace:0
         };
         ensureHillFuel();
         titleEl.textContent='BACKKLIPPAREN';
-        msgEl.textContent='KÖR HÖGER • HITTA BRÄNSLE • HÅLL DIG PÅ HJULEN';
+        msgEl.textContent='VÄNSTER: ROTERA   HÖGER: GAS/BROMS   VOLT = +1';
     }
     function updateHill(dt){
-        const v=inputVector();
-        const throttle=clamp(v.x+(keys.ArrowUp||keys.w||keys.W?1:0)-(keys.ArrowDown||keys.s||keys.S?1:0),-1,1);
+        const gas=hillInput.gas || keys.ArrowUp || keys.w || keys.W;
+        const brake=hillInput.brake || keys.ArrowDown || keys.s || keys.S;
+        const rotL=hillInput.rotL || keys.ArrowLeft || keys.a || keys.A;
+        const rotR=hillInput.rotR || keys.ArrowRight || keys.d || keys.D;
+        const throttle=(gas?1:0)-(brake?1:0);
+        const rotate=(rotR?1:0)-(rotL?1:0);
 
-        // Forward drive with mild drag; reverse/brake is deliberately weaker.
-        const drive=throttle>=0?82*throttle:58*throttle;
+        // Faster drivetrain and reduced drag.
+        const drive=throttle>=0?128*throttle:92*throttle;
         state.vx+=drive*dt;
-        state.vx-=state.vx*0.11*dt;
-        state.vx=clamp(state.vx,-38,150);
+        state.vx-=state.vx*0.055*dt;
+        state.vx=clamp(state.vx,-45,215);
 
         const ground=hillTerrainY(state.x);
-        const targetY=ground-23;
-        const onGround=state.y>=targetY-3 && state.vy>=-25;
+        const targetY=ground-24;
+        const wasAir=state.airborne;
+        const nearGround=state.y>=targetY-3.5 && state.vy>=-32;
 
-        if(onGround){
+        if(nearGround){
             state.y=targetY;
             state.vy=0;
             state.airborne=false;
-            const slope=hillSlope(state.x);
-            const slopePull=Math.sin(slope)*42;
-            state.vx+=slopePull*dt;
+            state.groundGrace=.09;
 
-            // Lean toward the terrain but keep some inertia over crests.
-            let da=slope-state.ang;
-            while(da>Math.PI)da-=Math.PI*2;
-            while(da<-Math.PI)da+=Math.PI*2;
-            state.angVel+=da*7.5*dt;
-            state.angVel*=Math.pow(.22,dt);
+            const slope=hillSlope(state.x);
+
+            // Terrain gravity component gives real hill-climb momentum changes.
+            state.vx+=Math.sin(slope)*55*dt;
+
+            // On ground, body tries to follow slope but not instantly.
+            let da=Math.atan2(Math.sin(slope-state.ang),Math.cos(slope-state.ang));
+            state.angVel+=da*11*dt;
+            state.angVel*=Math.pow(.12,dt);
             state.ang+=state.angVel*dt;
 
-            // Crest launch.
-            const ahead=hillTerrainY(state.x+18)-hillTerrainY(state.x);
-            if(state.vx>80 && ahead<-8){
-                state.vy=-Math.min(90,state.vx*.42);
+            // Sharp downhill changes at speed launch the mower.
+            const ahead=hillTerrainY(state.x+22)-hillTerrainY(state.x);
+            const lip=hillTerrainY(state.x+8)-2*hillTerrainY(state.x)+hillTerrainY(state.x-8);
+            if(state.vx>90 && (ahead<-11 || lip>8)){
+                state.vy=-Math.min(118,30+state.vx*.46);
                 state.airborne=true;
+                state.groundGrace=0;
+                state.airRot=0;
+                state.lastAng=state.ang;
+            }
+
+            // Landing evaluation only once after actual airtime.
+            if(wasAir){
+                const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
+
+                // Reward completed full rotations before snapping to terrain.
+                const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
+                if(completed>0){
+                    state.flips+=completed;
+                    state.flipScore+=completed;
+                    msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
+                    spark(145,240,'#fff36b',24);
+                }
+
+                // Badly inverted/sideways landings crash.
+                if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
+                    finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
+                    return;
+                }
+
+                state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
+                state.ang=slope;
+                state.angVel=0;
+                state.airRot=0;
             }
         }else{
             state.airborne=true;
-            state.vy+=185*dt;
+            state.groundGrace=Math.max(0,state.groundGrace-dt);
+
+            // Lower gravity than v41 = longer jumps.
+            state.vy+=112*dt;
             state.y+=state.vy*dt;
 
-            // Horizontal control gives a small mid-air pitch correction.
-            state.angVel+=throttle*1.8*dt;
-            state.angVel*=Math.pow(.82,dt);
+            // Air rotation is now the core skill mechanic.
+            state.angVel+=rotate*5.6*dt;
+            state.angVel*=Math.pow(.88,dt);
             state.ang+=state.angVel*dt;
 
+            // Accumulate signed rotation for somersault scoring.
+            const delta=Math.atan2(Math.sin(state.ang-state.lastAng),Math.cos(state.ang-state.lastAng));
+            state.airRot+=delta;
+            state.lastAng=state.ang;
+
+            // Collision with ground.
             if(state.y>=targetY){
                 state.y=targetY;
                 state.vy=0;
                 state.airborne=false;
                 const slope=hillSlope(state.x);
-                let diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
-                if(Math.abs(diff)>1.65 && Math.abs(state.vx)>28){
-                    finish('KRASCH! '+Math.floor(state.x/10)+' m');
+                const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
+
+                const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
+                if(completed>0){
+                    state.flips+=completed;
+                    state.flipScore+=completed;
+                    msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
+                    spark(145,240,'#fff36b',24);
+                }
+
+                if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
+                    finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
                     return;
                 }
-                state.vx*=Math.max(.45,1-Math.abs(diff)*.25);
+                state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
                 state.ang=slope;
                 state.angVel=0;
+                state.airRot=0;
             }
         }
 
         state.x+=state.vx*dt;
         if(state.x<0){state.x=0;state.vx=Math.max(0,state.vx);}
 
-        // Fuel is always consumed; hard driving costs a little more.
-        state.fuel-=dt*(1.45+Math.max(0,throttle)*.8+Math.abs(state.vx)/280);
+        // Fuel drains faster now, especially at high throttle/speed.
+        state.fuel-=dt*(1.75+(gas?.95:0)+Math.abs(state.vx)/240);
         ensureHillFuel();
 
         for(const f of state.fuels){
             if(f.got)continue;
-            const fy=hillTerrainY(f.x)-42;
-            if(Math.abs(f.x-state.x)<30 && Math.abs(fy-state.y)<48){
+            const fy=hillTerrainY(f.x)-37;
+            if(Math.abs(f.x-state.x)<34 && Math.abs(fy-state.y)<55){
                 f.got=true;
-                state.fuel=Math.min(100,state.fuel+44);
-                msgEl.textContent='TANKAT! +44%';
-                spark(145,250,'#ffdf55',18);
+                state.fuel=Math.min(100,state.fuel+38);
+                msgEl.textContent='TANKAT! +38%';
+                spark(145,240,'#ffdf55',20);
             }
         }
 
         updateParticles(dt);
         state.bestX=Math.max(state.bestX,state.x);
+
         if(state.fuel<=0){
             state.fuel=0;
-            finish('SLUT PÅ BRÄNSLE — '+Math.floor(state.bestX/10)+' m');
+            finish(`SLUT PÅ BRÄNSLE — ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
             return;
         }
-        scoreEl.textContent=`${Math.floor(state.bestX/10)} m   ⛽ ${Math.ceil(state.fuel)}%`;
+
+        scoreEl.textContent=`${Math.floor(state.bestX/10)} m   ⛽ ${Math.ceil(state.fuel)}%   🔄 ${state.flipScore}`;
     }
     function drawHill(ts){
         const w=520,h=420;
-        const camX=Math.max(0,state.x-135);
+        const camX=Math.max(0,state.x-145);
 
-        // Sky.
         const sky=ctx.createLinearGradient(0,0,0,h);
-        sky.addColorStop(0,'#7fc9ef');sky.addColorStop(1,'#d8ecbb');
+        sky.addColorStop(0,'#78bfe9');
+        sky.addColorStop(1,'#d8ecbb');
         ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
 
-        // Distant hills for depth.
-        ctx.fillStyle='rgba(62,104,66,.32)';
+        // Distant scenery.
+        ctx.fillStyle='rgba(55,90,64,.28)';
         ctx.beginPath();ctx.moveTo(0,h);
         for(let sx=0;sx<=w;sx+=8){
-            const wx=camX+sx*.8;
-            const y=275+Math.sin(wx*.0028)*30+Math.sin(wx*.006+1)*14;
+            const wx=camX+sx*.75;
+            const y=275+Math.sin(wx*.003)*30+Math.sin(wx*.007+1)*14;
             ctx.lineTo(sx,y);
         }
         ctx.lineTo(w,h);ctx.closePath();ctx.fill();
 
-        // Main ground.
-        ctx.fillStyle='#3f7b39';
+        // Main terrain.
+        ctx.fillStyle='#397536';
         ctx.beginPath();ctx.moveTo(0,h);
-        for(let sx=0;sx<=w;sx+=4){
-            const wx=camX+sx;
-            ctx.lineTo(sx,hillTerrainY(wx));
-        }
+        for(let sx=0;sx<=w;sx+=3)ctx.lineTo(sx,hillTerrainY(camX+sx));
         ctx.lineTo(w,h);ctx.closePath();ctx.fill();
 
-        ctx.strokeStyle='#a9d36b';ctx.lineWidth=5;
+        ctx.strokeStyle='#b4df70';ctx.lineWidth=5;
         ctx.beginPath();
-        for(let sx=0;sx<=w;sx+=4){
+        for(let sx=0;sx<=w;sx+=3){
             const y=hillTerrainY(camX+sx);
-            if(sx===0)ctx.moveTo(sx,y);else ctx.lineTo(sx,y);
+            sx===0?ctx.moveTo(sx,y):ctx.lineTo(sx,y);
         }
         ctx.stroke();
 
@@ -2343,26 +2472,43 @@
         state.fuels.forEach(f=>{
             if(f.got)return;
             const sx=f.x-camX;
-            if(sx<-40||sx>w+40)return;
-            const sy=hillTerrainY(f.x)-30;
-            ctx.fillStyle='#c92520';ctx.fillRect(sx-10,sy-20,20,24);
-            ctx.fillStyle='#f6d34d';ctx.fillRect(sx-6,sy-16,12,5);
-            ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+4,sy-25,7,7);
+            if(sx<-50||sx>w+50)return;
+            const sy=hillTerrainY(f.x)-34;
+            ctx.fillStyle='#c92520';ctx.fillRect(sx-11,sy-22,22,26);
+            ctx.fillStyle='#f6d34d';ctx.fillRect(sx-7,sy-18,14,6);
+            ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+5,sy-28,8,8);
             ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';
-            ctx.fillText('FUEL',sx,sy-27);
+            ctx.fillText('FUEL',sx,sy-31);
         });
 
-        // HUD fuel bar.
-        ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(12,12,168,24);
-        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';ctx.fillRect(16,16,1.60*state.fuel,16);
-        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,168,24);
+        // Fuel bar + flip counter.
+        ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(12,12,188,25);
+        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';
+        ctx.fillRect(16,16,1.72*state.fuel,17);
+        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,188,25);
         ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';
-        ctx.fillText('BRÄNSLE',18,29);
+        ctx.fillText('BRÄNSLE',20,30);
 
-        // Mower uses the existing top-down sprite as a tiny arcade side-view
-        // stand-in; rotation follows the terrain/air pitch.
+        ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(386,12,120,25);
+        ctx.fillStyle='#fff36b';ctx.textAlign='center';
+        ctx.fillText(`VOLTER ${state.flipScore}`,446,29);
+
+        // Real side-view mower sprite from GitHub root.
         const sx=state.x-camX,sy=state.y;
-        drawMower(sx,sy,48,state.ang+Math.PI/2);
+        ctx.save();
+        ctx.translate(sx,sy);
+        ctx.rotate(state.ang);
+        if(hillMowerImage.complete && hillMowerImage.naturalWidth){
+            const drawW=92,drawH=64;
+            ctx.drawImage(hillMowerImage,-drawW*.48,-drawH*.70,drawW,drawH);
+        }else{
+            // Safe fallback until PNG resolves.
+            ctx.fillStyle='#f36c21';ctx.fillRect(-34,-20,68,28);
+            ctx.fillStyle='#202020';
+            ctx.beginPath();ctx.arc(-22,10,13,0,Math.PI*2);ctx.fill();
+            ctx.beginPath();ctx.arc(23,10,10,0,Math.PI*2);ctx.fill();
+        }
+        ctx.restore();
 
         drawParticles();
     }
@@ -2421,18 +2567,53 @@
         zone.addEventListener('pointercancel',resetJoy);
     }
 
+
+    function setupHillControls(){
+        const wrap=document.getElementById('hill-controls');
+        if(!wrap||wrap.dataset.ready)return;
+        wrap.dataset.ready='1';
+        wrap.querySelectorAll('[data-hill]').forEach(btn=>{
+            const key=btn.dataset.hill;
+            const set=(v,e)=>{
+                if(e)e.preventDefault();
+                hillInput[key]=v;
+                btn.classList.toggle('active',v);
+            };
+            btn.addEventListener('pointerdown',e=>{
+                btn.setPointerCapture?.(e.pointerId);
+                set(true,e);
+            });
+            btn.addEventListener('pointerup',e=>set(false,e));
+            btn.addEventListener('pointercancel',e=>set(false,e));
+            btn.addEventListener('pointerleave',e=>{
+                if(e.buttons===0)set(false,e);
+            });
+        });
+    }
+    function setHillControlsVisible(show){
+        const wrap=document.getElementById('hill-controls');
+        const joy=document.getElementById('arcade-mg-joystick');
+        if(wrap)wrap.classList.toggle('show',!!show);
+        if(joy)joy.style.display=show?'none':'block';
+        if(!show){
+            hillInput.gas=hillInput.brake=hillInput.rotL=hillInput.rotR=false;
+            wrap?.querySelectorAll('.hill-control-btn.active').forEach(b=>b.classList.remove('active'));
+        }
+    }
+
     window.MiniGames={
         open(id){
             active=id;
             document.getElementById('minigames-screen').style.display='none';
             document.getElementById('arcade-minigame-overlay').style.display='flex';
-            setupMiniJoystick();miniJoyX=miniJoyY=0;
+            setupMiniJoystick();setupHillControls();miniJoyX=miniJoyY=0;
+            setHillControlsVisible(id==='hill');
             window.addEventListener('keydown',keyDown,{passive:false});window.addEventListener('keyup',keyUp);
             reset();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
         },
         restart(){miniJoyX=miniJoyY=0;if(active)reset();},
         close(){
-            cancelAnimationFrame(raf);raf=0;active=null;keys={};miniJoyX=miniJoyY=0;
+            cancelAnimationFrame(raf);raf=0;setHillControlsVisible(false);active=null;keys={};miniJoyX=miniJoyY=0;
             window.removeEventListener('keydown',keyDown);window.removeEventListener('keyup',keyUp);
             document.getElementById('arcade-minigame-overlay').style.display='none';
             openMinigames();
