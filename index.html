@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mower Simulator</title>
+    <!-- Stable mechanics baseline + mower-only GLB gameplay + UI redesign v2 -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap');
         body { margin:0; padding:0; overflow:hidden; background:#000; font-family:'Press Start 2P',monospace; }
         canvas { display:block; }
         #start-screen {
@@ -205,7 +206,961 @@
             transform:translate(-50%,-50%); box-shadow:0 4px 8px rgba(0,0,0,0.3);
         }
         @media(max-width:768px){#joystick-zone{display:block;}}
-    </style>
+    
+
+        /* ═══════════════════════════════════════════════════════════════════
+           MODERN PIXEL UI — presentation-only layer
+           Keeps the established screen IDs and JavaScript navigation intact.
+           ═══════════════════════════════════════════════════════════════════ */
+        :root {
+            --ink:#10140f;
+            --panel:#f2edcf;
+            --panel-2:#dfe7bc;
+            --grass:#2f6b32;
+            --grass-dark:#183c24;
+            --lime:#9ad94f;
+            --cream:#fff8dc;
+            --amber:#f2c14e;
+            --red:#c84b42;
+            --blue:#6da4a8;
+            --line:#172017;
+            --shadow:rgba(11,20,12,.35);
+        }
+        body { background:#9cc8d7; color:var(--ink); }
+        button { -webkit-tap-highlight-color:transparent; }
+
+        #start-screen {
+            justify-content:flex-end;
+            padding:0 18px max(38px,env(safe-area-inset-bottom));
+            background-position:center;
+        }
+        #start-screen::after {
+            content:""; position:absolute; inset:0; pointer-events:none;
+            background:linear-gradient(180deg,transparent 52%,rgba(15,29,20,.16) 70%,rgba(15,29,20,.58) 100%);
+        }
+        #start-btn-row { z-index:1; width:min(560px,100%); gap:12px; }
+
+        #main-menu-screen,#level-select-screen,#shop-screen {
+            justify-content:center; padding:22px; box-sizing:border-box;
+            background-color:#c9d8a5;
+            background-blend-mode:multiply;
+        }
+        #main-menu-screen::before,#level-select-screen::before,#shop-screen::before {
+            content:""; position:absolute; inset:0; pointer-events:none;
+            background:linear-gradient(180deg,rgba(9,26,17,.16),rgba(9,26,17,.55));
+        }
+        .menu-panel,#shop-panel {
+            position:relative; z-index:1; box-sizing:border-box;
+            width:min(620px,100%); max-width:620px;
+            background:var(--panel) !important;
+            color:var(--ink); border:4px solid var(--line) !important;
+            border-radius:3px; box-shadow:10px 10px 0 rgba(20,50,29,.72) !important;
+            padding:28px !important; text-align:left;
+        }
+        .main-hub-panel { max-width:520px; }
+        .level-panel { max-height:88vh; overflow:auto; }
+        .menu-kicker { color:var(--grass); font-size:8px; letter-spacing:2px; margin-bottom:10px; }
+        .menu-title { color:var(--ink) !important; font-size:clamp(18px,4vw,28px) !important; line-height:1.35; margin:0 0 12px !important; text-shadow:none !important; }
+        .menu-subtitle { font-family:Arial,sans-serif; font-weight:700; font-size:14px; line-height:1.45; color:#4b5547; margin:0 0 22px; }
+
+        .arcade-btn {
+            background:var(--grass) !important; color:var(--cream) !important;
+            border:3px solid var(--line) !important; border-radius:2px;
+            box-shadow:4px 4px 0 var(--line) !important; text-shadow:none !important;
+            padding:14px 18px; font-size:9px; line-height:1.35;
+            transition:transform .08s ease,box-shadow .08s ease,filter .12s ease;
+        }
+        .arcade-btn:hover { filter:brightness(1.1); }
+        .arcade-btn:active { transform:translate(3px,3px); box-shadow:1px 1px 0 var(--line) !important; }
+        .arcade-btn:disabled { background:#8b9484 !important; color:#e5e5d5 !important; opacity:.72; }
+        #main-menu-screen .arcade-btn,#level-select-screen .arcade-btn,#shop-screen .arcade-btn { width:100%; margin:7px 0 !important; }
+
+        #level-list { display:grid; grid-template-columns:1fr; gap:10px; }
+        .level-btn {
+            position:relative; overflow:hidden; width:100%; min-height:64px; margin:0;
+            background:#fff9dc !important; border:3px solid var(--line) !important; color:var(--ink) !important;
+            padding:15px 16px; font-size:9px; line-height:1.4; box-shadow:4px 4px 0 #49684a;
+            transition:transform .08s ease,background .12s ease; border-radius:2px;
+        }
+        .level-btn::before { content:""; width:8px; align-self:stretch; background:var(--grass); position:absolute; left:0; top:0; bottom:0; }
+        .level-btn:hover { background:#f1f5d4 !important; transform:translateY(-1px); }
+        .level-btn span:first-child { padding-left:8px; }
+        .level-btn span:last-child { color:#b98b19; font-size:16px; }
+
+        #level-intro-screen {
+            padding:24px 20px max(34px,env(safe-area-inset-bottom));
+            background-color:rgba(13,27,17,.38); background-blend-mode:multiply;
+        }
+        #intro-title {
+            align-self:flex-start; margin-top:10px; max-width:min(620px,90vw);
+            background:var(--panel) !important; color:var(--ink) !important; text-shadow:none !important;
+            border:4px solid var(--line) !important; box-shadow:7px 7px 0 rgba(20,50,29,.8) !important;
+            padding:16px 20px; font-size:clamp(14px,3vw,22px); text-align:left;
+        }
+
+        #hud { padding:max(12px,env(safe-area-inset-top)) 12px 12px; gap:8px; }
+        .hud-panel {
+            background:rgba(245,241,211,.94) !important; border:3px solid var(--line) !important;
+            box-shadow:4px 4px 0 rgba(18,32,19,.55) !important; color:var(--ink) !important;
+            text-shadow:none !important; padding:10px 12px; font-size:9px; border-radius:2px;
+        }
+        #progress { color:var(--grass) !important; }
+        #timer { color:#8a5516 !important; text-shadow:none !important; font-size:11px; }
+        #hud-stars { color:#a9aa93; font-size:13px; margin-top:6px; letter-spacing:2px; }
+        .star-earned { color:var(--amber) !important; text-shadow:1px 1px 0 #6c4c11 !important; }
+        #hud-buttons { right:14px; bottom:max(14px,env(safe-area-inset-bottom)); gap:7px; }
+        #hud-buttons .arcade-btn { width:auto; min-width:98px; padding:9px 10px !important; font-size:7px !important; opacity:.92; }
+
+        #joystick-zone {
+            width:132px; height:132px; bottom:max(24px,env(safe-area-inset-bottom));
+            background:rgba(244,242,216,.28); border:3px solid rgba(20,32,19,.56);
+            box-shadow:inset 0 0 0 5px rgba(255,255,255,.12),0 5px 18px rgba(0,0,0,.12);
+        }
+        #joystick-knob { width:52px; height:52px; background:rgba(242,237,207,.92); border:3px solid rgba(20,32,19,.72); box-sizing:border-box; }
+
+        #game-over { background:rgba(10,22,14,.78); backdrop-filter:blur(3px); padding:18px; box-sizing:border-box; }
+        #go-panel {
+            background:var(--panel) !important; color:var(--ink) !important; border:4px solid var(--line) !important;
+            box-shadow:10px 10px 0 rgba(20,50,29,.72) !important; width:min(520px,100%); padding:28px !important;
+        }
+        #go-title { color:var(--ink) !important; text-shadow:none !important; font-size:18px; line-height:1.35; }
+        .go-stat { color:#66705e !important; font-family:Arial,sans-serif; font-weight:800; font-size:13px; border-bottom:1px dashed #99a18d; padding-bottom:9px; }
+        .go-stat strong { color:var(--ink) !important; font-family:'Press Start 2P',monospace; font-size:9px; }
+        #go-money { color:var(--grass) !important; }
+        #go-total-money { color:#8a5516 !important; }
+        #go-msg { color:var(--grass-dark) !important; font-size:8px !important; }
+
+        #shop-panel { max-height:90vh; overflow:auto; }
+        .wallet-line {
+            display:flex; justify-content:space-between; align-items:center;
+            background:var(--grass-dark); color:#dce8c9; border:3px solid var(--line); padding:12px 14px;
+            margin:0 0 18px; font-size:8px;
+        }
+        #shop-wallet { color:#d9f57c !important; }
+        .shop-item {
+            background:#fff9dc !important; border:3px solid var(--line) !important; color:var(--ink);
+            box-shadow:4px 4px 0 #66745d; padding:14px; margin:10px 0; gap:12px; border-radius:2px;
+        }
+        .shop-item:hover { background:#eef2d1 !important; border-color:var(--line) !important; }
+        .shop-info { min-width:0; }
+        .shop-info h3 { color:var(--ink) !important; font-size:9px; line-height:1.5; }
+        .shop-info p { font-family:Arial,sans-serif; color:#68705e !important; font-size:12px; line-height:1.4; }
+        .shop-item .arcade-btn { width:auto !important; flex:0 0 auto; font-size:7px; padding:10px 12px; }
+
+        #showroom-screen {
+            background:linear-gradient(180deg,#172b1d,#0d1710) !important;
+            padding:24px 18px max(24px,env(safe-area-inset-bottom));
+        }
+        #showroom-name { color:var(--cream) !important; text-shadow:none !important; font-size:13px !important; }
+        #showroom-canvas-container {
+            width:min(720px,100%); height:48vh; border:3px solid #b6ca8f !important;
+            box-shadow:7px 7px 0 #0a100c !important; background:radial-gradient(circle,#536b45 0%,#1a2a1d 70%,#101711 100%) !important;
+        }
+        #showroom-screen .menu-panel { width:min(620px,100%) !important; padding:16px !important; box-shadow:6px 6px 0 #0a100c !important; }
+        .stat-label { color:var(--ink) !important; font-size:7px; }
+        .stat-bar-bg { background:#c7c9a8 !important; border:2px solid var(--line) !important; height:11px; }
+        .stat-bar-fill { background:var(--grass) !important; }
+
+        #settings-overlay,#jukebox-overlay { background:rgba(10,22,14,.86) !important; backdrop-filter:blur(3px); }
+        #settings-panel,#jukebox-panel {
+            background:var(--panel) !important; color:var(--ink) !important; border:4px solid var(--line) !important;
+            box-shadow:8px 8px 0 rgba(20,50,29,.75) !important; box-sizing:border-box;
+        }
+        #settings-panel h2,#jukebox-panel h2 { color:var(--ink) !important; }
+        .setting-row { color:#4d594a !important; }
+        .toggle-btn { background:var(--grass) !important; border:2px solid var(--line) !important; box-shadow:3px 3px 0 var(--line) !important; }
+        .toggle-btn.off { background:var(--red) !important; }
+        .jukebox-track { background:#fff9dc !important; border:2px solid var(--line) !important; }
+        .jukebox-track.active-track { background:#e4edc5 !important; border-color:var(--grass) !important; }
+        .track-name,.track-name.active { color:var(--ink) !important; }
+
+        @media (max-width:640px) {
+            .menu-panel,#shop-panel { padding:20px !important; box-shadow:6px 6px 0 rgba(20,50,29,.72) !important; }
+            .menu-title { font-size:18px !important; }
+            .menu-subtitle { font-size:12px; }
+            #start-btn-row { flex-direction:column; }
+            #start-btn-row .arcade-btn { width:100%; }
+            #level-intro-screen > div:last-child { flex-direction:column; gap:8px !important; }
+            #level-intro-screen > div:last-child .arcade-btn { width:100%; }
+            .shop-item { align-items:flex-start; }
+            .shop-item .arcade-btn { align-self:center; }
+        }
+
+
+        /* ═══════════════════════════════════════════════════════════════
+           UI REDESIGN V2 — cover-art driven 80s arcade visual language
+           Presentation only: existing labels, handlers and game logic stay intact.
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --night:#050716;
+            --navy:#08152f;
+            --blue:#1268ff;
+            --cyan:#63e8ff;
+            --magenta:#ff2a9d;
+            --hotpink:#ff4eb8;
+            --orange:#ff7a18;
+            --yellow:#ffd447;
+            --white:#f4f7ff;
+            --muted:#9baccc;
+            --black:#02030a;
+            --good:#63ed76;
+            --danger:#ff475d;
+        }
+        html,body { background:var(--night) !important; }
+        body { font-family:'Rajdhani',Arial,sans-serif !important; font-weight:600; color:var(--white); }
+        button { font-family:'Russo One','Rajdhani',sans-serif !important; letter-spacing:.04em; }
+
+        /* Full-screen texture: dark blue, scanline and diagonal-light language from the cover. */
+        #main-menu-screen,#level-select-screen,#shop-screen {
+            position:absolute; overflow:hidden; padding:clamp(18px,4vw,44px) !important;
+            background-image:
+                linear-gradient(118deg,rgba(255,42,157,.08) 0 1px,transparent 1px 64px),
+                linear-gradient(62deg,rgba(99,232,255,.05) 0 1px,transparent 1px 86px),
+                linear-gradient(180deg,rgba(1,4,16,.52),rgba(1,4,16,.88)),
+                url('./bakg.jpg') !important;
+            background-size:auto,auto,auto,cover !important;
+            background-position:center !important;
+            background-blend-mode:screen,screen,normal,normal !important;
+        }
+        #main-menu-screen::before,#level-select-screen::before,#shop-screen::before {
+            content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+            background:
+                radial-gradient(circle at 14% 12%,rgba(18,104,255,.38),transparent 28%),
+                radial-gradient(circle at 88% 72%,rgba(255,42,157,.22),transparent 30%),
+                repeating-linear-gradient(180deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px);
+            mix-blend-mode:screen;
+        }
+        #main-menu-screen::after,#level-select-screen::after,#shop-screen::after {
+            content:""; position:absolute; left:-10%; right:-10%; bottom:7%; height:2px; z-index:0;
+            background:linear-gradient(90deg,transparent,var(--magenta),var(--cyan),transparent);
+            box-shadow:0 0 18px var(--magenta),0 0 34px rgba(99,232,255,.45);
+            transform:rotate(-5deg); opacity:.75; pointer-events:none;
+        }
+
+        /* The start artwork stays visually dominant. Controls read as part of the poster, not a separate card. */
+        #start-screen {
+            padding:0 clamp(16px,4vw,40px) max(26px,env(safe-area-inset-bottom)) !important;
+            background-size:cover !important; background-position:center 36% !important;
+        }
+        #start-screen::before {
+            content:""; position:absolute; inset:0; pointer-events:none;
+            background:linear-gradient(180deg,transparent 48%,rgba(2,3,10,.20) 62%,rgba(2,3,10,.90) 100%);
+        }
+        #start-screen::after {
+            content:""; position:absolute; left:0; right:0; bottom:0; height:34%; pointer-events:none;
+            background:repeating-linear-gradient(180deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px);
+        }
+        #start-btn-row {
+            position:relative; z-index:3; width:min(720px,100%) !important; gap:12px !important;
+            align-items:stretch !important;
+        }
+        #start-btn-row .arcade-btn:first-child { flex:1.6; }
+        #start-btn-row .arcade-btn:last-child { flex:1; }
+
+        /* Angular arcade panels. No new copy is introduced. */
+        .menu-panel,#shop-panel {
+            position:relative !important; z-index:2 !important;
+            width:min(700px,94vw) !important; max-width:700px !important;
+            padding:clamp(24px,4.5vw,44px) !important;
+            color:var(--white) !important;
+            background:
+                linear-gradient(145deg,rgba(15,36,79,.96),rgba(3,7,23,.97) 62%) !important;
+            border:1px solid rgba(99,232,255,.85) !important;
+            border-radius:0 !important;
+            box-shadow:
+                -6px 6px 0 rgba(255,42,157,.78),
+                7px -7px 0 rgba(18,104,255,.45),
+                0 22px 70px rgba(0,0,0,.65),
+                inset 0 0 30px rgba(18,104,255,.12) !important;
+            clip-path:polygon(18px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 18px);
+            text-align:left !important;
+        }
+        .menu-panel::before,#shop-panel::before {
+            content:""; position:absolute; top:0; left:0; width:42%; height:4px;
+            background:linear-gradient(90deg,var(--magenta),var(--orange),transparent);
+            box-shadow:0 0 12px var(--magenta); pointer-events:none;
+        }
+        .menu-panel::after,#shop-panel::after {
+            content:""; position:absolute; right:18px; top:18px; width:52px; height:10px;
+            background:repeating-linear-gradient(90deg,var(--cyan) 0 6px,transparent 6px 10px);
+            opacity:.65; transform:skewX(-28deg); pointer-events:none;
+        }
+        .main-hub-panel { max-width:580px !important; }
+        .level-panel { max-height:88vh; overflow:auto; scrollbar-color:var(--magenta) rgba(255,255,255,.08); }
+
+        .menu-kicker {
+            display:inline-block; color:var(--cyan) !important; font-family:'Press Start 2P',monospace !important;
+            font-size:7px !important; letter-spacing:2px !important; margin-bottom:12px !important;
+            text-shadow:0 0 10px rgba(99,232,255,.75);
+        }
+        .menu-title {
+            position:relative; display:inline-block; margin:0 0 12px !important;
+            font-family:'Russo One','Arial Black',sans-serif !important;
+            font-size:clamp(28px,6vw,50px) !important; line-height:.95 !important;
+            font-style:italic; letter-spacing:-.035em !important; transform:skewX(-7deg);
+            color:transparent !important;
+            background:linear-gradient(180deg,#fff 0%,#d9eeff 22%,#70a5ff 52%,#2251c9 72%,#eef6ff 76%,#5986e9 100%);
+            -webkit-background-clip:text; background-clip:text;
+            -webkit-text-stroke:1px rgba(255,255,255,.7);
+            text-shadow:3px 3px 0 #07102d,5px 5px 0 rgba(255,42,157,.8),0 0 18px rgba(18,104,255,.5) !important;
+        }
+        .menu-subtitle {
+            margin:4px 0 24px !important; color:#c5d5ef !important;
+            font-family:'Rajdhani',Arial,sans-serif !important; font-size:17px !important; font-weight:600 !important;
+            line-height:1.35 !important; letter-spacing:.02em;
+        }
+
+        /* Buttons become bright slanted plaques with a separate shadow plane. */
+        .arcade-btn {
+            position:relative; overflow:hidden;
+            min-height:48px; padding:13px 20px !important;
+            background:linear-gradient(180deg,#1977ff,#0d43ae) !important;
+            color:#fff !important; border:1px solid #87efff !important; border-radius:0 !important;
+            clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);
+            box-shadow:4px 5px 0 #020817,0 0 0 1px rgba(255,42,157,.35),0 0 18px rgba(18,104,255,.26) !important;
+            text-shadow:1px 2px 0 rgba(0,0,0,.45) !important;
+            font-size:11px !important; line-height:1.1; transition:transform .08s ease,filter .12s ease,box-shadow .08s ease;
+        }
+        .arcade-btn::before {
+            content:""; position:absolute; left:-35%; top:-120%; width:30%; height:330%;
+            background:linear-gradient(90deg,transparent,rgba(255,255,255,.38),transparent);
+            transform:rotate(24deg); transition:left .22s ease; pointer-events:none;
+        }
+        .arcade-btn:hover::before { left:120%; }
+        .arcade-btn:hover { filter:brightness(1.17) saturate(1.18); transform:translateY(-1px); }
+        .arcade-btn:active { transform:translate(3px,3px) !important; box-shadow:1px 1px 0 #020817 !important; }
+        .arcade-btn:disabled { background:linear-gradient(#566078,#30384d) !important; border-color:#7c879e !important; color:#aeb8ca !important; filter:none; }
+
+        /* Preserve existing semantic inline colors only as secondary accents; unify the actual button language. */
+        #main-menu-screen .arcade-btn,#level-select-screen .arcade-btn,#shop-screen .arcade-btn,
+        #level-intro-screen .arcade-btn,#game-over .arcade-btn,#showroom-screen .arcade-btn,
+        #settings-overlay .arcade-btn,#jukebox-overlay .arcade-btn {
+            background:linear-gradient(180deg,#1977ff,#0d43ae) !important;
+        }
+        #main-menu-screen .arcade-btn:first-of-type,
+        #level-intro-screen .arcade-btn:last-child,
+        #game-over .arcade-btn:last-child,
+        #showroom-action-btn,
+        #hud-buttons .arcade-btn:first-child {
+            background:linear-gradient(180deg,#ff9a24,#e34f0e) !important;
+            border-color:#ffe27e !important; box-shadow:4px 5px 0 #351003,0 0 18px rgba(255,122,24,.30) !important;
+        }
+
+        /* Level selector: stacked, angled stage strips rather than generic cards. */
+        #level-list { display:grid !important; grid-template-columns:1fr !important; gap:12px !important; }
+        .level-btn {
+            position:relative; overflow:hidden; min-height:72px !important; margin:0 !important;
+            padding:14px 20px 14px 26px !important; color:#fff !important;
+            font-family:'Russo One','Rajdhani',sans-serif !important; font-size:12px !important;
+            background:linear-gradient(100deg,rgba(18,104,255,.72),rgba(6,19,55,.96) 55%,rgba(255,42,157,.18)) !important;
+            border:1px solid rgba(99,232,255,.75) !important; border-left:5px solid var(--magenta) !important;
+            box-shadow:5px 6px 0 rgba(0,0,0,.42),inset 0 0 18px rgba(18,104,255,.12) !important;
+            clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);
+            transform:none !important;
+        }
+        .level-btn::before {
+            content:"" !important; position:absolute !important; left:0 !important; top:0 !important; bottom:0 !important; width:7px !important;
+            background:linear-gradient(var(--magenta),var(--orange)) !important; box-shadow:0 0 14px var(--magenta);
+        }
+        .level-btn::after {
+            content:""; position:absolute; right:-14px; top:-24px; width:96px; height:130px;
+            background:linear-gradient(110deg,transparent,rgba(99,232,255,.11)); transform:skewX(-16deg); pointer-events:none;
+        }
+        .level-btn:hover { background:linear-gradient(100deg,rgba(30,126,255,.9),rgba(9,28,74,.98) 58%,rgba(255,42,157,.28)) !important; transform:translateX(4px) !important; }
+        .level-btn span:first-child { padding-left:0 !important; }
+        .level-btn span:last-child { color:var(--yellow) !important; font-size:17px !important; text-shadow:0 0 9px rgba(255,212,71,.7); }
+
+        /* Intro screen: let the level image breathe; title becomes a slanted translucent plate. */
+        #level-intro-screen {
+            padding:clamp(18px,4vw,42px) !important; background-color:rgba(1,3,12,.25) !important;
+            background-blend-mode:multiply !important;
+        }
+        #level-intro-screen::before {
+            content:""; position:absolute; inset:0; pointer-events:none;
+            background:linear-gradient(180deg,rgba(2,4,14,.12),transparent 42%,rgba(2,4,14,.78) 100%),
+                       repeating-linear-gradient(180deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px);
+        }
+        #intro-title {
+            position:relative; z-index:1; align-self:flex-start !important; margin:0 !important;
+            max-width:min(760px,92vw) !important; padding:15px 24px !important;
+            background:linear-gradient(100deg,rgba(4,13,43,.94),rgba(15,49,108,.83),rgba(255,42,157,.20)) !important;
+            color:#fff !important; font-family:'Russo One',sans-serif !important; font-style:italic;
+            font-size:clamp(20px,4vw,34px) !important; text-shadow:3px 3px 0 #030817 !important;
+            border:1px solid var(--cyan) !important; border-left:6px solid var(--magenta) !important;
+            box-shadow:6px 7px 0 rgba(1,3,12,.65),0 0 22px rgba(18,104,255,.28) !important;
+            clip-path:polygon(12px 0,100% 0,calc(100% - 16px) 100%,0 100%);
+        }
+        #level-intro-screen > div:last-child { position:relative; z-index:2; }
+
+        /* HUD: a compact arcade instrument strip, not cream boxes. */
+        #hud { padding:max(10px,env(safe-area-inset-top)) 10px 10px !important; align-items:flex-start !important; }
+        .hud-panel {
+            min-width:112px; padding:9px 13px !important;
+            color:#eef7ff !important; background:linear-gradient(180deg,rgba(6,16,44,.91),rgba(2,6,20,.92)) !important;
+            border:1px solid rgba(99,232,255,.82) !important; border-left:4px solid var(--magenta) !important;
+            border-radius:0 !important; box-shadow:4px 5px 0 rgba(0,0,0,.45),0 0 15px rgba(18,104,255,.18) !important;
+            clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);
+            font-family:'Russo One','Rajdhani',sans-serif !important; font-size:9px !important; letter-spacing:.04em;
+        }
+        #progress { color:var(--good) !important; text-shadow:0 0 8px rgba(99,237,118,.55) !important; }
+        #timer { color:var(--yellow) !important; font-size:13px !important; border-left-color:var(--orange) !important; }
+        #hud-stars { color:#34415c !important; font-size:12px !important; letter-spacing:2px !important; }
+        .star-earned { color:var(--yellow) !important; text-shadow:0 0 8px rgba(255,212,71,.75) !important; }
+        #hud-buttons { right:12px !important; bottom:max(12px,env(safe-area-inset-bottom)) !important; gap:7px !important; }
+        #hud-buttons .arcade-btn { min-height:38px !important; min-width:84px !important; padding:8px 11px !important; font-size:8px !important; opacity:.88; }
+
+        #joystick-zone {
+            width:138px !important; height:138px !important; bottom:max(24px,env(safe-area-inset-bottom)) !important;
+            background:radial-gradient(circle,rgba(18,104,255,.10) 0 40%,rgba(3,8,26,.52) 41% 100%) !important;
+            border:2px solid rgba(99,232,255,.58) !important; box-shadow:0 0 0 6px rgba(255,42,157,.08),0 0 22px rgba(18,104,255,.22),inset 0 0 20px rgba(0,0,0,.36) !important;
+        }
+        #joystick-zone::before,#joystick-zone::after { content:""; position:absolute; left:50%; top:50%; background:rgba(99,232,255,.20); transform:translate(-50%,-50%); pointer-events:none; }
+        #joystick-zone::before { width:2px; height:78%; }
+        #joystick-zone::after { width:78%; height:2px; }
+        #joystick-knob {
+            width:54px !important; height:54px !important; background:radial-gradient(circle at 35% 30%,#8df4ff,#1665e5 58%,#081843 100%) !important;
+            border:2px solid #b9f8ff !important; box-shadow:0 0 16px rgba(99,232,255,.45),inset -5px -6px 12px rgba(0,0,0,.30) !important;
+        }
+
+        /* Results / shop / showroom all share the same metal-neon instrument language. */
+        #game-over { background:rgba(1,3,12,.84) !important; backdrop-filter:blur(6px) saturate(1.2); }
+        #go-panel {
+            position:relative; color:#fff !important;
+            background:linear-gradient(145deg,rgba(11,28,67,.98),rgba(3,7,22,.98)) !important;
+            border:1px solid var(--cyan) !important; border-left:6px solid var(--magenta) !important;
+            box-shadow:8px 9px 0 rgba(0,0,0,.58),0 0 35px rgba(18,104,255,.24) !important;
+            clip-path:polygon(16px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 16px);
+        }
+        #go-title { font-family:'Russo One',sans-serif !important; font-style:italic; color:var(--yellow) !important; text-shadow:3px 3px 0 #391104,0 0 14px rgba(255,122,24,.35) !important; font-size:clamp(22px,5vw,36px) !important; }
+        .go-stat { font-family:'Rajdhani',sans-serif !important; color:#a8bad8 !important; border-bottom:1px solid rgba(99,232,255,.18) !important; font-size:15px !important; }
+        .go-stat strong { font-family:'Russo One',sans-serif !important; color:#fff !important; font-size:12px !important; }
+        #go-money { color:var(--good) !important; }
+        #go-total-money { color:var(--yellow) !important; }
+        #go-msg { color:#d8e6ff !important; font-family:'Rajdhani',sans-serif !important; font-size:14px !important; font-weight:700; }
+        #go-stars { color:#34415c !important; }
+
+        .wallet-line {
+            color:#d9e8ff !important; background:linear-gradient(90deg,rgba(18,104,255,.30),rgba(255,42,157,.10)) !important;
+            border:1px solid rgba(99,232,255,.55) !important; border-left:4px solid var(--orange) !important;
+            font-family:'Russo One',sans-serif !important; padding:12px 14px !important;
+        }
+        #shop-wallet { color:var(--yellow) !important; }
+        .shop-item {
+            position:relative; color:#fff !important;
+            background:linear-gradient(100deg,rgba(14,41,91,.80),rgba(3,10,30,.94)) !important;
+            border:1px solid rgba(99,232,255,.48) !important; border-left:4px solid var(--blue) !important;
+            border-radius:0 !important; box-shadow:4px 5px 0 rgba(0,0,0,.40) !important;
+            clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+        }
+        .shop-item:hover { background:linear-gradient(100deg,rgba(24,76,157,.90),rgba(5,17,47,.98)) !important; border-left-color:var(--magenta) !important; }
+        .shop-info h3 { color:#fff !important; font-family:'Russo One',sans-serif !important; font-size:11px !important; }
+        .shop-info p { color:#9fb3d4 !important; font-family:'Rajdhani',sans-serif !important; font-size:14px !important; }
+
+        #showroom-screen {
+            background:
+                radial-gradient(circle at 50% 42%,rgba(18,104,255,.22),transparent 34%),
+                repeating-linear-gradient(180deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px),
+                linear-gradient(180deg,#06142f,#02040d 72%) !important;
+        }
+        #showroom-name {
+            font-family:'Russo One',sans-serif !important; font-style:italic; font-size:clamp(18px,4vw,28px) !important;
+            color:#fff !important; text-shadow:3px 3px 0 #0b2c77,5px 5px 0 rgba(255,42,157,.55) !important;
+        }
+        #showroom-canvas-container {
+            border:1px solid var(--cyan) !important; border-bottom:5px solid var(--magenta) !important;
+            background:radial-gradient(ellipse at 50% 70%,rgba(53,102,190,.42),rgba(3,8,25,.96) 66%) !important;
+            box-shadow:0 0 0 6px rgba(18,104,255,.08),0 18px 45px rgba(0,0,0,.55),0 0 26px rgba(18,104,255,.22) !important;
+            clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);
+        }
+        #showroom-screen .menu-panel { background:linear-gradient(145deg,rgba(10,26,61,.96),rgba(3,8,23,.96)) !important; }
+        .stat-label { color:#c9d8ef !important; font-family:'Russo One',sans-serif !important; font-size:8px !important; }
+        .stat-bar-bg { background:#101a31 !important; border:1px solid rgba(99,232,255,.45) !important; height:10px !important; }
+        .stat-bar-fill { background:linear-gradient(90deg,var(--blue),var(--cyan)) !important; box-shadow:0 0 8px rgba(99,232,255,.45); }
+
+        #settings-overlay,#jukebox-overlay { background:rgba(1,3,12,.88) !important; backdrop-filter:blur(6px); }
+        #settings-panel,#jukebox-panel {
+            color:#fff !important; background:linear-gradient(145deg,#0b1b40,#030817) !important;
+            border:1px solid var(--cyan) !important; border-left:5px solid var(--magenta) !important;
+            box-shadow:7px 8px 0 rgba(0,0,0,.55),0 0 28px rgba(18,104,255,.22) !important;
+            border-radius:0 !important;
+        }
+        #settings-panel h2,#jukebox-panel h2 { color:#fff !important; font-family:'Russo One',sans-serif !important; font-style:italic; }
+        .setting-row { color:#c5d5ef !important; font-family:'Rajdhani',sans-serif !important; font-size:15px; }
+        .toggle-btn { background:linear-gradient(#1977ff,#0d43ae) !important; border:1px solid var(--cyan) !important; box-shadow:3px 3px 0 #020817 !important; }
+        .toggle-btn.off { background:linear-gradient(#ff5368,#a91430) !important; border-color:#ff8a9b !important; }
+        .jukebox-track { background:rgba(11,35,77,.75) !important; border:1px solid rgba(99,232,255,.36) !important; }
+        .jukebox-track.active-track { background:rgba(18,104,255,.32) !important; border-color:var(--magenta) !important; box-shadow:inset 4px 0 0 var(--magenta); }
+        .track-name,.track-name.active { color:#fff !important; }
+
+        @media (max-width:640px) {
+            .menu-panel,#shop-panel { width:96vw !important; padding:24px 20px !important; box-shadow:-4px 4px 0 rgba(255,42,157,.72),5px -5px 0 rgba(18,104,255,.40),0 18px 45px rgba(0,0,0,.62) !important; }
+            .menu-title { font-size:32px !important; }
+            .menu-subtitle { font-size:15px !important; margin-bottom:18px !important; }
+            #start-btn-row { flex-direction:row !important; }
+            #start-btn-row .arcade-btn { width:auto !important; font-size:9px !important; padding:12px 10px !important; }
+            .level-btn { min-height:64px !important; font-size:10px !important; }
+            #level-intro-screen > div:last-child { flex-direction:row !important; gap:8px !important; }
+            #level-intro-screen > div:last-child .arcade-btn { width:auto !important; flex:1; font-size:8px !important; }
+            .shop-item { align-items:center !important; }
+            .shop-item .arcade-btn { align-self:center !important; }
+            #showroom-canvas-container { height:46vh !important; }
+        }
+
+
+
+        /* ═══════════════════════════════════════════════════════════════
+           V3 — PIXEL NEON PASS
+           Same structure and mechanics; less slick, more arcade/pixel.
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --px-bg:#050016;
+            --px-panel:#14052d;
+            --px-panel2:#200842;
+            --px-cyan:#00f7ff;
+            --px-pink:#ff2bd6;
+            --px-purple:#9a35ff;
+            --px-yellow:#fff33b;
+            --px-white:#f7fbff;
+            --px-muted:#9bb7c7;
+            --px-black:#07040c;
+            --px-green:#4dff78;
+        }
+
+        body { font-family:'Press Start 2P',monospace !important; background:var(--px-bg) !important; }
+
+        #main-menu-screen,#level-select-screen,#shop-screen {
+            background-color:#0b0120 !important;
+            background-blend-mode:screen !important;
+        }
+        #main-menu-screen::before,#level-select-screen::before,#shop-screen::before {
+            background:
+                repeating-linear-gradient(180deg,rgba(0,247,255,.035) 0 2px,transparent 2px 5px),
+                linear-gradient(180deg,rgba(5,0,22,.18),rgba(5,0,22,.72)) !important;
+        }
+
+        .menu-panel,#shop-panel,#settings-panel,#jukebox-panel,#go-panel,#showroom-screen .menu-panel {
+            background:var(--px-panel) !important;
+            color:var(--px-white) !important;
+            border:4px solid var(--px-cyan) !important;
+            border-radius:0 !important;
+            clip-path:none !important;
+            box-shadow:
+                6px 0 0 var(--px-purple),
+                0 6px 0 var(--px-pink),
+                6px 6px 0 var(--px-black) !important;
+        }
+
+        .menu-panel::before,#shop-panel::before,#settings-panel::before,#jukebox-panel::before,#go-panel::before {
+            content:""; position:absolute; inset:6px; pointer-events:none;
+            border:2px solid rgba(255,43,214,.42);
+        }
+
+        .menu-kicker {
+            color:var(--px-pink) !important;
+            font-family:'Press Start 2P',monospace !important;
+            font-size:7px !important; letter-spacing:1px !important;
+        }
+        .menu-title {
+            font-family:'Press Start 2P',monospace !important;
+            font-style:normal !important;
+            color:var(--px-cyan) !important;
+            font-size:clamp(17px,4vw,27px) !important;
+            line-height:1.45 !important;
+            letter-spacing:-1px !important;
+            text-shadow:3px 3px 0 #4b1185,5px 5px 0 #05000c !important;
+        }
+        #shop-panel .menu-title { color:var(--px-pink) !important; text-shadow:3px 3px 0 #3d0b66,5px 5px 0 #05000c !important; }
+        .menu-subtitle {
+            font-family:'Press Start 2P',monospace !important;
+            color:#a9c7d7 !important; font-size:8px !important; font-weight:400 !important;
+            line-height:1.8 !important; letter-spacing:0 !important;
+        }
+
+        .arcade-btn {
+            font-family:'Press Start 2P',monospace !important;
+            font-style:normal !important;
+            letter-spacing:0 !important;
+            background:var(--px-purple) !important;
+            color:var(--px-white) !important;
+            border:3px solid var(--px-white) !important;
+            border-radius:0 !important;
+            clip-path:none !important;
+            box-shadow:4px 4px 0 var(--px-black) !important;
+            text-shadow:2px 2px 0 #24003a !important;
+            transition:none !important;
+        }
+        .arcade-btn:hover { filter:none !important; transform:none !important; outline:2px solid var(--px-cyan); outline-offset:2px; }
+        .arcade-btn:active { transform:translate(3px,3px) !important; box-shadow:1px 1px 0 var(--px-black) !important; }
+        .arcade-btn:disabled { background:#42384e !important; color:#8d8495 !important; border-color:#6f6378 !important; }
+
+        /* Main menu: cyan + pink instead of blue/orange. */
+        #main-menu-screen button[onclick="openLevelSelect()"] {
+            background:var(--px-cyan) !important; color:#061219 !important;
+            text-shadow:none !important; border-color:#dfffff !important;
+            box-shadow:4px 4px 0 #007680 !important;
+        }
+        #main-menu-screen button[onclick="openShop()"] {
+            background:var(--px-pink) !important; color:white !important;
+            border-color:#ffd9f8 !important; box-shadow:4px 4px 0 #79035f !important;
+        }
+        #main-menu-screen button[onclick="openSettings()"] { background:#6220a7 !important; }
+
+        .level-btn {
+            font-family:'Press Start 2P',monospace !important;
+            background:#190632 !important; color:var(--px-white) !important;
+            border:3px solid #6beeff !important; border-radius:0 !important;
+            clip-path:none !important; box-shadow:4px 4px 0 #08010e !important;
+            min-height:62px !important; transition:none !important;
+        }
+        .level-btn::before { width:7px !important; background:var(--px-pink) !important; }
+        .level-btn:nth-child(even)::before { background:var(--px-purple) !important; }
+        .level-btn:hover { background:#25094a !important; transform:none !important; border-color:var(--px-pink) !important; }
+        .level-btn span:last-child { color:var(--px-yellow) !important; text-shadow:2px 2px 0 #8d5511 !important; }
+
+        #intro-title {
+            font-family:'Press Start 2P',monospace !important;
+            background:var(--px-panel) !important; color:var(--px-cyan) !important;
+            border:4px solid var(--px-pink) !important; border-radius:0 !important;
+            clip-path:none !important; box-shadow:5px 5px 0 var(--px-black) !important;
+            text-shadow:3px 3px 0 #38105f !important;
+        }
+
+        .hud-panel {
+            font-family:'Press Start 2P',monospace !important;
+            background:rgba(9,2,22,.90) !important; color:var(--px-white) !important;
+            border:3px solid var(--px-cyan) !important; border-radius:0 !important;
+            clip-path:none !important; box-shadow:4px 4px 0 var(--px-pink) !important;
+            text-shadow:none !important;
+        }
+        #progress { color:var(--px-green) !important; }
+        #timer { color:var(--px-yellow) !important; }
+        #hud-stars,.star-earned { text-shadow:none !important; }
+        .star-earned { color:var(--px-yellow) !important; }
+
+        #joystick-zone {
+            border-radius:0 !important; transform:translateX(-50%) rotate(45deg) !important;
+            width:118px !important; height:118px !important;
+            background:rgba(20,5,45,.48) !important;
+            border:3px solid rgba(0,247,255,.8) !important;
+            box-shadow:4px 4px 0 rgba(255,43,214,.55) !important;
+        }
+        #joystick-knob {
+            border-radius:0 !important; width:48px !important; height:48px !important;
+            background:rgba(255,43,214,.76) !important; border:3px solid #fff !important;
+            box-shadow:3px 3px 0 rgba(0,0,0,.45) !important;
+        }
+
+        .wallet-line {
+            font-family:'Press Start 2P',monospace !important;
+            color:var(--px-cyan) !important; background:#0d0320 !important;
+            border:3px solid var(--px-purple) !important; border-left:3px solid var(--px-purple) !important;
+            box-shadow:3px 3px 0 var(--px-black) !important;
+        }
+        #shop-wallet { color:var(--px-yellow) !important; }
+        .shop-item {
+            background:#18052e !important; color:white !important;
+            border:3px solid #6eeeff !important; border-left:3px solid #6eeeff !important;
+            border-radius:0 !important; clip-path:none !important;
+            box-shadow:4px 4px 0 #08010e !important;
+        }
+        .shop-item:nth-of-type(even) { border-color:#ff7ce7 !important; }
+        .shop-item:hover { background:#260846 !important; border-color:var(--px-yellow) !important; }
+        .shop-info h3 {
+            font-family:'Press Start 2P',monospace !important; color:var(--px-pink) !important;
+            font-size:9px !important; line-height:1.5 !important;
+        }
+        .shop-info p {
+            font-family:'Press Start 2P',monospace !important; color:#9cc7d9 !important;
+            font-size:6px !important; line-height:1.6 !important;
+        }
+
+        #showroom-screen {
+            background:
+                repeating-linear-gradient(180deg,rgba(0,247,255,.025) 0 2px,transparent 2px 5px),
+                #060018 !important;
+        }
+        #showroom-name {
+            font-family:'Press Start 2P',monospace !important; font-style:normal !important;
+            color:var(--px-cyan) !important; text-shadow:3px 3px 0 var(--px-pink) !important;
+        }
+        #showroom-canvas-container {
+            border:4px solid var(--px-cyan) !important; border-bottom:4px solid var(--px-cyan) !important;
+            border-radius:0 !important; clip-path:none !important;
+            background:#0a021c !important;
+            box-shadow:6px 6px 0 var(--px-pink) !important;
+        }
+        .stat-label {
+            font-family:'Press Start 2P',monospace !important; color:var(--px-cyan) !important;
+            font-size:7px !important;
+        }
+        .stat-bar-bg { height:14px !important; background:#08010e !important; border:2px solid #79608c !important; }
+        .stat-bar-fill {
+            background:repeating-linear-gradient(90deg,var(--px-pink) 0 10px,#9b25ff 10px 13px) !important;
+            box-shadow:none !important;
+        }
+
+        #go-title,#settings-panel h2,#jukebox-panel h2 {
+            font-family:'Press Start 2P',monospace !important; font-style:normal !important;
+            color:var(--px-cyan) !important; text-shadow:3px 3px 0 var(--px-pink) !important;
+        }
+        .go-stat,.go-stat strong,.setting-row,.track-name,.track-name.active,#go-msg {
+            font-family:'Press Start 2P',monospace !important;
+        }
+        .go-stat { color:#a7c8d8 !important; font-size:8px !important; border-bottom:2px dotted #4e3567 !important; }
+        .go-stat strong { color:#fff !important; font-size:8px !important; }
+        #go-msg { color:#d8eaff !important; font-size:7px !important; line-height:1.8 !important; }
+
+        .toggle-btn {
+            font-family:'Press Start 2P',monospace !important;
+            background:var(--px-cyan) !important; color:#071218 !important;
+            border:3px solid white !important; border-radius:0 !important;
+            box-shadow:3px 3px 0 #007983 !important;
+        }
+        .toggle-btn.off { background:var(--px-pink) !important; color:white !important; box-shadow:3px 3px 0 #7a075f !important; }
+        .jukebox-track { background:#13042a !important; border:3px solid #5defff !important; }
+        .jukebox-track.active-track { background:#250748 !important; border-color:var(--px-pink) !important; box-shadow:inset 6px 0 0 var(--px-pink) !important; }
+        .track-name { color:#b9d4e1 !important; font-size:7px !important; }
+        .track-name.active { color:var(--px-yellow) !important; }
+
+        @media(max-width:640px){
+            .menu-panel,#shop-panel { padding:20px 16px !important; }
+            .menu-title { font-size:20px !important; }
+            .menu-subtitle { font-size:7px !important; line-height:1.7 !important; }
+            .arcade-btn { font-size:8px !important; padding:12px 10px !important; }
+            .level-btn { font-size:8px !important; }
+            .shop-info h3 { font-size:7px !important; }
+            .shop-info p { font-size:5px !important; }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           V4 — ORIGINAL NEON + ANGLED PANELS
+           Presentation-only override. Restores the original magenta /
+           cyan / yellow / deep-purple palette, keeps pixel typography,
+           angles the major menu surfaces, and quiets the joystick.
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --v4-bg:#0a0015;
+            --v4-deep:#110022;
+            --v4-panel:#1a0033;
+            --v4-panel2:#2a0055;
+            --v4-pink:#ff00ff;
+            --v4-cyan:#00ffff;
+            --v4-yellow:#ffff00;
+            --v4-white:#ffffff;
+            --v4-green:#00ff66;
+            --v4-red:#ff0055;
+            --v4-black:#050008;
+        }
+
+        body { background:var(--v4-bg) !important; }
+
+        #main-menu-screen,#level-select-screen,#shop-screen {
+            background-color:#120021 !important;
+            background-blend-mode:screen !important;
+        }
+        #main-menu-screen::before,#level-select-screen::before,#shop-screen::before {
+            background:
+                repeating-linear-gradient(180deg,rgba(0,255,255,.025) 0 2px,transparent 2px 5px),
+                linear-gradient(180deg,rgba(10,0,21,.16),rgba(10,0,21,.72)) !important;
+        }
+
+        /* Major boxes: subtle parallelogram silhouette rather than modern cards. */
+        .menu-panel,#shop-panel {
+            background:rgba(26,0,51,.96) !important;
+            border:5px solid var(--v4-cyan) !important;
+            clip-path:polygon(18px 0,100% 0,calc(100% - 18px) 100%,0 100%) !important;
+            box-shadow:none !important;
+            filter:drop-shadow(7px 7px 0 var(--v4-pink)) drop-shadow(5px 5px 0 var(--v4-black));
+            padding-left:34px !important;
+            padding-right:34px !important;
+        }
+        .menu-panel::before,#shop-panel::before {
+            inset:8px 12px !important;
+            border:2px solid rgba(255,0,255,.42) !important;
+        }
+
+        .menu-kicker { color:var(--v4-pink) !important; }
+        .menu-title,
+        #shop-panel .menu-title {
+            color:var(--v4-yellow) !important;
+            text-shadow:3px 3px 0 var(--v4-pink),5px 5px 0 #000 !important;
+        }
+        .menu-subtitle { color:#d7c8e8 !important; }
+
+        .arcade-btn {
+            background:var(--v4-pink) !important;
+            color:var(--v4-white) !important;
+            border:3px solid var(--v4-white) !important;
+            box-shadow:4px 4px 0 var(--v4-cyan) !important;
+            text-shadow:2px 2px 0 #550055 !important;
+        }
+        .arcade-btn:hover { outline:2px solid var(--v4-yellow) !important; }
+        .arcade-btn:active { box-shadow:1px 1px 0 var(--v4-cyan) !important; }
+
+        /* Restore original palette across the hub: magenta controls, cyan details. */
+        #main-menu-screen button[onclick="openLevelSelect()"],
+        #main-menu-screen button[onclick="openShop()"],
+        #main-menu-screen button[onclick="openSettings()"] {
+            background:var(--v4-pink) !important;
+            color:#fff !important;
+            border-color:#fff !important;
+            box-shadow:4px 4px 0 var(--v4-cyan) !important;
+            text-shadow:2px 2px 0 #550055 !important;
+        }
+
+        /* Angled menu choices, while text itself remains square/pixel. */
+        #main-menu-screen .arcade-btn,
+        #level-select-screen > .menu-panel > .arcade-btn,
+        #shop-screen > #shop-panel > .arcade-btn {
+            clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%) !important;
+        }
+
+        .level-btn {
+            background:#26004b !important;
+            color:#fff !important;
+            border:3px solid var(--v4-cyan) !important;
+            box-shadow:4px 4px 0 #000 !important;
+            clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%) !important;
+        }
+        .level-btn::before { background:var(--v4-pink) !important; }
+        .level-btn:nth-child(even)::before { background:var(--v4-pink) !important; }
+        .level-btn:hover { background:#39006d !important; border-color:var(--v4-yellow) !important; }
+        .level-btn span:last-child { color:var(--v4-yellow) !important; }
+
+        .shop-item {
+            background:#26004b !important;
+            border:3px solid var(--v4-cyan) !important;
+            box-shadow:4px 4px 0 #000 !important;
+            clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%) !important;
+        }
+        .shop-item:hover { background:#39006d !important; border-color:var(--v4-yellow) !important; }
+        .shop-info h3 { color:var(--v4-yellow) !important; }
+        .shop-info p { color:var(--v4-cyan) !important; }
+        .wallet-line { color:var(--v4-cyan) !important; background:#110022 !important; border-color:var(--v4-pink) !important; }
+        #shop-wallet { color:var(--v4-yellow) !important; }
+
+        #intro-title {
+            background:var(--v4-deep) !important;
+            color:var(--v4-yellow) !important;
+            border-color:var(--v4-cyan) !important;
+            text-shadow:3px 3px 0 var(--v4-pink) !important;
+            clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%) !important;
+        }
+
+        .hud-panel {
+            background:rgba(17,0,34,.84) !important;
+            border-color:var(--v4-pink) !important;
+            box-shadow:4px 4px 0 rgba(0,255,255,.72) !important;
+        }
+        #progress { color:var(--v4-green) !important; }
+        #timer,.star-earned { color:var(--v4-yellow) !important; }
+
+        #go-panel,#settings-panel,#jukebox-panel,#showroom-screen .menu-panel {
+            background:var(--v4-deep) !important;
+            border:5px solid var(--v4-cyan) !important;
+            box-shadow:7px 7px 0 var(--v4-pink) !important;
+            clip-path:none !important;
+        }
+        #go-title,#settings-panel h2,#jukebox-panel h2 {
+            color:var(--v4-yellow) !important;
+            text-shadow:3px 3px 0 var(--v4-pink) !important;
+        }
+        .stat-label { color:var(--v4-cyan) !important; }
+        .stat-bar-fill {
+            background:repeating-linear-gradient(90deg,var(--v4-pink) 0 10px,#8b008b 10px 13px) !important;
+        }
+
+        /* Joystick: same control geometry, deliberately low-contrast. */
+        #joystick-zone {
+            width:126px !important; height:126px !important;
+            bottom:max(28px,env(safe-area-inset-bottom)) !important;
+            border-radius:50% !important;
+            transform:translateX(-50%) !important;
+            background:rgba(0,0,0,.10) !important;
+            border:2px solid rgba(255,255,255,.20) !important;
+            box-shadow:inset 0 0 0 2px rgba(0,0,0,.10) !important;
+            opacity:.58;
+        }
+        #joystick-knob {
+            width:48px !important; height:48px !important;
+            border-radius:50% !important;
+            background:rgba(255,255,255,.30) !important;
+            border:2px solid rgba(255,255,255,.24) !important;
+            box-shadow:0 2px 5px rgba(0,0,0,.18) !important;
+        }
+
+        @media(max-width:640px){
+            .menu-panel,#shop-panel {
+                padding-left:24px !important; padding-right:24px !important;
+                clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%) !important;
+            }
+            #joystick-zone { width:116px !important; height:116px !important; opacity:.52; }
+            #joystick-knob { width:44px !important; height:44px !important; }
+        }
+
+
+        /* ═══ V5 — LEVEL RECORDS + QUIET VISIBLE JOYSTICK ═══ */
+        .level-record-btn {
+            display:flex !important;
+            justify-content:space-between !important;
+            align-items:center !important;
+            gap:12px !important;
+        }
+        .level-record-main {
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:7px;
+            min-width:0;
+            padding-left:8px;
+        }
+        .level-record-name {
+            color:#fff;
+            line-height:1.5;
+            text-align:left;
+        }
+        .level-record-meta {
+            color:var(--v4-cyan);
+            font-size:6px;
+            line-height:1.4;
+            opacity:.88;
+        }
+        .level-record-stars {
+            color:var(--v4-yellow) !important;
+            font-size:13px !important;
+            letter-spacing:1px;
+            white-space:nowrap;
+            text-shadow:2px 2px 0 #7d006d !important;
+            flex:0 0 auto;
+        }
+
+        /* Visible enough to communicate "control here", but not a neon focal point. */
+        #joystick-zone {
+            opacity:.82 !important;
+            background:rgba(8,0,18,.22) !important;
+            border:2px solid rgba(0,255,255,.40) !important;
+            box-shadow:inset 0 0 0 3px rgba(255,255,255,.035),0 3px 9px rgba(0,0,0,.15) !important;
+        }
+        #joystick-zone::before {
+            content:"";
+            position:absolute;
+            inset:18px;
+            border:1px solid rgba(255,255,255,.12);
+            border-radius:50%;
+            pointer-events:none;
+        }
+        #joystick-knob {
+            background:rgba(255,255,255,.48) !important;
+            border:2px solid rgba(0,255,255,.32) !important;
+            box-shadow:0 2px 5px rgba(0,0,0,.20) !important;
+        }
+
+        @media(max-width:640px){
+            .level-record-stars { font-size:11px !important; }
+            .level-record-meta { font-size:5.5px; }
+        }
+
+</style>
 </head>
 <body>
 <audio id="bg-music"  src="./golf.mp3"    loop preload="auto"></audio>
@@ -273,8 +1228,10 @@
 </div>
 
 <div id="main-menu-screen">
-    <div class="menu-panel">
-        <h1 style="color:#ffff00;font-size:18px;margin-top:0;text-shadow:2px 2px #ff0055;">MENY</h1>
+    <div class="menu-panel main-hub-panel">
+        <div class="menu-kicker">MOWER SIMULATOR</div>
+        <h1 class="menu-title">GARAGET</h1>
+        <p class="menu-subtitle">Välj bana, byt maskin och ge dig ut på gräset.</p>
         <button class="arcade-btn" style="width:100%;margin:15px 0;background:#27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
         <button class="arcade-btn" style="width:100%;margin:15px 0;background:#3498db;" onclick="openShop()">SHOPPEN</button>
         <div style="display:flex;justify-content:flex-end;margin-top:10px;">
@@ -284,8 +1241,10 @@
 </div>
 
 <div id="level-select-screen">
-    <div class="menu-panel">
-        <h1 style="color:#ffff00;font-size:16px;margin-top:0;text-shadow:2px 2px #ff0055;">VÄLJ BANA</h1>
+    <div class="menu-panel level-panel">
+        <div class="menu-kicker">UPPDRAG</div>
+        <h1 class="menu-title">VÄLJ BANA</h1>
+        <p class="menu-subtitle">Klipp smart, tjäna pengar och samla stjärnor.</p>
         <div id="level-list"></div>
         <button class="arcade-btn" style="background:#e74c3c;width:100%;margin-top:15px;" onclick="openMainMenu()">← TILLBAKA</button>
     </div>
@@ -326,8 +1285,9 @@
 
 <div id="shop-screen">
     <div id="shop-panel">
-        <h1 style="color:#ffff00;font-size:16px;margin-top:0;text-shadow:2px 2px #ff0055;">MASKIN-SHOPPEN</h1>
-        <p style="color:#00ffff;font-size:9px;margin-bottom:20px;">Dina pengar: <span id="shop-wallet" style="color:#00ff00;">0 KR</span></p>
+        <div class="menu-kicker">MASKINHALLEN</div>
+        <h1 class="menu-title">VÄLJ MASKIN</h1>
+        <p class="wallet-line">KASSA <span id="shop-wallet">0 KR</span></p>
         <div class="shop-item" onclick="openShowroom('standard')"><div class="shop-info"><h3>STANDARD (Handjagare)</h3><p>Klicka för att inspektera i 3D</p></div><button class="arcade-btn">VISA</button></div>
         <div class="shop-item" onclick="openShowroom('klippo')"><div class="shop-info"><h3>KLIPPO (Motorgräsklippare)</h3><p>Klicka för att inspektera i 3D</p></div><button class="arcade-btn">VISA</button></div>
         <div class="shop-item" onclick="openShowroom('ts112')"><div class="shop-info"><h3>HUSQVARNA TS 112</h3><p>Klicka för att inspektera i 3D</p></div><button class="arcade-btn">VISA</button></div>
@@ -691,12 +1651,21 @@ function updateSettingsUI(){
 // ── THREE CORE ────────────────────────────────────────────────────────────────
 let scene, camera, renderer, lawn;
 let mowerGroup;
-let loadedMatsMesh=null, loadedKlippoMesh=null, loadedRideMesh=null, loadedCombineMesh=null;
+let loadedMatsMesh=null, loadedHandMesh=null, loadedKlippoMesh=null, loadedRideMesh=null, loadedCombineMesh=null;
+
+// Reusable scenery GLB registry/cache. Visuals only: gameplay collision remains
+// independent so replacing scenery can never alter mower movement.
+const sceneryAssets={
+    birch01:{path:'./BirchTree_1.glb',height:14,castShadow:true,receiveShadow:true}
+};
+const sceneryCache=new Map();
+
 let showroomScene, showroomCamera, showroomRenderer, showroomModelGroup;
 let inspectingMowerId=null;
 
 const COLOR_UNCUT='#389e38', COLOR_CUT='#7CFC00';
 let lawnTexture, lawnCanvas, lawnContext;
+let golfBaseCanvas=null, golfBaseTexture=null, golfBaseMesh=null, golfCuttableMask=null;
 let stadiumCutCanvas, stadiumCutCtx, stadiumCutTexture, stadiumOverlayMesh=null;
 const lawnTexResolution=512;
 let lawnWorldSize=100;
@@ -730,13 +1699,48 @@ let ownedMowers=JSON.parse(localStorage.getItem('mower_owned'))||['standard','co
 let selectedMower=localStorage.getItem('mower_selected')||'standard';
 let currentLevel=1;
 
+// Persistent per-level records. Kept intentionally small and independent
+// from gameplay state so a bad/missing record can never stop a level loading.
+let levelRecords={};
+try{
+    const savedRecords=JSON.parse(localStorage.getItem('mower_level_records')||'{}');
+    if(savedRecords&&typeof savedRecords==='object')levelRecords=savedRecords;
+}catch(e){ levelRecords={}; }
+
+function getLevelRecord(levelId){
+    const r=levelRecords[levelId]||{};
+    return {
+        bestProgress:Number.isFinite(Number(r.bestProgress))?Math.max(0,Math.min(100,Number(r.bestProgress))):0,
+        bestStars:Number.isFinite(Number(r.bestStars))?Math.max(0,Math.min(5,Number(r.bestStars))):0,
+        cleared:r.cleared===true
+    };
+}
+
+function saveLevelRecord(levelId,progress,stars){
+    if(levelId<1||levelId>4)return {isNewBest:false,record:getLevelRecord(levelId)};
+    const oldRecord=getLevelRecord(levelId);
+    const nextRecord={
+        bestProgress:Math.max(oldRecord.bestProgress,Math.max(0,Math.min(100,progress||0))),
+        bestStars:Math.max(oldRecord.bestStars,Math.max(0,Math.min(5,stars||0))),
+        cleared:oldRecord.cleared||stars>=3
+    };
+    const isNewBest=nextRecord.bestProgress>oldRecord.bestProgress||nextRecord.bestStars>oldRecord.bestStars;
+    levelRecords[levelId]=nextRecord;
+    try{localStorage.setItem('mower_level_records',JSON.stringify(levelRecords));}catch(e){}
+    return {isNewBest,record:nextRecord};
+}
+
 initThree(); initShowroomThree(); preloadAssets(); animate();
 
 function initThree(){
     scene=new THREE.Scene(); scene.background=new THREE.Color(0x87CEEB); scene.fog=new THREE.Fog(0x87CEEB,80,250);
     camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1000);
     renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.12;
     document.body.appendChild(renderer.domElement);
     window.addEventListener('keydown',handleKeyDown); window.addEventListener('keyup',handleKeyUp);
     setupJoystick(); window.addEventListener('resize',onWindowResize);
@@ -756,10 +1760,111 @@ function initShowroomThree(){
     showroomModelGroup=new THREE.Group(); showroomScene.add(showroomModelGroup);
 }
 
-function setupMeshProps(mesh){ mesh.traverse(c=>{ if(c.isMesh){c.castShadow=true;c.receiveShadow=true;if(c.material)c.material.side=THREE.DoubleSide;} }); }
+function setupMeshProps(mesh){
+    mesh.traverse(c=>{
+        if(!c.isMesh)return;
+        c.castShadow=true;
+        c.receiveShadow=true;
+        const mats=Array.isArray(c.material)?c.material:[c.material];
+        mats.forEach(mat=>{
+            if(!mat)return;
+            mat.side=THREE.DoubleSide;
+            // Keep authored GLB colours, but avoid toy-plastic highlights.
+            if('roughness' in mat)mat.roughness=Math.max(mat.roughness??0.5,0.48);
+            if('metalness' in mat)mat.metalness=Math.min(mat.metalness??0,0.65);
+            if(mat.map)mat.map.colorSpace=THREE.SRGBColorSpace;
+            mat.needsUpdate=true;
+        });
+    });
+}
+
+function prepareScenerySource(root,asset){
+    root.traverse(c=>{
+        if(!c.isMesh)return;
+        c.castShadow=asset.castShadow!==false;
+        c.receiveShadow=asset.receiveShadow!==false;
+
+        const mats=Array.isArray(c.material)?c.material:[c.material];
+        mats.forEach(mat=>{
+            if(!mat)return;
+
+            // Preserve the GLB author's sidedness. Unlike the older mower
+            // helper, scenery is not automatically forced DoubleSide.
+            if(mat.map)mat.map.colorSpace=THREE.SRGBColorSpace;
+            if('roughness' in mat)mat.roughness=Math.max(mat.roughness??0.5,0.5);
+            if('metalness' in mat)mat.metalness=Math.min(mat.metalness??0,0.4);
+            mat.needsUpdate=true;
+        });
+    });
+
+    // Normalize the cached source to a predictable world-space height.
+    const box=new THREE.Box3().setFromObject(root);
+    const size=box.getSize(new THREE.Vector3());
+    if(asset.height&&size.y>0){
+        root.scale.multiplyScalar(asset.height/size.y);
+    }
+
+    return root;
+}
+
+function preloadSceneryAsset(id){
+    const asset=sceneryAssets[id];
+    if(!asset)return;
+    const existing=sceneryCache.get(id);
+    if(existing&&existing.status!=='error')return;
+
+    sceneryCache.set(id,{status:'loading',source:null});
+    gltfLoader.load(
+        asset.path,
+        gltf=>{
+            const source=prepareScenerySource(gltf.scene,asset);
+            sceneryCache.set(id,{status:'ready',source});
+        },
+        undefined,
+        err=>{
+            console.warn('Scenery GLB failed to load:',asset.path,err);
+            sceneryCache.set(id,{status:'error',source:null});
+        }
+    );
+}
+
+function preloadSceneryAssets(){
+    Object.keys(sceneryAssets).forEach(preloadSceneryAsset);
+}
+
+function spawnSceneryGLB(id,{x=0,y=0,z=0,rotation=0,scale=1,castShadow=null}={}){
+    const cached=sceneryCache.get(id);
+    if(!cached||cached.status!=='ready'||!cached.source)return null;
+
+    // Clone the already-loaded scene graph. Geometry/material resources remain
+    // shared, so repeated trees do not duplicate the GLB download or geometry.
+    const clone=cached.source.clone(true);
+
+    if(castShadow!==null){
+        clone.traverse(c=>{if(c.isMesh)c.castShadow=castShadow;});
+    }
+
+    clone.scale.multiplyScalar(scale);
+
+    // Ground the asset from its actual bounding box so Blender origin choice
+    // does not determine whether it floats or sinks.
+    const box=new THREE.Box3().setFromObject(clone);
+    const groundOffset=-box.min.y;
+
+    const holder=new THREE.Group();
+    holder.position.set(x,y,z);
+    holder.rotation.y=rotation;
+    clone.position.y=groundOffset;
+    holder.add(clone);
+    scene.add(holder);
+    return holder;
+}
 
 function preloadAssets(){
+    preloadSceneryAssets();
+
     [['./mats-v1.glb',4.2,m=>{loadedMatsMesh=m;}],
+     ['./hand_shaded.glb',3.5,m=>{loadedHandMesh=m;if(inspectingMowerId==='standard')updateShowroomModel();}],
      ['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();}],
      ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();}],
      ['./combine_shaded.glb',8.0,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();}]
@@ -778,6 +1883,64 @@ function getTerrainHeight(x,z){
 function positioned(obj,x,y,z){
     obj.position.set(x,y,z);
     return obj;
+}
+
+function applyOutdoorLighting(){
+    // Bright stylised Scandinavian summer daylight: warm key light,
+    // cool sky fill and readable shadows without photorealistic heaviness.
+    const hemi=new THREE.HemisphereLight(0xbfe5ff,0x536b32,1.25);
+    scene.add(hemi);
+
+    const sunLight=new THREE.DirectionalLight(0xfff0cf,2.35);
+    sunLight.position.set(-70,120,-85);
+    sunLight.castShadow=true;
+    sunLight.shadow.mapSize.set(1024,1024);
+    sunLight.shadow.camera.near=10;
+    sunLight.shadow.camera.far=320;
+    sunLight.shadow.camera.left=-115;
+    sunLight.shadow.camera.right=115;
+    sunLight.shadow.camera.top=115;
+    sunLight.shadow.camera.bottom=-115;
+    sunLight.shadow.bias=-0.0008;
+    sunLight.shadow.normalBias=0.025;
+    scene.add(sunLight);
+
+    // Very soft frontal fill prevents the mower's shaded side becoming black.
+    const fill=new THREE.DirectionalLight(0xb8d7ff,0.42);
+    fill.position.set(65,45,80);
+    scene.add(fill);
+
+    // Slightly lighter atmospheric distance than the old flat fog.
+    scene.background=new THREE.Color(0x8fcff0);
+    scene.fog=new THREE.Fog(0x8fcff0,105,310);
+}
+
+function tuneSceneMaterials(){
+    scene.traverse(obj=>{
+        if(!obj.isMesh)return;
+        obj.receiveShadow=true;
+
+        // Large terrain should receive shadows, while small scenery and the
+        // mower cast them. Avoid making giant ground planes expensive casters.
+        const size=new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+        const footprint=Math.max(size.x,size.z);
+        if(footprint<80)obj.castShadow=true;
+
+        const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+        mats.forEach(mat=>{
+            if(!mat)return;
+            if(mat.isMeshStandardMaterial||mat.isMeshPhysicalMaterial){
+                if('roughness' in mat && mat.roughness===undefined)mat.roughness=0.8;
+                if(mat.map)mat.map.colorSpace=THREE.SRGBColorSpace;
+            }
+        });
+    });
+
+    // The lawn/cut overlays must remain slightly above terrain and should not
+    // cast their own rectangular shadows.
+    if(lawn){lawn.castShadow=false;lawn.receiveShadow=true;}
+    if(golfBaseMesh){golfBaseMesh.castShadow=false;golfBaseMesh.receiveShadow=true;}
+    if(stadiumOverlayMesh){stadiumOverlayMesh.castShadow=false;}
 }
 
 function addSunAndClouds(){
@@ -867,33 +2030,45 @@ function buildCharacter(pose){
 }
 
 function buildMowerAndCharacter(){
+    // Gameplay is mower-only. Characters and procedural mower geometry are intentionally excluded.
     let px=0,py=0,pz=0,ry=mowerStats.rotation;
-    if(mowerGroup){ px=mowerGroup.position.x; py=mowerGroup.position.y; pz=mowerGroup.position.z; ry=mowerGroup.rotation.y; scene.remove(mowerGroup); }
+    if(mowerGroup){
+        px=mowerGroup.position.x; py=mowerGroup.position.y; pz=mowerGroup.position.z; ry=mowerGroup.rotation.y;
+        scene.remove(mowerGroup);
+    }
     mowerGroup=new THREE.Group();
     charLeftLeg=null; charRightLeg=null; charLeftArm=null; charRightArm=null; charIsSitting=false;
+
+    let model=null;
     if(selectedMower==='combine'){
-        if(loadedCombineMesh) mowerGroup.add(loadedCombineMesh.clone());
-        else{ const b=new THREE.Mesh(new THREE.BoxGeometry(6,4,10),new THREE.MeshStandardMaterial({color:0xff6600})); b.position.y=2; mowerGroup.add(b); }
+        model=loadedCombineMesh;
         mowerStats.cutWidth=18; mowerStats.radius=4.5; mowerStats.maxSpeed=0.40;
-        const char=buildCharacter('sit'); char.position.set(0,4,0); char.scale.setScalar(0.9); mowerGroup.add(char);
     } else if(selectedMower==='ts112'){
-        if(loadedRideMesh) mowerGroup.add(loadedRideMesh.clone());
-        else{ const b=new THREE.Mesh(new THREE.BoxGeometry(4,3,6),new THREE.MeshStandardMaterial({color:0xcc0000})); b.position.y=1.5; mowerGroup.add(b); }
+        model=loadedRideMesh;
         mowerStats.cutWidth=12; mowerStats.radius=3.2; mowerStats.maxSpeed=0.50;
-        const char=buildCharacter('sit'); char.position.set(0,2.5,-0.5); char.scale.setScalar(0.85); mowerGroup.add(char);
     } else if(selectedMower==='klippo'){
-        if(loadedKlippoMesh) mowerGroup.add(loadedKlippoMesh.clone());
-        else{ buildHandjagareBody(mowerGroup,0x00cc00); }
+        model=loadedKlippoMesh;
         mowerStats.cutWidth=9; mowerStats.radius=2.8; mowerStats.maxSpeed=0.45;
-        const char=buildCharacter('walk'); char.position.set(0,0,-3.5); char.scale.setScalar(0.9); mowerGroup.add(char);
     } else {
-        buildHandjagareBody(mowerGroup,0xcc2200);
+        model=loadedHandMesh;
         mowerStats.cutWidth=7; mowerStats.radius=2.5; mowerStats.maxSpeed=0.45;
-        const char=buildCharacter('walk'); char.position.set(0,0,-3.5); char.scale.setScalar(0.9); mowerGroup.add(char);
     }
+
+    if(model){
+        const clone=model.clone(true);
+        setupMeshProps(clone);
+        mowerGroup.add(clone);
+    } else {
+        // No fake/procedural mower: keep the gameplay representation GLB-only.
+        console.warn('Mower GLB has not finished loading yet:', selectedMower);
+    }
+
+    // Keep the proven gameplay scale from the working build.
     const sc=currentLevel===1?1.82:1.4;
     mowerGroup.scale.setScalar(sc);
-    mowerGroup.position.set(px,py,pz); mowerGroup.rotation.y=ry; scene.add(mowerGroup);
+    mowerGroup.position.set(px,py,pz);
+    mowerGroup.rotation.y=ry;
+    scene.add(mowerGroup);
 }
 
 function buildHandjagareBody(g,color){
@@ -958,7 +2133,35 @@ function buildYardFence(ox,oz){
 }
 function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.7;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
 function spawnGrill(x,z){const g=new THREE.Group();const S=0.7;const mm=new THREE.MeshStandardMaterial({color:0x333333,metalness:0.7});const bowl=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);bowl.position.y=9*S;g.add(bowl);const lid=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);lid.position.y=9*S;lid.rotation.x=Math.PI;g.add(lid);[[-2.5,2.5],[2.5,2.5],[0,-3]].forEach(([lx,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.25*S,0.25*S,9*S,6),mm);l.position.set(lx*S,4.5*S,lz*S);g.add(l);});g.position.set(x,0,z);scene.add(g);}
-function spawnDecoTree(x,z){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.9,7,8),new THREE.MeshStandardMaterial({color:0x6b4226}));tr.position.y=3.5;g.add(tr);const lm=new THREE.MeshStandardMaterial({color:[0x2d7a2d,0x3d8a3d,0x1a6b1a][Math.floor(Math.random()*3)]});[[8,4.5],[10.5,3.2],[12.5,2]].forEach(([fy,fr])=>{const f=new THREE.Mesh(new THREE.SphereGeometry(fr,8,7),lm);f.position.y=fy;g.add(f);});g.position.set(x,0,z);scene.add(g);}
+function spawnProceduralDecoTree(x,z){
+    const g=new THREE.Group();
+    const tr=new THREE.Mesh(
+        new THREE.CylinderGeometry(0.6,0.9,7,8),
+        new THREE.MeshStandardMaterial({color:0x6b4226})
+    );
+    tr.position.y=3.5;g.add(tr);
+    const lm=new THREE.MeshStandardMaterial({
+        color:[0x2d7a2d,0x3d8a3d,0x1a6b1a][Math.floor(Math.random()*3)]
+    });
+    [[8,4.5],[10.5,3.2],[12.5,2]].forEach(([fy,fr])=>{
+        const f=new THREE.Mesh(new THREE.SphereGeometry(fr,8,7),lm);
+        f.position.y=fy;g.add(f);
+    });
+    g.position.set(x,0,z);scene.add(g);
+    return g;
+}
+
+function spawnDecoTree(x,z){
+    // Bana 1 test: try the cached birch first. If it is missing, still loading,
+    // or failed, the proven procedural tree is used instead.
+    const birch=spawnSceneryGLB('birch01',{
+        x,y:0,z,
+        rotation:Math.random()*Math.PI*2,
+        scale:0.88+Math.random()*0.20
+    });
+    return birch||spawnProceduralDecoTree(x,z);
+}
+
 function spawnBush(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0x2a6a2a});for(let i=0;i<3;i++){const r=2+Math.random()*2;const p=new THREE.Mesh(new THREE.SphereGeometry(r,7,6),bm);p.position.set((Math.random()-0.5)*3,r,(Math.random()-0.5)*2);g.add(p);}g.position.set(x,0,z);scene.add(g);}
 function spawnDog(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0xc8a86b}),dm=new THREE.MeshStandardMaterial({color:0x8b6914});const body=new THREE.Mesh(new THREE.BoxGeometry(6,3.5,2.8),bm);body.position.y=3.5;g.add(body);const headG=new THREE.Group();headG.position.set(3.8,5.2,0);headG.add(new THREE.Mesh(new THREE.BoxGeometry(2.8,2.8,2.5),bm));const snout=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.2,1.8),bm);snout.position.set(1.5,-0.5,0);headG.add(snout);const nose=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),new THREE.MeshStandardMaterial({color:0x111111}));nose.position.set(2.3,-0.5,0);headG.add(nose);[-1,1].forEach(dz=>{const ear=new THREE.Mesh(new THREE.BoxGeometry(0.8,1.6,0.6),dm);ear.position.set(0,1.6,dz);ear.rotation.z=dz>0?-0.3:0.3;headG.add(ear);});g.add(headG);[[-2,0,1],[2,0,1],[-2,0,-1],[2,0,-1]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.BoxGeometry(1,3.5,1),bm);l.position.set(lx,1.75,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-3.8,5.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.6,3,8),bm);tail.position.set(0,1.5,0);tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'dog',headG,tailG,phase:Math.random()*Math.PI*2});}
 function spawnCat(x,z){const g=new THREE.Group();const cc=[0x888888,0x333333,0xffaa44,0xeeeeee,0xccaa88];const cm=new THREE.MeshStandardMaterial({color:cc[Math.floor(Math.random()*cc.length)]}),dm=new THREE.MeshStandardMaterial({color:0x222222});const body=new THREE.Mesh(new THREE.BoxGeometry(4.5,2.8,2.2),cm);body.position.y=2.8;g.add(body);const headG=new THREE.Group();headG.position.set(3,4.4,0);headG.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,10,8),cm));[-0.7,0.7].forEach(dz=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(0.6,1.2,4),cm);ear.position.set(0,1.5,dz);headG.add(ear);});[-0.5,0.5].forEach(dz=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(0.25,8,6),dm);eye.position.set(1.2,0.3,dz);headG.add(eye);});g.add(headG);[[-1.5,0,.8],[1.5,0,.8],[-1.5,0,-.8],[1.5,0,-.8]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,2.8,6),cm);l.position.set(lx,1.4,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-2.5,3.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.4,4,8),cm);tail.position.set(0,2,0);tail.rotation.z=0.4;tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'cat',headG,tailG,phase:Math.random()*Math.PI*2});}
@@ -983,7 +2186,21 @@ function setupVillaLevel(){
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
     lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture}));
     lawn.rotation.x=-Math.PI/2;scene.add(lawn);
-    totalCuttablePixels=lawnTexResolution*lawnTexResolution;
+    // Count only mowable pixels. The central house/garage footprint is
+    // intentionally blocked by canMoveTo(), so it must not be required
+    // for a 100% score.
+    {
+        let count=0;
+        for(let py=0;py<lawnTexResolution;py++){
+            const wz=(py+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
+            for(let px=0;px<lawnTexResolution;px++){
+                const wx=(px+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
+                const blocked=(wx>-35&&wx<35&&wz>-55&&wz<-5);
+                if(!blocked)count++;
+            }
+        }
+        totalCuttablePixels=Math.max(count,1);
+    }
     spawnGardenTable(30,15);spawnGrill(-30,-15);
     spawnDecoTree(-35,30);spawnDecoTree(35,30);spawnDecoTree(-35,-35);spawnDecoTree(35,-35);
     spawnBush(20,-30);spawnBush(-22,25);spawnBush(18,32);
@@ -1043,23 +2260,122 @@ function buildPlayerMesh(team){const g=new THREE.Group();const sk=new THREE.Mesh
 function setupGolfLevel(){
     lawnWorldSize=160;animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedClouds=[];
     addSunAndClouds();buildGolfSurroundings();
-    lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
+
+    const res=lawnTexResolution;
+
+    // --- TRUE UNDERLYING COURSE COLOURS ---
+    // This canvas never changes while mowing. Fairway, green, rough and sand
+    // therefore keep their own colours after the "uncut" layer is removed.
+    golfBaseCanvas=document.createElement('canvas');
+    golfBaseCanvas.width=golfBaseCanvas.height=res;
+    const baseCtx=golfBaseCanvas.getContext('2d',{willReadFrequently:true});
+
+    // Rough / surrounding grass
+    baseCtx.fillStyle='#1e4620';
+    baseCtx.fillRect(0,0,res,res);
+
+    // Fairway
+    baseCtx.fillStyle=COLOR_UNCUT;
+    baseCtx.beginPath();
+    baseCtx.ellipse(256,300,120,200,0,0,Math.PI*2);
+    baseCtx.fill();
+
+    // Green
+    baseCtx.fillStyle='#7CFC00';
+    baseCtx.beginPath();
+    baseCtx.arc(256,100,70,0,Math.PI*2);
+    baseCtx.fill();
+
+    // Bunkers — deliberately part of the cuttable surface.
+    baseCtx.fillStyle='#edc9af';
+    baseCtx.beginPath();
+    baseCtx.ellipse(175,115,30,45,Math.PI/4,0,Math.PI*2);
+    baseCtx.fill();
+    baseCtx.beginPath();
+    baseCtx.ellipse(340,235,25,35,-Math.PI/5,0,Math.PI*2);
+    baseCtx.fill();
+
+    // Water remains visually distinct and is not mowable yet.
+    baseCtx.fillStyle='#1e90ff';
+    baseCtx.beginPath();
+    baseCtx.arc(355,330,55,0,Math.PI*2);
+    baseCtx.fill();
+
+    golfBaseTexture=new THREE.CanvasTexture(golfBaseCanvas);
+    golfBaseMesh=new THREE.Mesh(
+        new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),
+        new THREE.MeshStandardMaterial({map:golfBaseTexture,roughness:0.8})
+    );
+    golfBaseMesh.rotation.x=-Math.PI/2;
+    scene.add(golfBaseMesh);
+
+    // --- UNCUT MASK ---
+    // A semi-transparent grey-green veil sits over every land pixel.
+    // Mowing erases this layer, revealing a brighter version of the exact
+    // material underneath instead of painting everything one green colour.
+    lawnCanvas=document.createElement('canvas');
+    lawnCanvas.width=lawnCanvas.height=res;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
-    lawnContext.fillStyle='#1e4620';lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
-    lawnContext.fillStyle=COLOR_UNCUT;lawnContext.beginPath();lawnContext.ellipse(256,300,120,200,0,0,Math.PI*2);lawnContext.fill();
-    lawnContext.fillStyle='#7CFC00';lawnContext.beginPath();lawnContext.arc(256,100,70,0,Math.PI*2);lawnContext.fill();
-    lawnContext.fillStyle='#edc9af';lawnContext.beginPath();lawnContext.ellipse(175,115,30,45,Math.PI/4,0,Math.PI*2);lawnContext.fill();lawnContext.beginPath();lawnContext.ellipse(340,235,25,35,-Math.PI/5,0,Math.PI*2);lawnContext.fill();
-    lawnContext.fillStyle='#1e90ff';lawnContext.beginPath();lawnContext.arc(355,330,55,0,Math.PI*2);lawnContext.fill();
-    {const d=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;let count=0;for(let i=0;i<d.length;i+=4){const r=d[i],g2=d[i+1],b2=d[i+2];if(g2>100&&r<200&&b2<100)count++;}totalCuttablePixels=Math.max(count,1);}
-    pondCollider={cx:32,cz:22,rx:17,rz:17};bunkerZones=[{cx:-20,cz:-20,rx:9,rz:14},{cx:18,cz:3,rx:8,rz:11}];
+    lawnContext.clearRect(0,0,res,res);
+
+    const baseData=baseCtx.getImageData(0,0,res,res).data;
+    golfCuttableMask=new Uint8Array(res*res);
+    const overlay=lawnContext.createImageData(res,res);
+    let count=0;
+
+    for(let p=0;p<res*res;p++){
+        const i=p*4;
+        const r=baseData[i], g=baseData[i+1], b=baseData[i+2];
+
+        // The only currently uncuttable golf surface is the blue water.
+        const isWater=(b>170 && b>r*1.4 && b>g*1.15);
+        if(!isWater){
+            golfCuttableMask[p]=1;
+            count++;
+            // Neutral-dark translucent mask: underlying colour still reads,
+            // but mown areas become noticeably brighter.
+            overlay.data[i]=52;
+            overlay.data[i+1]=58;
+            overlay.data[i+2]=52;
+            overlay.data[i+3]=112;
+        }
+    }
+    lawnContext.putImageData(overlay,0,0);
+    totalCuttablePixels=Math.max(count,1);
+
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
-    lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
-    lawn.rotation.x=-Math.PI/2;scene.add(lawn);
+    lawn=new THREE.Mesh(
+        new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),
+        new THREE.MeshBasicMaterial({
+            map:lawnTexture,
+            transparent:true,
+            depthWrite:false
+        })
+    );
+    lawn.rotation.x=-Math.PI/2;
+    lawn.position.y=0.035;
+    scene.add(lawn);
+
+    pondCollider={cx:32,cz:22,rx:17,rz:17};
+    // Bunkers remain tracked for future effects, but no longer block cutting.
+    bunkerZones=[{cx:-20,cz:-20,rx:9,rz:14},{cx:18,cz:3,rx:8,rz:11}];
+
     buildGolfFence(lawnWorldSize);
-    const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,10,8),new THREE.MeshStandardMaterial({color:0xffffff}));fp.position.set(0,5,-55);scene.add(fp);
-    const fc=new THREE.Mesh(new THREE.BoxGeometry(4,2.5,0.1),new THREE.MeshStandardMaterial({color:0xff0000,side:THREE.DoubleSide}));fc.position.set(2,3.5,0);fp.add(fc);animatedFlag=fc;
-    const pond=new THREE.Mesh(new THREE.CylinderGeometry(17,17,0.3,32),new THREE.MeshStandardMaterial({color:0x1a6ea8,transparent:true,opacity:0.82,roughness:0.05,metalness:0.2}));pond.position.set(32,0.2,22);scene.add(pond);animatedPond=pond;
-    for(let i=0;i<60;i++){const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20;spawnTree(Math.sin(a)*d,Math.cos(a)*d,0);}
+    const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,10,8),new THREE.MeshStandardMaterial({color:0xffffff}));
+    fp.position.set(0,5,-55);scene.add(fp);
+    const fc=new THREE.Mesh(new THREE.BoxGeometry(4,2.5,0.1),new THREE.MeshStandardMaterial({color:0xff0000,side:THREE.DoubleSide}));
+    fc.position.set(2,3.5,0);fp.add(fc);animatedFlag=fc;
+
+    const pond=new THREE.Mesh(
+        new THREE.CylinderGeometry(17,17,0.3,32),
+        new THREE.MeshStandardMaterial({color:0x1a6ea8,transparent:true,opacity:0.82,roughness:0.05,metalness:0.2})
+    );
+    pond.position.set(32,0.2,22);scene.add(pond);animatedPond=pond;
+
+    for(let i=0;i<60;i++){
+        const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20;
+        spawnTree(Math.sin(a)*d,Math.cos(a)*d,0);
+    }
     startGolfSfx();
 }
 function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMaterial({color:0x8b6914}),wireMat=new THREE.MeshStandardMaterial({color:0x666655});[{x:0,z:-half,len:size,ry:0},{x:0,z:half,len:size,ry:0},{x:-half,z:0,len:size,ry:Math.PI/2},{x:half,z:0,len:size,ry:Math.PI/2}].forEach(({x,z,len,ry})=>{const sg=new THREE.Group();[1.5,3.0].forEach(hy=>{const r=new THREE.Mesh(new THREE.BoxGeometry(len,0.15,0.15),wireMat);r.position.set(0,hy,0);sg.add(r);});for(let i=-len/2;i<=len/2;i+=8){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,3.5,6),postMat);p.position.set(i,1.75,0);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);});}
@@ -1105,7 +2421,6 @@ window.openShowroom=function(mowerId){
     else{ab.innerText='SAKNAR PENGAR';ab.disabled=true;ab.style.background='#555';}
     setTimeout(()=>{onWindowResize();updateShowroomModel();},50);
 };
-function buildShowroomHandjagare(){const h=new THREE.Group();buildHandjagareBody(h,0xcc2200);const char=buildCharacter('walk');char.position.set(0,0,-3.5);char.scale.setScalar(0.9);h.add(char);return h;}
 function updateShowroomModel(){
     if(!inspectingMowerId||!showroomModelGroup)return;
     while(showroomModelGroup.children.length>0)showroomModelGroup.remove(showroomModelGroup.children[0]);
@@ -1113,7 +2428,7 @@ function updateShowroomModel(){
     if(inspectingMowerId==='combine'&&loadedCombineMesh)mesh=loadedCombineMesh.clone();
     else if(inspectingMowerId==='ts112'&&loadedRideMesh)mesh=loadedRideMesh.clone();
     else if(inspectingMowerId==='klippo'&&loadedKlippoMesh)mesh=loadedKlippoMesh.clone();
-    else if(inspectingMowerId==='standard')mesh=buildShowroomHandjagare();
+    else if(inspectingMowerId==='standard'&&loadedHandMesh)mesh=loadedHandMesh.clone();
     else{const pg=new THREE.Group();pg.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(2,1,3),new THREE.MeshStandardMaterial({color:0x555555})),0,0.5,0));mesh=pg;}
     if(mesh){showroomModelGroup.add(mesh);const box=new THREE.Box3().setFromObject(mesh);const center=box.getCenter(new THREE.Vector3());mesh.position.sub(center);const size=box.getSize(new THREE.Vector3());const maxD=Math.max(size.x,size.y,size.z);showroomCamera.position.set(maxD*0.6,maxD*0.5,maxD*1.5);showroomCamera.lookAt(0,0,0);}
 }
@@ -1127,15 +2442,25 @@ window.openLevelSelect=function(){
     document.getElementById('level-select-screen').style.display='flex';
     const listEl=document.getElementById('level-list');
     listEl.innerHTML='';
-    // Regular levels
+
+    // Main levels — records are display-only and never block access.
     [{id:1,name:"Bana 1: Villakvarteret"},{id:2,name:"Bana 2: Fotbollsplanen"},{id:3,name:"Bana 3: Golfbanan"},{id:4,name:"Bana 4: Sjötomten"}].forEach(lvl=>{
+        const record=getLevelRecord(lvl.id);
+        const stars=Array.from({length:5},(_,i)=>i<record.bestStars?'★':'☆').join('');
+        const status=record.cleared?'KLAR':'BÄSTA';
         const btn=document.createElement('button');
-        btn.className='level-btn';
-        btn.innerHTML=`<span>${lvl.name}</span><span>★</span>`;
+        btn.className='level-btn level-record-btn';
+        btn.innerHTML=`
+            <span class="level-record-main">
+                <span class="level-record-name">${lvl.name}</span>
+                <span class="level-record-meta">${status}: ${record.bestProgress}%</span>
+            </span>
+            <span class="level-record-stars" aria-label="${record.bestStars} av 5 stjärnor">${stars}</span>`;
         btn.onclick=()=>showLevelIntro(lvl.id);
         listEl.appendChild(btn);
     });
-    // Bonus maze level
+
+    // Bonus maze remains separate and does not participate in main-level records.
     const mazeBtn=document.createElement('button');
     mazeBtn.className='level-btn';
     mazeBtn.style.background='#1a3300';
@@ -1157,12 +2482,10 @@ window.confirmStartLevel=function(){
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
     animatedAnimals=[];trampolineKids=[];stadiumOverlayMesh=null;
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
+    golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
     while(scene.children.length>0)scene.remove(scene.children[0]);
-    scene.add(new THREE.AmbientLight(0xffffff,0.7));
-    const dl=new THREE.DirectionalLight(0xffffff,1.0);
-    dl.position.set(50,100,-150);
-    scene.add(dl);
+    applyOutdoorLighting();
 
     // Build the level first so lawnWorldSize and all terrain are final
     // before the mower and camera are positioned.
@@ -1187,6 +2510,7 @@ window.confirmStartLevel=function(){
     const spawn=spawnMap[currentLevel]||{x:0,z:0};
     mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
     mowerGroup.rotation.y=mowerStats.rotation;
+    tuneSceneMaterials();
     // Start in the same chase-camera geometry used by the proven gras13 build.
     camera.position.set(
         mowerGroup.position.x-Math.sin(mowerStats.rotation)*20,
@@ -1217,9 +2541,53 @@ window.confirmStartLevel=function(){
 window.finishLevel=function(){if(!gameActive)return;endGame('BANAN AVSLUTAD!');};
 window.leaveLevel=function(){stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';openLevelSelect();};
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
-function calculateProgress(){if(!lawnContext)return;const d=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;let cut=0;if(currentLevel===2){for(let i=0;i<d.length;i+=4){if(d[i+3]<128)cut++;}}else{for(let i=0;i<d.length;i+=4){if(d[i]>150&&d[i+1]>200)cut++;}}const pct=Math.min(100,Math.floor((cut/totalCuttablePixels)*100));if(pct!==currentProgress){currentProgress=pct;document.getElementById('progress').innerText=currentProgress;currentStars=Math.min(5,Math.floor(currentProgress/18));renderStars('hud-stars',currentStars);}}
+function calculateProgress(){
+    if(!lawnContext)return;
+    const d=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;
+    let cut=0;
+
+    for(let i=0;i<d.length;i+=4){
+        const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+
+        if(currentLevel===2){
+            // Stadium mowing reveals the already-rendered striped pitch by
+            // erasing the overlay canvas.
+            if(a<128)cut++;
+        }else if(currentLevel===3){
+            // Golf scoring follows the removable overlay rather than colour.
+            // This lets fairway, green, rough and sand retain their own
+            // underlying colours while still counting as cut.
+            const p=i/4;
+            if(golfCuttableMask&&golfCuttableMask[p]&&a<64)cut++;
+        }else{
+            // Villa and lake levels paint the standard cut colour
+            // COLOR_CUT / #7CFC00.
+            if(r>=105&&r<=145&&g>=230&&g<=255&&b<=35){
+                if(currentLevel===1){
+                    const pixel=i/4;
+                    const px=pixel%lawnTexResolution;
+                    const py=Math.floor(pixel/lawnTexResolution);
+                    const wx=(px+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
+                    const wz=(py+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
+                    const blocked=(wx>-35&&wx<35&&wz>-55&&wz<-5);
+                    if(!blocked)cut++;
+                }else{
+                    cut++;
+                }
+            }
+        }
+    }
+
+    const pct=Math.min(100,Math.floor((cut/Math.max(totalCuttablePixels,1))*100));
+    if(pct!==currentProgress){
+        currentProgress=pct;
+        document.getElementById('progress').innerText=currentProgress;
+        currentStars=Math.min(5,Math.floor(currentProgress/18));
+        renderStars('hud-stars',currentStars);
+    }
+}
 function renderStars(id,n){let h='';for(let i=1;i<=5;i++)h+=i<=n?'<span class="star-earned">★</span>':'★';document.getElementById(id).innerHTML=h;}
-function endGame(title='TIDEN ÄR UTE!'){if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
+function endGame(title='TIDEN ÄR UTE!'){if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();saveLevelRecord(currentLevel,currentProgress,currentStars);const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
 window.openShop=function(){['main-menu-screen','game-over','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('shop-screen').style.display='flex';document.getElementById('shop-wallet').innerText=totalMoney+' KR';};
 
 function animate(){
@@ -1227,7 +2595,7 @@ function animate(){
     const dt=Math.min(clock.getDelta(),0.05),t=clock.getElapsedTime();
     if(showroomModelGroup&&inspectingMowerId){showroomModelGroup.rotation.y+=0.015;showroomRenderer.render(showroomScene,showroomCamera);}
     if(gameStarted&&gameActive){
-        updateMowerPhysics();paintCutTrail();updateCameraFollow();
+        updateMowerPhysics(dt);paintCutTrail();updateCameraFollow();
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
@@ -1246,15 +2614,18 @@ function animate(){
 }
 
 function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>-35&&nx<35&&nz>-55&&nz<-5)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
-function updateMowerPhysics(){
+function updateMowerPhysics(dt=1/60){
     if(!mowerGroup)return;
 
-    // Keep the proven control equations from gras13.html.
+    // Preserve the established 60 Hz handling while making movement
+    // independent of display refresh rate (e.g. 120/144 Hz phones).
+    const frameScale=Math.min(Math.max(dt*60,0),3);
+
     let turnInput=0;
     if(inputs.left) turnInput=1;
     if(inputs.right) turnInput=-1;
     if(inputs.joyX!==0) turnInput=-inputs.joyX;
-    mowerStats.rotation+=mowerStats.turnSpeed*turnInput;
+    mowerStats.rotation+=mowerStats.turnSpeed*turnInput*frameScale;
     mowerGroup.rotation.y=mowerStats.rotation;
 
     let forwardInput=0;
@@ -1262,8 +2633,11 @@ function updateMowerPhysics(){
     if(inputs.down) forwardInput=-1;
     if(inputs.joyY!==0) forwardInput=-inputs.joyY;
 
-    if(forwardInput!==0) mowerStats.speed+=mowerStats.acceleration*forwardInput;
-    else mowerStats.speed*=mowerStats.deceleration;
+    if(forwardInput!==0){
+        mowerStats.speed+=mowerStats.acceleration*forwardInput*frameScale;
+    }else{
+        mowerStats.speed*=Math.pow(mowerStats.deceleration,frameScale);
+    }
 
     mowerStats.speed=THREE.MathUtils.clamp(
         mowerStats.speed,
@@ -1271,20 +2645,52 @@ function updateMowerPhysics(){
         mowerStats.maxSpeed
     );
 
-    const newX=mowerGroup.position.x+Math.sin(mowerStats.rotation)*mowerStats.speed;
-    const newZ=mowerGroup.position.z+Math.cos(mowerStats.rotation)*mowerStats.speed;
+    const travel=mowerStats.speed*frameScale;
+    const newX=mowerGroup.position.x+Math.sin(mowerStats.rotation)*travel;
+    const newZ=mowerGroup.position.z+Math.cos(mowerStats.rotation)*travel;
 
     if(canMoveTo(newX,newZ)){
         mowerGroup.position.x=newX;
         mowerGroup.position.z=newZ;
-        // Unlike the old flat prototype, the new levels have terrain.
-        // Never force Y back to zero: follow the terrain surface.
         mowerGroup.position.y=getTerrainHeight(newX,newZ);
-    } else {
+    }else{
         mowerStats.speed=0;
     }
 }
-function paintCutTrail(){if(!lawnContext||!mowerGroup)return;if(currentLevel===3&&bunkerZones.length>0){for(const bz of bunkerZones){const ex=(mowerGroup.position.x-bz.cx)/bz.rx,ez=(mowerGroup.position.z-bz.cz)/bz.rz;if(ex*ex+ez*ez<1.0)return;}}const uvX=(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;const uvY=(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;const tx=uvX*lawnTexResolution,ty=uvY*lawnTexResolution;const lx=lawnCanvas.lastPaintedX||tx,ly=lawnCanvas.lastPaintedY||ty;if(Math.abs(mowerStats.speed)>0.001){if(currentLevel===2){lawnContext.globalCompositeOperation='destination-out';lawnContext.strokeStyle='rgba(0,0,0,1)';}else if(currentLevel===3){lawnContext.strokeStyle='#5ad85a';}else{lawnContext.strokeStyle=COLOR_CUT;}lawnContext.lineWidth=(mowerStats.cutWidth/lawnWorldSize)*lawnTexResolution;lawnContext.lineCap='round';lawnContext.beginPath();lawnContext.moveTo(lx,ly);lawnContext.lineTo(tx,ty);lawnContext.stroke();if(currentLevel===2)lawnContext.globalCompositeOperation='source-over';lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;lawnTexture.needsUpdate=true;}else{lawnCanvas.lastPaintedX=tx;lawnCanvas.lastPaintedY=ty;}}
+function paintCutTrail(){
+    if(!lawnContext||!mowerGroup)return;
+
+    const uvX=(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;
+    const uvY=(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;
+    const tx=uvX*lawnTexResolution,ty=uvY*lawnTexResolution;
+    const lx=lawnCanvas.lastPaintedX||tx,ly=lawnCanvas.lastPaintedY||ty;
+
+    if(Math.abs(mowerStats.speed)>0.001){
+        if(currentLevel===2||currentLevel===3){
+            // Stadium and golf both use removable overlays.
+            lawnContext.globalCompositeOperation='destination-out';
+            lawnContext.strokeStyle='rgba(0,0,0,1)';
+        }else{
+            lawnContext.globalCompositeOperation='source-over';
+            lawnContext.strokeStyle=COLOR_CUT;
+        }
+
+        lawnContext.lineWidth=(mowerStats.cutWidth/lawnWorldSize)*lawnTexResolution;
+        lawnContext.lineCap='round';
+        lawnContext.beginPath();
+        lawnContext.moveTo(lx,ly);
+        lawnContext.lineTo(tx,ty);
+        lawnContext.stroke();
+
+        lawnContext.globalCompositeOperation='source-over';
+        lawnCanvas.lastPaintedX=tx;
+        lawnCanvas.lastPaintedY=ty;
+        lawnTexture.needsUpdate=true;
+    }else{
+        lawnCanvas.lastPaintedX=tx;
+        lawnCanvas.lastPaintedY=ty;
+    }
+}
 function updateCameraFollow(){
     if(!mowerGroup)return;
     const offset=new THREE.Vector3(
@@ -1299,7 +2705,7 @@ function updateCameraFollow(){
 function setupJoystick(){const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');let active=false,cx2,cy2,mr;zone.addEventListener('touchstart',e=>{e.preventDefault();active=true;const r=zone.getBoundingClientRect();cx2=r.left+r.width/2;cy2=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;upd(e.touches[0]);},{passive:false});zone.addEventListener('touchmove',e=>{e.preventDefault();if(active)upd(e.touches[0]);},{passive:false});const rst=()=>{active=false;knob.style.transform='translate(-50%,-50%)';inputs.joyX=inputs.joyY=0;};zone.addEventListener('touchend',rst);zone.addEventListener('touchcancel',rst);function upd(t){let dx=t.clientX-cx2,dy=t.clientY-cy2,d=Math.sqrt(dx*dx+dy*dy);if(d>mr){const a=Math.atan2(dy,dx);dx=Math.cos(a)*mr;dy=Math.sin(a)*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;inputs.joyX=dx/mr;inputs.joyY=dy/mr;}}
 function handleKeyDown(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=true;if(k==='s'||k==='arrowdown')inputs.down=true;if(k==='a'||k==='arrowleft')inputs.left=true;if(k==='d'||k==='arrowright')inputs.right=true;}
 function handleKeyUp(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=false;if(k==='s'||k==='arrowdown')inputs.down=false;if(k==='a'||k==='arrowleft')inputs.left=false;if(k==='d'||k==='arrowright')inputs.right=false;}
-function onWindowResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);const c=document.getElementById('showroom-canvas-container');if(c&&showroomRenderer&&c.clientWidth>0){showroomCamera.aspect=c.clientWidth/c.clientHeight;showroomCamera.updateProjectionMatrix();showroomRenderer.setSize(c.clientWidth,c.clientHeight);}}
+function onWindowResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setSize(innerWidth,innerHeight);const c=document.getElementById('showroom-canvas-container');if(c&&showroomRenderer&&c.clientWidth>0){showroomCamera.aspect=c.clientWidth/c.clientHeight;showroomCamera.updateProjectionMatrix();showroomRenderer.setSize(c.clientWidth,c.clientHeight);}}
 </script>
 </body>
 </html>
