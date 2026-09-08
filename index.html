@@ -2719,9 +2719,9 @@ function level4RawHeightAt(x,z){
 // placing a large house on a continuously sloped surface.
 const LEVEL4_HOUSE_SITES=[
     {n:1,px:1213,py:515,wpx:92,hpx:96},
-    {n:2,px:1302,py:445,wpx:45,hpx:57},
-    {n:3,px:1288,py:377,wpx:34,hpx:39},
-    {n:4,px:1348,py:391,wpx:37,hpx:39},
+    {n:2,px:1315,py:452,wpx:45,hpx:57},
+    {n:3,px:1272,py:366,wpx:34,hpx:39},
+    {n:4,px:1365,py:398,wpx:37,hpx:39},
     {n:5,px:847, py:351,wpx:35,hpx:30},
     {n:6,px:348, py:270,wpx:49,hpx:44},
     {n:7,px:315, py:618,wpx:66,hpx:49},
@@ -2772,9 +2772,23 @@ function l4CheapTree(x,z,s=1){
     crown.position.y=6.8;g.add(crown);
     g.scale.setScalar(s);g.position.set(x,level4HeightAt(x,z),z);scene.add(g);
 }
+function l4TreeAllowed(x,z){
+    // Trees are decorative scenery. Keep them off mowable lawn and clear of
+    // every house pad, with extra room in front/sides for mower access.
+    if(level4IsMowable(x,z))return false;
+
+    for(const s of LEVEL4_HOUSE_SITES){
+        const padX=s.w*.85+10;
+        const padZ=s.d*.90+12;
+        if(Math.abs(x-s.x)<padX && Math.abs(z-s.z)<padZ)return false;
+    }
+    return true;
+}
+
 function l4Forest(x1,y1,x2,y2,count){
     for(let i=0;i<count;i++){
         const p=level4MapToWorld(x1+Math.random()*(x2-x1),y1+Math.random()*(y2-y1));
+        if(!l4TreeAllowed(p.x,p.z))continue;
         if(i%7===0){
             const ids=['pine1','pine2','pine3','pine4','pine5','birch01','birch02','birch03','birch04'];
             const id=ids[i%ids.length];
@@ -2943,7 +2957,7 @@ function l4MakeBoardedWall(parent,w,h,depth,boardSize,mat,vertical=false){
     }
 }
 
-function l4CustomHouse2(px,py,wpx,hpx,rotation=0){
+function l4CustomHouse2(px,py,wpx,hpx,rotation=-Math.PI/2){
     const range=level4HouseTerrainRange(px,py,wpx,hpx);
     const w=Math.max(8,range.worldW*.90);
     const d=Math.max(7,range.worldD*.88);
@@ -2951,14 +2965,13 @@ function l4CustomHouse2(px,py,wpx,hpx,rotation=0){
     const g=new THREE.Group();
 
     const grey=new THREE.MeshStandardMaterial({color:0x747474,roughness:.95});
-    const darkGrey=new THREE.MeshStandardMaterial({color:0x555555,roughness:1});
     const frameMat=new THREE.MeshStandardMaterial({color:0x292929,roughness:.72});
     const glassMat=new THREE.MeshStandardMaterial({
-        color:0x9cc7dc,roughness:.18,metalness:.05,transparent:true,opacity:.82
+        color:0x9cc7dc,roughness:.18,metalness:.05,transparent:true,opacity:.82,side:THREE.DoubleSide
     });
     const roofMat=new THREE.MeshStandardMaterial({color:0x3e3e3e,roughness:.9});
 
-    // Back wall and side walls: horizontal wooden boards.
+    // Main rectangular wall section.
     const back=new THREE.Group();
     l4MakeBoardedWall(back,w,wallH,.24,.65,grey,false);
     back.position.z=-d/2;
@@ -2966,29 +2979,23 @@ function l4CustomHouse2(px,py,wpx,hpx,rotation=0){
 
     [-1,1].forEach(side=>{
         const sideG=new THREE.Group();
-        // Build as horizontal-board strips, then rotate to become a side wall.
         l4MakeBoardedWall(sideG,d,wallH,.24,.65,grey,false);
         sideG.rotation.y=Math.PI/2;
         sideG.position.x=side*w/2;
         g.add(sideG);
     });
 
-    // Front is almost entirely glazing: three large panes.
+    // Front wall is almost entirely glazing: three panes.
     const frameT=.22;
     const frontZ=d/2+.02;
     const glassH=wallH*.80;
     const glassY=wallH*.48;
     const paneW=(w*.91)/3;
     for(let i=0;i<3;i++){
-        const pane=new THREE.Mesh(
-            new THREE.PlaneGeometry(paneW*.94,glassH),
-            glassMat
-        );
+        const pane=new THREE.Mesh(new THREE.PlaneGeometry(paneW*.94,glassH),glassMat);
         pane.position.set(-w*.455+paneW*(i+.5),glassY,frontZ);
-        pane.material.side=THREE.DoubleSide;
         g.add(pane);
     }
-    // Window frames.
     const topF=new THREE.Mesh(new THREE.BoxGeometry(w*.94,frameT,.20),frameMat);
     topF.position.set(0,glassY+glassH/2,frontZ+.01);g.add(topF);
     const botF=topF.clone();botF.position.y=glassY-glassH/2;g.add(botF);
@@ -2997,19 +3004,52 @@ function l4CustomHouse2(px,py,wpx,hpx,rotation=0){
         vf.position.set(-w*.455+paneW*i,glassY,frontZ+.01);g.add(vf);
     }
 
-    // Single-slope roof: highest at glazed/front wall, lowest at back.
+    // Mono-pitch roof: HIGH at the glazed FRONT, LOW at the back.
+    // Because front is +Z, the roof must slope downward toward -Z.
     const over=.65;
     const roofW=w+over*2, roofD=d+over*2;
     const rise=Math.max(2.4,wallH*.35);
     const slope=Math.atan2(rise,roofD);
     const roofLen=Math.sqrt(roofD*roofD+rise*rise);
-    const roof=new THREE.Mesh(
-        new THREE.BoxGeometry(roofW,.34,roofLen),
-        roofMat
-    );
-    roof.rotation.x=slope;
+
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(roofW,.34,roofLen),roofMat);
+    roof.rotation.x=-slope;
     roof.position.set(0,wallH+rise/2+.12,0);
     roof.castShadow=true;roof.receiveShadow=true;g.add(roof);
+
+    // Fill the triangular/sloped gap above each SIDE wall so wall tops follow roof.
+    // Each side gets a wedge-like triangle made from a custom BufferGeometry.
+    function makeSideWedge(sideX){
+        const zBack=-d/2, zFront=d/2;
+        const yBack=wallH;
+        const yFront=wallH+rise;
+        const x=sideX;
+        const eps=.11;
+        const verts=new Float32Array([
+            x-eps,yBack,zBack,  x-eps,yFront,zFront, x-eps,wallH,zFront,
+            x+eps,yBack,zBack,  x+eps,wallH,zFront, x+eps,yFront,zFront,
+            x-eps,yBack,zBack,  x+eps,yBack,zBack, x+eps,yFront,zFront,
+            x-eps,yBack,zBack,  x+eps,yFront,zFront, x-eps,yFront,zFront,
+            x-eps,wallH,zFront, x+eps,wallH,zFront, x+eps,yBack,zBack,
+            x-eps,wallH,zFront, x+eps,yBack,zBack, x-eps,yBack,zBack
+        ]);
+        const geo=new THREE.BufferGeometry();
+        geo.setAttribute('position',new THREE.BufferAttribute(verts,3));
+        geo.computeVertexNormals();
+        const mesh=new THREE.Mesh(geo,grey);
+        mesh.castShadow=true;mesh.receiveShadow=true;
+        return mesh;
+    }
+    g.add(makeSideWedge(-w/2));
+    g.add(makeSideWedge(w/2));
+
+    // Add a shallow horizontal-board strip above the glass so the front wall
+    // reaches the high edge of the roof rather than leaving it floating.
+    const frontCapH=rise;
+    const frontCap=new THREE.Group();
+    l4MakeBoardedWall(frontCap,w,frontCapH,.24,.5,grey,false);
+    frontCap.position.set(0,wallH,d/2);
+    g.add(frontCap);
 
     g.position.set(range.x,range.maxY+.05,range.z);
     g.rotation.y=rotation;
@@ -3169,6 +3209,7 @@ function setupLakeLevel(){
     [[902,287],[925,298],[946,294],[963,309],[980,318],
       [1448,430],[1445,456],[1442,484],[1436,521],[1428,556]].forEach((p,i)=>{
         const w=level4MapToWorld(...p);
+        if(!l4TreeAllowed(w.x,w.z))return;
         l4Asset(i%2?'tree2':'tree1',w.x,w.z,Math.random()*Math.PI*2,.95+Math.random()*.10,()=>l4CheapTree(w.x,w.z,1));
     });
 
@@ -3199,9 +3240,9 @@ function setupLakeLevel(){
     // 7 = house7.glb
     // 2 + 6 remain color-coded boxes until their GLBs are assigned.
     l4HouseGLB('house9',1213,515,92,96,Math.PI/2,0xff3030);     // 1
-    l4CustomHouse2(1302,445,45,57,0);        // 2 custom grey horizontal-board house
-    l4HouseGLB('house8',1288,377,34,39,0,0xffe229);     // 3
-    l4HouseGLB('house8',1348,391,37,39,0,0x30d94b);     // 4
+    l4CustomHouse2(1315,452,45,57,-Math.PI/2); // 2 shifted slightly away from 3/4
+    l4HouseGLB('house8',1272,366,34,39,0,0xffe229);     // 3 shifted for wider passage
+    l4HouseGLB('house8',1365,398,37,39,0,0x30d94b);     // 4 shifted for wider passage
     l4HouseGLB('house8',847,351,35,30,Math.PI/2,0x2878ff);      // 5
     l4CustomHouse6(348,270,49,44,0);         // 6 custom black vertical-board house
     l4HouseGLB('house7',315,618,66,49,Math.PI/2,0x22d6d6);      // 7
