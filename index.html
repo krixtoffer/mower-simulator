@@ -3156,7 +3156,174 @@ function buildAllBleachers(size){
 function buildCrowdPerson(pg,x,y,z){const skins=[0xffcc99,0xcc9966,0x885533,0xffddbb],jerseys=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff];const sm=new THREE.MeshStandardMaterial({color:skins[Math.floor(Math.random()*skins.length)]}),jm=new THREE.MeshStandardMaterial({color:jerseys[Math.floor(Math.random()*jerseys.length)]});const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,1),jm);body.position.set(x,y,z);pg.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(0.7,6,6),sm);head.position.set(x,y+1.6,z);pg.add(head);if(Math.random()>0.5){const ai={left:null,right:null,phase:Math.random()*Math.PI*2};[-1.2,1.2].forEach((ax,idx)=>{const arm=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.6,0.5),jm);arm.position.set(x+ax,y+0.8,z);arm.rotation.z=ax>0?-0.8:0.8;pg.add(arm);if(idx===0)ai.left=arm;else ai.right=arm;});animatedCrowdArms.push(ai);}}
 function buildGoal(x,z,rotY){const gm=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.5});const g=new THREE.Group();[-9,9].forEach(ox=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,8,8),gm);p.position.set(ox,4,0);g.add(p);});const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,18,8),gm);bar.rotation.z=Math.PI/2;bar.position.set(0,8,0);g.add(bar);const net=new THREE.Mesh(new THREE.BoxGeometry(18,8,5),new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.25,wireframe:true}));net.position.set(0,4,-2.5);g.add(net);g.position.set(x,0.1,z);g.rotation.y=rotY;scene.add(g);}
 function buildFloodlightPoles(size){const pm=new THREE.MeshStandardMaterial({color:0xddddcc,metalness:0.5}),lm=new THREE.MeshStandardMaterial({color:0xccccaa,emissive:0x888866,emissiveIntensity:0.5});[[-size/2-8,-size/2-8],[size/2+8,-size/2-8],[-size/2-8,size/2+8],[size/2+8,size/2+8]].forEach(([px,pz])=>{const pole=new THREE.Mesh(new THREE.CylinderGeometry(1,1.5,45,8),pm);pole.position.set(px,22.5,pz);scene.add(pole);const head=new THREE.Mesh(new THREE.BoxGeometry(10,2,6),lm);head.position.set(px,46,pz);scene.add(head);const pl=new THREE.PointLight(0xfff5cc,1.5,200);pl.position.set(px,45,pz);scene.add(pl);});}
-function spawnFootballPlayers(pitchSize){const half=pitchSize/2-8;const teams=[{jersey:0xcc2222,shorts:0xffffff},{jersey:0x2255cc,shorts:0x2255cc}];for(let i=0;i<14;i++){const player=buildPlayerMesh(teams[i<7?0:1]);player.scale.setScalar(0.5);const px=(Math.random()-0.5)*half*2,pz=(Math.random()-0.5)*half*2;player.position.set(px,0,pz);scene.add(player);const ball=new THREE.Mesh(new THREE.SphereGeometry(1.1,10,8),new THREE.MeshStandardMaterial({color:0xffffff}));ball.scale.setScalar(0.5);ball.position.set(px+1,0.55,pz);scene.add(ball);let tx=(Math.random()-0.5)*half*2,tz=(Math.random()-0.5)*half*2,wait=Math.random();const spd=4+Math.random()*4;animatedPlayers.push({mesh:player,ball,tx,tz,wait,spd,half,update(dt){if(this.wait>0){this.wait-=dt;return;}const dx=this.tx-this.mesh.position.x,dz=this.tz-this.mesh.position.z,dist=Math.sqrt(dx*dx+dz*dz);if(dist<2){this.tx=(Math.random()-0.5)*this.half*2;this.tz=(Math.random()-0.5)*this.half*2;this.wait=Math.random()*0.8;return;}const nx=dx/dist,nz=dz/dist;this.mesh.position.x+=nx*this.spd*dt;this.mesh.position.z+=nz*this.spd*dt;this.mesh.rotation.y=Math.atan2(nx,nz);this.ball.position.x=this.mesh.position.x+nx*1.2;this.ball.position.z=this.mesh.position.z+nz*1.2;this.ball.rotation.x+=this.spd*dt*1.5;if(this.mesh.userData.leftLeg)this.mesh.userData.leftLeg.rotation.x=Math.sin(Date.now()*0.01)*0.6;if(this.mesh.userData.rightLeg)this.mesh.userData.rightLeg.rotation.x=-Math.sin(Date.now()*0.01)*0.6;}});}}
+function spawnFootballPlayers(pitchSize){
+    const half=pitchSize/2-8;
+    const teams=[
+        {jersey:0xcc2222,shorts:0xffffff},
+        {jersey:0x2255cc,shorts:0x2255cc}
+    ];
+
+    for(let i=0;i<14;i++){
+        const player=buildPlayerMesh(teams[i<7?0:1]);
+        player.scale.setScalar(0.5);
+
+        const px=(Math.random()-0.5)*half*2;
+        const pz=(Math.random()-0.5)*half*2;
+        player.position.set(px,0,pz);
+        scene.add(player);
+
+        const ball=new THREE.Mesh(
+            new THREE.SphereGeometry(1.1,10,8),
+            new THREE.MeshStandardMaterial({color:0xffffff})
+        );
+        ball.scale.setScalar(0.5);
+        ball.position.set(px+1,0.55,pz);
+        scene.add(ball);
+
+        const item={
+            mesh:player,
+            ball,
+            tx:(Math.random()-0.5)*half*2,
+            tz:(Math.random()-0.5)*half*2,
+            wait:Math.random(),
+            spd:4+Math.random()*4,
+            half,
+            detached:false,
+            ballVX:0,
+            ballVZ:0,
+            kickCooldown:0,
+
+            update(dt){
+                this.kickCooldown=Math.max(0,this.kickCooldown-dt);
+
+                if(this.detached){
+                    // The kicked ball coasts forward and gradually slows.
+                    this.ball.position.x+=this.ballVX*dt;
+                    this.ball.position.z+=this.ballVZ*dt;
+
+                    const ballLimit=this.half+4;
+                    if(this.ball.position.x<-ballLimit||this.ball.position.x>ballLimit){
+                        this.ball.position.x=THREE.MathUtils.clamp(this.ball.position.x,-ballLimit,ballLimit);
+                        this.ballVX*=-0.35;
+                    }
+                    if(this.ball.position.z<-ballLimit||this.ball.position.z>ballLimit){
+                        this.ball.position.z=THREE.MathUtils.clamp(this.ball.position.z,-ballLimit,ballLimit);
+                        this.ballVZ*=-0.35;
+                    }
+
+                    const friction=Math.pow(0.25,dt);
+                    this.ballVX*=friction;
+                    this.ballVZ*=friction;
+                    this.ball.rotation.x+=Math.hypot(this.ballVX,this.ballVZ)*dt*1.6;
+
+                    // Its player abandons the previous route and chases the ball.
+                    const dx=this.ball.position.x-this.mesh.position.x;
+                    const dz=this.ball.position.z-this.mesh.position.z;
+                    const d=Math.hypot(dx,dz);
+
+                    if(d>1.75){
+                        const nx=dx/(d||1),nz=dz/(d||1);
+                        const chaseSpeed=Math.max(this.spd,7.5);
+                        this.mesh.position.x+=nx*chaseSpeed*dt;
+                        this.mesh.position.z+=nz*chaseSpeed*dt;
+                        this.mesh.rotation.y=Math.atan2(nx,nz);
+
+                        if(this.mesh.userData.leftLeg)
+                            this.mesh.userData.leftLeg.rotation.x=Math.sin(Date.now()*.012)*.7;
+                        if(this.mesh.userData.rightLeg)
+                            this.mesh.userData.rightLeg.rotation.x=-Math.sin(Date.now()*.012)*.7;
+                    }else{
+                        // Reconnect only once both player and ball are close and the
+                        // ball has lost most of the mower's kick momentum.
+                        const ballSpeed=Math.hypot(this.ballVX,this.ballVZ);
+                        if(ballSpeed<2.4){
+                            this.detached=false;
+                            this.ballVX=this.ballVZ=0;
+                            this.wait=.15;
+                            this.tx=(Math.random()-.5)*this.half*2;
+                            this.tz=(Math.random()-.5)*this.half*2;
+                        }
+                    }
+                    return;
+                }
+
+                if(this.wait>0){
+                    this.wait-=dt;
+                    return;
+                }
+
+                const dx=this.tx-this.mesh.position.x;
+                const dz=this.tz-this.mesh.position.z;
+                const dist=Math.hypot(dx,dz);
+
+                if(dist<2){
+                    this.tx=(Math.random()-.5)*this.half*2;
+                    this.tz=(Math.random()-.5)*this.half*2;
+                    this.wait=Math.random()*.8;
+                    return;
+                }
+
+                const nx=dx/(dist||1),nz=dz/(dist||1);
+                this.mesh.position.x+=nx*this.spd*dt;
+                this.mesh.position.z+=nz*this.spd*dt;
+                this.mesh.rotation.y=Math.atan2(nx,nz);
+
+                this.ball.position.x=this.mesh.position.x+nx*1.2;
+                this.ball.position.z=this.mesh.position.z+nz*1.2;
+                this.ball.rotation.x+=this.spd*dt*1.5;
+
+                if(this.mesh.userData.leftLeg)
+                    this.mesh.userData.leftLeg.rotation.x=Math.sin(Date.now()*.01)*.6;
+                if(this.mesh.userData.rightLeg)
+                    this.mesh.userData.rightLeg.rotation.x=-Math.sin(Date.now()*.01)*.6;
+            }
+        };
+
+        animatedPlayers.push(item);
+    }
+}
+
+// Bana 2: mower contact kicks a player's ball in the mower's travel direction.
+// The ball separates temporarily; its associated player then chases it.
+function updateFootballBallInteractions(){
+    if(currentLevel!==2||!mowerGroup)return;
+
+    const contactRadius=mowerStats.radius+1.05;
+
+    for(const p of animatedPlayers){
+        if(!p.ball||p.kickCooldown>0)continue;
+
+        const dx=p.ball.position.x-mowerGroup.position.x;
+        const dz=p.ball.position.z-mowerGroup.position.z;
+        const d=Math.hypot(dx,dz);
+
+        if(d<=contactRadius){
+            // Use actual forward/reverse travel direction, so backing into a ball
+            // also pushes it away naturally.
+            const travelSign=mowerStats.speed<0?-1:1;
+            let kx=Math.sin(mowerStats.rotation)*travelSign;
+            let kz=Math.cos(mowerStats.rotation)*travelSign;
+
+            // If almost stationary, use mower->ball direction as a sensible fallback.
+            if(Math.abs(mowerStats.speed)<.025){
+                const inv=1/(d||1);
+                kx=dx*inv;kz=dz*inv;
+            }
+
+            const kickSpeed=12+Math.min(7,Math.abs(mowerStats.speed)*16);
+            p.detached=true;
+            p.ballVX=kx*kickSpeed;
+            p.ballVZ=kz*kickSpeed;
+            p.kickCooldown=.55;
+
+            // Push the ball just outside the mower radius immediately so the
+            // same contact does not retrigger for several consecutive frames.
+            p.ball.position.x=mowerGroup.position.x+kx*(contactRadius+.25);
+            p.ball.position.z=mowerGroup.position.z+kz*(contactRadius+.25);
+        }
+    }
+}
+
 function buildPlayerMesh(team){const g=new THREE.Group();const sk=new THREE.MeshStandardMaterial({color:0xffcc99}),jm=new THREE.MeshStandardMaterial({color:team.jersey}),sm=new THREE.MeshStandardMaterial({color:team.shorts}),so=new THREE.MeshStandardMaterial({color:0xeeeeee}),bm=new THREE.MeshStandardMaterial({color:0x111111});const torso=new THREE.Mesh(new THREE.BoxGeometry(2.8,3.8,1.8),jm);torso.position.y=8.5;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),sk);head.position.y=12;g.add(head);[-1.9,1.9].forEach(ax=>{const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,3,8),jm);arm.position.set(ax,8.5,0);arm.rotation.z=ax>0?0.3:-0.3;g.add(arm);});const lL=new THREE.Group(),rL=new THREE.Group();[[-0.9,lL],[0.9,rL]].forEach(([lx,leg])=>{const t=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.65,2.8,8),sm);t.position.y=-1.4;leg.add(t);const s=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.5,2.6,8),so);s.position.y=-4.2;leg.add(s);const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.9,2),bm);b.position.set(0,-5.8,0.4);leg.add(b);leg.position.set(lx,7,0);g.add(leg);});g.userData.leftLeg=lL;g.userData.rightLeg=rL;return g;}
 
 function setupGolfLevel(){
@@ -4020,7 +4187,7 @@ function setupLakeLevel(){
     l4SpawnGroundedAsset('bush1',1069,329,0,1);
 
     // User-specified swing placement.
-    l4SpawnGroundedAsset('swing',1359,487,0,1);
+    l4SpawnGroundedAsset('swing',1359,517,-Math.PI/2,1);
 
     // Plant5 bed: 40 plants inside the updated requested rectangle.
     l4PlantScatter(598,346,864,418,40,['plant5'],34003,.78,1.18);
@@ -4323,6 +4490,7 @@ function animate(){
     if(gameStarted&&gameActive){
         updateMowerPhysics(dt);paintCutTrail();updateCameraFollow();
         updateLevel4TrampolineAudio();
+        updateFootballBallInteractions();
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
@@ -4373,15 +4541,49 @@ function updateMowerPhysics(dt=1/60){
     );
 
     const travel=mowerStats.speed*frameScale;
-    const newX=mowerGroup.position.x+Math.sin(mowerStats.rotation)*travel;
-    const newZ=mowerGroup.position.z+Math.cos(mowerStats.rotation)*travel;
+    const dx=Math.sin(mowerStats.rotation)*travel;
+    const dz=Math.cos(mowerStats.rotation)*travel;
+    const ox=mowerGroup.position.x,oz=mowerGroup.position.z;
+    const newX=ox+dx,newZ=oz+dz;
 
     if(canMoveTo(newX,newZ)){
         mowerGroup.position.x=newX;
         mowerGroup.position.z=newZ;
         mowerGroup.position.y=getTerrainHeight(newX,newZ);
     }else{
-        mowerStats.speed=0;
+        // Collision sliding: instead of killing all forward momentum at a lawn
+        // boundary, preserve whichever component can still move tangentially
+        // along that edge. This also behaves sensibly around pond/house borders.
+        const xOK=Math.abs(dx)>.00001&&canMoveTo(ox+dx,oz);
+        const zOK=Math.abs(dz)>.00001&&canMoveTo(ox,oz+dz);
+
+        if(xOK||zOK){
+            // If both are legal individually, take the larger component first.
+            // On irregular Level 4 mask edges this avoids jittery diagonal traps.
+            if(xOK&&zOK){
+                if(Math.abs(dx)>=Math.abs(dz)){
+                    mowerGroup.position.x=ox+dx;
+                }else{
+                    mowerGroup.position.z=oz+dz;
+                }
+            }else if(xOK){
+                mowerGroup.position.x=ox+dx;
+            }else{
+                mowerGroup.position.z=oz+dz;
+            }
+
+            mowerGroup.position.y=getTerrainHeight(
+                mowerGroup.position.x,
+                mowerGroup.position.z
+            );
+
+            // Mild energy loss makes the slide feel like tyre scrub without
+            // producing the former abrupt stop/stuck condition.
+            mowerStats.speed*=.94;
+        }else{
+            // Truly boxed in / head-on collision: stop as before.
+            mowerStats.speed=0;
+        }
     }
 }
 function paintCutTrail(){
