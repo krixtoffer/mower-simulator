@@ -1660,11 +1660,11 @@ const sceneryAssets={
 
     // Bana 1 villa houses. Each source is normalized by height so Blender
     // export scale does not affect placement in the level.
-    house1:{path:'./house1.glb',height:17.0,castShadow:true,receiveShadow:true},
-    house2:{path:'./house2.glb',height:17.5,castShadow:true,receiveShadow:true},
-    house3:{path:'./house3.glb',height:16.5,castShadow:true,receiveShadow:true},
-    house4:{path:'./house4.glb',height:16.0,castShadow:true,receiveShadow:true},
-    house5:{path:'./house5.glb',height:17.5,castShadow:true,receiveShadow:true}
+    house1:{path:'./house1.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
+    house2:{path:'./house2.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
+    house3:{path:'./house3.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
+    house4:{path:'./house4.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
+    house5:{path:'./house5.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 
@@ -1795,9 +1795,6 @@ function prepareScenerySource(root,asset){
         const mats=Array.isArray(c.material)?c.material:[c.material];
         mats.forEach(mat=>{
             if(!mat)return;
-
-            // Preserve the GLB author's sidedness. Unlike the older mower
-            // helper, scenery is not automatically forced DoubleSide.
             if(mat.map)mat.map.colorSpace=THREE.SRGBColorSpace;
             if('roughness' in mat)mat.roughness=Math.max(mat.roughness??0.5,0.5);
             if('metalness' in mat)mat.metalness=Math.min(mat.metalness??0,0.4);
@@ -1805,11 +1802,20 @@ function prepareScenerySource(root,asset){
         });
     });
 
-    // Normalize the cached source to a predictable world-space height.
     const box=new THREE.Box3().setFromObject(root);
     const size=box.getSize(new THREE.Vector3());
+
+    // Trees and similar props use target height. Buildings can instead use
+    // target footprint width/depth so their lot occupancy stays believable.
     if(asset.height&&size.y>0){
         root.scale.multiplyScalar(asset.height/size.y);
+    }else if(asset.footprint){
+        const fw=asset.footprint.width||0;
+        const fd=asset.footprint.depth||0;
+        const sx=(fw>0&&size.x>0)?fw/size.x:Infinity;
+        const sz=(fd>0&&size.z>0)?fd/size.z:Infinity;
+        const s=Math.min(sx,sz);
+        if(Number.isFinite(s)&&s>0)root.scale.multiplyScalar(s);
     }
 
     return root;
@@ -2194,23 +2200,53 @@ function setupVillaLevel(){
     for(let i=-900;i<900;i+=20){const d=new THREE.Mesh(new THREE.PlaneGeometry(10,0.8),mMat);d.rotation.x=-Math.PI/2;d.position.set(i,0.06,62);scene.add(d);}
     const swMat=new THREE.MeshStandardMaterial({color:0xbbbbaa});
     [51,73].forEach(sz=>{const sw=new THREE.Mesh(new THREE.PlaneGeometry(2000,6),swMat);sw.rotation.x=-Math.PI/2;sw.position.set(0,0.04,sz);scene.add(sw);});
-    // GLB villa street: fewer, more distinct houses than the old procedural
-    // rows. The playable lawn/collision layout is intentionally unchanged.
-    // North-side houses face back toward the road with a PI rotation.
-    const villaHouses=[
-        {id:'house1',x:-170,z:-30,r:0,             s:1.00,c:'#ffcda8'},
-        {id:'house3',x: -82,z:-30,r:0,             s:1.04,c:'#8fb8cc'},
-        {id:'house5',x:  12,z:-30,r:0,             s:1.00,c:'#e6e6a1'},
-        {id:'house4',x: 115,z:-30,r:0,             s:1.06,c:'#d4936e'},
+    // Bana 1 villa lots based on the supplied aerial sketch:
+    // four lots on each side, houses pushed toward the rear half of each lot,
+    // lawns facing the street, and fence lines near lot boundaries.
+    const lotCenters=[-132,-44,44,132];
+    const southHouseZ=-18;
+    const northHouseZ=142;
 
-        {id:'house2',x:-135,z:92,r:Math.PI,         s:1.00,c:'#c4e8c4'},
-        {id:'house4',x: -25,z:92,r:Math.PI,         s:0.98,c:'#f0d0a0'},
-        {id:'house1',x:  95,z:92,r:Math.PI,         s:1.03,c:'#b0c8e8'}
-    ];
-    villaHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
+    const southIds=['house1','house3','house5','house4'];
+    const northIds=['house2','house4','house1','house3'];
 
-    // Preserve the existing central yard/fence gameplay scenery for now.
-    buildYardFence(0,0);
+    lotCenters.forEach((x,i)=>{
+        spawnVillaHouse(southIds[i],x,southHouseZ,0,1.0,['#ffcda8','#8fb8cc','#e6e6a1','#d4936e'][i]);
+        spawnVillaHouse(northIds[i],x,northHouseZ,Math.PI,1.0,['#c4e8c4','#f0d0a0','#b0c8e8','#e8c4c4'][i]);
+    });
+
+    // Simple fence layout for proportion testing. These remain procedural on
+    // purpose; once spacing feels right, the fence GLB can replace them.
+    const fenceMat=new THREE.MeshStandardMaterial({color:0x2f241c,roughness:0.95});
+
+    function addFenceSegment(x,z,w,d){
+        const f=new THREE.Mesh(new THREE.BoxGeometry(w,2.0,d),fenceMat);
+        f.position.set(x,1.0,z);
+        scene.add(f);
+    }
+
+    // Rear boundaries for both rows.
+    addFenceSegment(0,-52,352,1.0);
+    addFenceSegment(0,176,352,1.0);
+
+    // Side boundaries between lots and outer edges.
+    [-176,-88,0,88,176].forEach(x=>{
+        addFenceSegment(x,-30,1.0,44);
+        addFenceSegment(x,154,1.0,44);
+    });
+
+    // Front lot edges facing the road, with deliberate openings/driveways.
+    lotCenters.forEach((x,i)=>{
+        const southFrontZ=-8;
+        const northFrontZ=132;
+        const gapOffset=(i%2===0)?12:-12;
+
+        addFenceSegment(x-25,southFrontZ,28,1.0);
+        addFenceSegment(x+25,southFrontZ,28,1.0);
+
+        addFenceSegment(x-25,northFrontZ,28,1.0);
+        addFenceSegment(x+25,northFrontZ,28,1.0);
+    });
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle=COLOR_UNCUT;lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
