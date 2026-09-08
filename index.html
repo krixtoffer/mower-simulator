@@ -1354,6 +1354,68 @@
             .mini-joystick-zone::before { inset:15px; }
         }
 
+
+        /* ══ v39: level-select hierarchy + highlighted minigames entry ══ */
+        #level-select-screen .level-record-name {
+            font-size:11px !important;
+            line-height:1.45 !important;
+            color:#ffffff !important;
+            text-shadow:2px 2px 0 #120020 !important;
+        }
+        #level-select-screen .level-record-meta {
+            font-size:6px !important;
+            line-height:1.35 !important;
+            color:var(--v4-cyan) !important;
+            text-shadow:none !important;
+            opacity:.88 !important;
+        }
+        #level-select-screen .level-record-stars {
+            font-size:10px !important;
+            line-height:1 !important;
+            letter-spacing:0 !important;
+        }
+
+        /* Dedicated bonus-game tile: clearly different from the four levels. */
+        #level-select-screen .minigames-level-btn {
+            background:#8f0f78 !important;
+            border-color:var(--v4-yellow) !important;
+            color:#ffffff !important;
+            box-shadow:4px 4px 0 #39002f !important;
+        }
+        #level-select-screen .minigames-level-btn::before {
+            background:var(--v4-yellow) !important;
+        }
+        #level-select-screen .minigames-level-btn:hover {
+            background:#b21898 !important;
+            border-color:#ffffff !important;
+        }
+        #level-select-screen .minigames-level-btn > span:first-child {
+            font-size:11px !important;
+            color:#ffffff !important;
+        }
+        #level-select-screen .minigames-level-btn > span:last-child {
+            font-size:12px !important;
+            color:var(--v4-yellow) !important;
+            text-shadow:none !important;
+        }
+
+        @media (max-width:640px), (max-height:760px){
+            #level-select-screen .level-record-name {
+                font-size:9px !important;
+            }
+            #level-select-screen .level-record-meta {
+                font-size:5px !important;
+            }
+            #level-select-screen .level-record-stars {
+                font-size:8px !important;
+            }
+            #level-select-screen .minigames-level-btn > span:first-child {
+                font-size:9px !important;
+            }
+            #level-select-screen .minigames-level-btn > span:last-child {
+                font-size:10px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -4345,9 +4407,7 @@ window.openLevelSelect=function(){
 
     // Minigames live under VÄLJ BANA, but remain fully isolated from level records/gameplay.
     const mgBtn=document.createElement('button');
-    mgBtn.className='level-btn';
-    mgBtn.style.background='#efe5ff';
-    mgBtn.style.borderColor='#7a3fb3';
+    mgBtn.className='level-btn minigames-level-btn';
     mgBtn.innerHTML='<span>🎮 MINISPEL</span><span style="color:#7a3fb3">▶</span>';
     mgBtn.onclick=()=>openMinigames();
     listEl.appendChild(mgBtn);
@@ -4508,7 +4568,64 @@ function animate(){
     renderer.render(scene,camera);
 }
 
-function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax&&nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&!level4IsMowable(nx,nz))return false;return true;}
+// v39: Local Level 4 driving override around houses 1–4.
+// The rest of Fanbyviken still uses the embedded mowability map. Inside this
+// compact cluster, dry ground is driveable except for the house footprints.
+function level4HouseClusterDriveOverride(x,z){
+    const mx=(x/LEVEL4_WORLD_W+.5)*LEVEL4_MAP_W;
+    const my=(z/LEVEL4_WORLD_D+.5)*LEVEL4_MAP_H;
+
+    // Tight neighborhood around houses 1–4 only. Outside this rectangle the
+    // original Level 4 mask remains authoritative.
+    if(mx<1150||mx>1400||my<330||my>575)return null;
+
+    // Water remains an absolute blocker even inside the override.
+    if(level4IsLowestWater(x,z))return false;
+
+    // Give each building a mower-radius safety margin so the visible wall is
+    // not clipped. The site dimensions come from the current house map data.
+    const marginX=(mowerStats.radius/LEVEL4_WORLD_W)*LEVEL4_MAP_W+2;
+    const marginY=(mowerStats.radius/LEVEL4_WORLD_D)*LEVEL4_MAP_H+2;
+
+    for(const s of LEVEL4_HOUSE_SITES){
+        if(s.n<1||s.n>4)continue;
+        if(
+            Math.abs(mx-s.px)<=s.wpx/2+marginX &&
+            Math.abs(my-s.py)<=s.hpx/2+marginY
+        ){
+            return false;
+        }
+    }
+
+    // Dry space between the four house borders is driveable regardless of the
+    // older coarse lawn mask.
+    return true;
+}
+
+function canMoveTo(nx,nz){
+    const b=(lawnWorldSize/2)-mowerStats.radius;
+    if(nx<-b||nx>b||nz<-b||nz>b)return false;
+
+    if(
+        currentLevel===1 &&
+        nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax &&
+        nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax
+    )return false;
+
+    if(currentLevel===3&&pondCollider){
+        const ex=(nx-pondCollider.cx)/pondCollider.rx;
+        const ez=(nz-pondCollider.cz)/pondCollider.rz;
+        if(ex*ex+ez*ez<1.0)return false;
+    }
+
+    if(currentLevel===4){
+        const localOverride=level4HouseClusterDriveOverride(nx,nz);
+        if(localOverride!==null)return localOverride;
+        if(!level4IsMowable(nx,nz))return false;
+    }
+
+    return true;
+}
 function updateMowerPhysics(dt=1/60){
     if(!mowerGroup)return;
 
