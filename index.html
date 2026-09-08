@@ -1656,7 +1656,15 @@ let loadedMatsMesh=null, loadedHandMesh=null, loadedKlippoMesh=null, loadedRideM
 // Reusable scenery GLB registry/cache. Visuals only: gameplay collision remains
 // independent so replacing scenery can never alter mower movement.
 const sceneryAssets={
-    birch01:{path:'./BirchTree_1.glb',height:14,castShadow:true,receiveShadow:true}
+    birch01:{path:'./BirchTree_1.glb',height:17.5,castShadow:true,receiveShadow:true},
+
+    // Bana 1 villa houses. Each source is normalized by height so Blender
+    // export scale does not affect placement in the level.
+    house1:{path:'./house1.glb',height:17.0,castShadow:true,receiveShadow:true},
+    house2:{path:'./house2.glb',height:17.5,castShadow:true,receiveShadow:true},
+    house3:{path:'./house3.glb',height:16.5,castShadow:true,receiveShadow:true},
+    house4:{path:'./house4.glb',height:16.0,castShadow:true,receiveShadow:true},
+    house5:{path:'./house5.glb',height:17.5,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 
@@ -2167,6 +2175,16 @@ function spawnDog(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandard
 function spawnCat(x,z){const g=new THREE.Group();const cc=[0x888888,0x333333,0xffaa44,0xeeeeee,0xccaa88];const cm=new THREE.MeshStandardMaterial({color:cc[Math.floor(Math.random()*cc.length)]}),dm=new THREE.MeshStandardMaterial({color:0x222222});const body=new THREE.Mesh(new THREE.BoxGeometry(4.5,2.8,2.2),cm);body.position.y=2.8;g.add(body);const headG=new THREE.Group();headG.position.set(3,4.4,0);headG.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,10,8),cm));[-0.7,0.7].forEach(dz=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(0.6,1.2,4),cm);ear.position.set(0,1.5,dz);headG.add(ear);});[-0.5,0.5].forEach(dz=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(0.25,8,6),dm);eye.position.set(1.2,0.3,dz);headG.add(eye);});g.add(headG);[[-1.5,0,.8],[1.5,0,.8],[-1.5,0,-.8],[1.5,0,-.8]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,2.8,6),cm);l.position.set(lx,1.4,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-2.5,3.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.4,4,8),cm);tail.position.set(0,2,0);tail.rotation.z=0.4;tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'cat',headG,tailG,phase:Math.random()*Math.PI*2});}
 function spawnProceduralCar(startX,startZ,dir,speed,color){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color}),gm=new THREE.MeshStandardMaterial({color:0x88ccff,transparent:true,opacity:0.6}),tm=new THREE.MeshStandardMaterial({color:0x111111});const lower=new THREE.Mesh(new THREE.BoxGeometry(18,4,9),bm);lower.position.y=2;g.add(lower);const upper=new THREE.Mesh(new THREE.BoxGeometry(11,3.8,8.2),bm);upper.position.set(-1,5.9,0);g.add(upper);const ws=new THREE.Mesh(new THREE.BoxGeometry(0.2,3.5,7.8),gm);ws.position.set(4.4,6,0);g.add(ws);[[-6.5,0,-5.2],[-6.5,0,5.2],[6.5,0,-5.2],[6.5,0,5.2]].forEach(([wx,wy,wz])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(2,2,1.2,14),tm);w.rotation.x=Math.PI/2;w.position.set(wx,wy,wz);g.add(w);});const hm=new THREE.MeshStandardMaterial({color:0xffffcc,emissive:0xffffcc,emissiveIntensity:0.5}),tl=new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff2200,emissiveIntensity:0.4});[-2,2].forEach(lz=>{const h=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),hm);h.position.set(9,2,lz);g.add(h);const t=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),tl);t.position.set(-9,2,lz);g.add(t);});g.rotation.y=dir>0?-Math.PI/2:Math.PI/2;g.position.set(startX,0.5,startZ);scene.add(g);animatedCars.push({mesh:g,speed,dir,axis:'x',min:-500,max:500});}
 
+function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8'){
+    const house=spawnSceneryGLB(assetId,{x,y:0,z,rotation,scale});
+    if(house)return house;
+
+    // Safe fallback: if a house GLB is still loading or unavailable, retain
+    // the proven procedural villa rather than leaving a hole in the street.
+    buildHouseDetailed(x,z,fallbackColor,rotation);
+    return null;
+}
+
 function setupVillaLevel(){
     lawnWorldSize=100;animatedCars=[];animatedAnimals=[];animatedClouds=[];
     addSunAndClouds();
@@ -2176,10 +2194,23 @@ function setupVillaLevel(){
     for(let i=-900;i<900;i+=20){const d=new THREE.Mesh(new THREE.PlaneGeometry(10,0.8),mMat);d.rotation.x=-Math.PI/2;d.position.set(i,0.06,62);scene.add(d);}
     const swMat=new THREE.MeshStandardMaterial({color:0xbbbbaa});
     [51,73].forEach(sz=>{const sw=new THREE.Mesh(new THREE.PlaneGeometry(2000,6),swMat);sw.rotation.x=-Math.PI/2;sw.position.set(0,0.04,sz);scene.add(sw);});
-    const hc=['#ffcda8','#8fb8cc','#e6e6a1','#d4936e','#c8a0c8'];
-    [-200,-100,0,100,200].forEach((hx,i)=>{buildHouseDetailed(hx,-30,hc[i%hc.length]);if(i===2)buildYardFence(0,0);});
-    const hc2=['#c4e8c4','#f0d0a0','#b0c8e8','#e8c4c4','#d8d8a8'];
-    [-200,-100,0,100,200].forEach((hx,i)=>{buildHouseDetailed(hx,92,hc2[i%hc2.length],Math.PI);});
+    // GLB villa street: fewer, more distinct houses than the old procedural
+    // rows. The playable lawn/collision layout is intentionally unchanged.
+    // North-side houses face back toward the road with a PI rotation.
+    const villaHouses=[
+        {id:'house1',x:-170,z:-30,r:0,             s:1.00,c:'#ffcda8'},
+        {id:'house3',x: -82,z:-30,r:0,             s:1.04,c:'#8fb8cc'},
+        {id:'house5',x:  12,z:-30,r:0,             s:1.00,c:'#e6e6a1'},
+        {id:'house4',x: 115,z:-30,r:0,             s:1.06,c:'#d4936e'},
+
+        {id:'house2',x:-135,z:92,r:Math.PI,         s:1.00,c:'#c4e8c4'},
+        {id:'house4',x: -25,z:92,r:Math.PI,         s:0.98,c:'#f0d0a0'},
+        {id:'house1',x:  95,z:92,r:Math.PI,         s:1.03,c:'#b0c8e8'}
+    ];
+    villaHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
+
+    // Preserve the existing central yard/fence gameplay scenery for now.
+    buildYardFence(0,0);
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
     lawnContext.fillStyle=COLOR_UNCUT;lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
