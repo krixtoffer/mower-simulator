@@ -2327,7 +2327,8 @@ const sceneryAssets={
     plant2:{path:'./plant2.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant3:{path:'./plant3.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant4:{path:'./plant4.glb',height:2.2,castShadow:true,receiveShadow:true},
-    plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true}
+    plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true},
+    swing:{path:'./swing.glb',height:5.0,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -3329,6 +3330,35 @@ function level4MapToWorld(px,py){
         z:(py/LEVEL4_MAP_H-.5)*LEVEL4_WORLD_D
     };
 }
+
+// v36: Fanbyviken trampoline proximity sound.
+// The requested 10-point radius is measured in the original Level 4 map
+// coordinate system (1629 x 786), not in Three.js world units.
+const LEVEL4_TRAMPOLINE_MAP_POS={x:585,y:310};
+const level4TrampolineAudio=new Audio('./hejmorfar.mp3');
+level4TrampolineAudio.preload='auto';
+let level4TrampolineAudioInside=false;
+
+function updateLevel4TrampolineAudio(){
+    if(currentLevel!==4||!mowerGroup){
+        level4TrampolineAudioInside=false;
+        return;
+    }
+    const mx=(mowerGroup.position.x/LEVEL4_WORLD_W+.5)*LEVEL4_MAP_W;
+    const my=(mowerGroup.position.z/LEVEL4_WORLD_D+.5)*LEVEL4_MAP_H;
+    const inside=Math.hypot(mx-LEVEL4_TRAMPOLINE_MAP_POS.x,my-LEVEL4_TRAMPOLINE_MAP_POS.y)<=10;
+
+    // Trigger only when crossing into the 10-map-point radius, rather than
+    // restarting the MP3 every animation frame while the mower remains there.
+    if(inside&&!level4TrampolineAudioInside){
+        try{
+            level4TrampolineAudio.currentTime=0;
+            const p=level4TrampolineAudio.play();
+            if(p&&typeof p.catch==='function')p.catch(()=>{});
+        }catch(e){}
+    }
+    level4TrampolineAudioInside=inside;
+}
 function level4WorldToMask(x,z){
     return {
         mx:Math.floor((x/LEVEL4_WORLD_W+.5)*LEVEL4_MASK_W),
@@ -3982,15 +4012,18 @@ function setupLakeLevel(){
     l4Forest(1280,200,1455,345,20);
 
     // Exact user-specified tree/bush placements.
-    l4SpawnGroundedAsset('tree1',1024,259,0,1);
-    l4SpawnGroundedAsset('bush1',1024,289,0,1);
-    l4SpawnGroundedAsset('tree1',1066,283,0,1);
-    l4SpawnGroundedAsset('bush1',1066,313,0,1);
-    l4SpawnGroundedAsset('tree1',1119,299,0,1);
-    l4SpawnGroundedAsset('bush1',1119,329,0,1);
+    l4SpawnGroundedAsset('tree1',974,259,0,1);
+    l4SpawnGroundedAsset('bush1',974,289,0,1);
+    l4SpawnGroundedAsset('tree1',1016,283,0,1);
+    l4SpawnGroundedAsset('bush1',1016,313,0,1);
+    l4SpawnGroundedAsset('tree1',1069,299,0,1);
+    l4SpawnGroundedAsset('bush1',1069,329,0,1);
 
-    // Plant5 bed: 25 plants inside the requested rectangle.
-    l4PlantScatter(548,346,864,418,25,['plant5'],34003,.78,1.18);
+    // User-specified swing placement.
+    l4SpawnGroundedAsset('swing',1359,487,0,1);
+
+    // Plant5 bed: 40 plants inside the updated requested rectangle.
+    l4PlantScatter(598,346,864,418,40,['plant5'],34003,.78,1.18);
 
     // Explicit lighter-green tree markers.
     [[902,287],[925,298],[946,294],[963,309],[980,318],
@@ -4289,6 +4322,7 @@ function animate(){
     if(showroomModelGroup&&inspectingMowerId){showroomModelGroup.rotation.y+=0.015;showroomRenderer.render(showroomScene,showroomCamera);}
     if(gameStarted&&gameActive){
         updateMowerPhysics(dt);paintCutTrail();updateCameraFollow();
+        updateLevel4TrampolineAudio();
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
