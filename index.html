@@ -1984,7 +1984,8 @@ function preloadAssets(){
 }
 
 function getTerrainHeight(x,z){
-    if(currentLevel===3){ const h1=Math.sin(x*0.05)*Math.cos(z*0.05)*6; const h2=Math.sin(x*0.1+1.5)*2; const d=Math.sqrt(x*x+(z+50)*(z+50)); return (h1+h2)*(1-Math.max(0,1-d/30)); }
+    // Levels 1–3 currently use flat playable surfaces.
+    // Only Level 4 has actual displaced terrain geometry.
     if(currentLevel===4)return level4HeightAt(x,z);
     return 0;
 }
@@ -2303,7 +2304,7 @@ function spawnMovingStreetCar(assetId,startX,startZ,dir,speed){
 }
 
 function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8'){
-    const opts={x,y:level4HeightAt(x,z),z,rotation,scale};
+    const opts={x,y:0,z,rotation,scale};
     const house=spawnSceneryGLB(assetId,opts);
     if(house)return house;
 
@@ -2744,18 +2745,61 @@ function l4Forest(x1,y1,x2,y2,count){
         }else l4CheapTree(p.x,p.z,.70+Math.random()*.35);
     }
 }
-function l4RedBox(px,py,wpx,hpx){
-    const p=level4MapToWorld(px,py);
-    const w=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W,d=hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D,h=Math.max(6,Math.min(12,w*.45));
-    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:0xa52a2a,roughness:.85}));
-    m.position.set(p.x,level4HeightAt(p.x,p.z)+h/2,p.z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
+function l4HouseLabel(number,x,y,z){
+    const c=document.createElement('canvas');
+    c.width=256;c.height=256;
+    const ctx=c.getContext('2d');
+    ctx.clearRect(0,0,256,256);
+    ctx.font='bold 180px Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.lineWidth=18;
+    ctx.strokeStyle='rgba(0,0,0,.95)';
+    ctx.strokeText(String(number),128,132);
+    ctx.fillStyle='#ffffff';
+    ctx.fillText(String(number),128,132);
+
+    const tex=new THREE.CanvasTexture(c);
+    tex.colorSpace=THREE.SRGBColorSpace;
+    const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
+    const s=new THREE.Sprite(mat);
+    s.position.set(x,y,z);
+    s.scale.set(10,10,1);
+    s.renderOrder=999;
+    scene.add(s);
 }
-function l4House(id,px,py,wpx,hpx){
+function l4ColorBox(number,px,py,wpx,hpx,color){
+    const p=level4MapToWorld(px,py);
+    const w=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
+    const d=hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D;
+    const h=Math.max(7,Math.min(13,w*.48));
+    const groundY=level4HeightAt(p.x,p.z);
+
+    const m=new THREE.Mesh(
+        new THREE.BoxGeometry(w,h,d),
+        new THREE.MeshStandardMaterial({color,roughness:.78,metalness:0})
+    );
+    m.position.set(p.x,groundY+h/2,p.z);
+    m.castShadow=true;
+    m.receiveShadow=true;
+    scene.add(m);
+
+    l4HouseLabel(number,p.x,groundY+h+7,p.z);
+    return m;
+}
+
+function l4HouseGLB(assetId,px,py,wpx,hpx,rotation=0){
     const p=level4MapToWorld(px,py);
     const drawnW=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
-    const base=id==='house9'?30:(id==='house7'?34:24);
-    const s=Math.max(.55,drawnW/base);
-    l4Asset(id,p.x,p.z,0,s,()=>l4RedBox(px,py,wpx,hpx));
+    const reg=sceneryAssets[assetId];
+    const baseW=(reg&&reg.footprint&&reg.footprint.width)?reg.footprint.width:30;
+    const scale=Math.max(.45,drawnW/baseW);
+
+    // Ground the GLB at the exact same topology sample used by the terrain.
+    l4Asset(assetId,p.x,p.z,rotation,scale,()=>{
+        // Only fall back to a neutral box if the requested GLB genuinely fails.
+        l4ColorBox('?',px,py,wpx,hpx,0x777777);
+    });
 }
 function l4FenceRect(x1,y1,x2,y2){
     const a=level4MapToWorld(x1,y1),b=level4MapToWorld(x2,y2);
@@ -2883,15 +2927,19 @@ function setupLakeLevel(){
         spawnTrampoline(w.x,w.z,level4HeightAt(w.x,w.z));
     }
 
-    // Buildings from the numbered map.
-    l4House('house9',1213,515,92,96); // 1
-    l4RedBox(1302,445,45,57);         // 2
-    l4RedBox(1288,377,34,39);         // 3
-    l4RedBox(1348,391,37,39);         // 4
-    l4House('house8',847,351,35,30);  // 5
-    l4RedBox(348,270,49,44);          // 6
-    l4House('house7',315,618,66,49);  // 7
-    l4House('house9',1112,100,126,61);// 8
+    // LEVEL 4 buildings — progressively replacing the identification boxes.
+    // 1 + 8 = house9.glb
+    // 3 + 4 + 5 = house8.glb
+    // 7 = house7.glb
+    // 2 + 6 remain color-coded boxes until their GLBs are assigned.
+    l4HouseGLB('house9',1213,515,92,96);     // 1
+    l4ColorBox(2,1302,445,45,57,0xff8c1a);  // 2 ORANGE — still temporary
+    l4HouseGLB('house8',1288,377,34,39);     // 3
+    l4HouseGLB('house8',1348,391,37,39);     // 4
+    l4HouseGLB('house8',847,351,35,30);      // 5
+    l4ColorBox(6,348,270,49,44,0xa838e8);   // 6 PURPLE — still temporary
+    l4HouseGLB('house7',315,618,66,49);      // 7
+    l4HouseGLB('house9',1112,100,126,61);    // 8
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
