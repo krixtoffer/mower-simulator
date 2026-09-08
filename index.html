@@ -2788,17 +2788,93 @@ function l4ColorBox(number,px,py,wpx,hpx,color){
     return m;
 }
 
-function l4HouseGLB(assetId,px,py,wpx,hpx,rotation=0){
+function level4HouseTerrainRange(px,py,wpx,hpx){
+    // Sample the WHOLE building footprint, not just its center.
+    // On steep terrain a center sample can leave uphill corners buried.
     const p=level4MapToWorld(px,py);
-    const drawnW=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
+    const worldW=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
+    const worldD=hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D;
+    let minY=Infinity,maxY=-Infinity;
+
+    const N=6;
+    for(let iz=0;iz<=N;iz++){
+        for(let ix=0;ix<=N;ix++){
+            const x=p.x-worldW/2+(ix/N)*worldW;
+            const z=p.z-worldD/2+(iz/N)*worldD;
+            const y=level4HeightAt(x,z);
+            if(y<minY)minY=y;
+            if(y>maxY)maxY=y;
+        }
+    }
+    return {x:p.x,z:p.z,worldW,worldD,minY,maxY};
+}
+
+function l4HouseFoundation(range){
+    // A shallow foundation fills the downhill gap created by placing the
+    // building at the highest terrain point under its footprint.
+    const thickness=Math.max(.35,range.maxY-range.minY+.2);
+    const foundation=new THREE.Mesh(
+        new THREE.BoxGeometry(range.worldW*.92,thickness,range.worldD*.92),
+        new THREE.MeshStandardMaterial({color:0x777065,roughness:1})
+    );
+    foundation.position.set(
+        range.x,
+        range.maxY-thickness/2+.03,
+        range.z
+    );
+    foundation.receiveShadow=true;
+    scene.add(foundation);
+}
+
+function l4HouseGLB(assetId,px,py,wpx,hpx,rotation=0,placeholderColor=0x777777){
+    const range=level4HouseTerrainRange(px,py,wpx,hpx);
     const reg=sceneryAssets[assetId];
     const baseW=(reg&&reg.footprint&&reg.footprint.width)?reg.footprint.width:30;
-    const scale=Math.max(.45,drawnW/baseW);
+    const scale=Math.max(.45,range.worldW/baseW);
+    const opts={
+        x:range.x,
+        y:range.maxY+.08,
+        z:range.z,
+        rotation,
+        scale
+    };
 
-    // Ground the GLB at the exact same topology sample used by the terrain.
-    l4Asset(assetId,p.x,p.z,rotation,scale,()=>{
-        // Only fall back to a neutral box if the requested GLB genuinely fails.
-        l4ColorBox('?',px,py,wpx,hpx,0x777777);
+    // Keep a visible numbered placeholder while a GLB is still loading.
+    // It is removed immediately when the requested model becomes available.
+    let placeholder=null;
+    const cached=sceneryCache.get(assetId);
+
+    const spawnExact=()=>{
+        const holder=spawnSceneryGLB(assetId,opts);
+        if(holder){
+            if(placeholder){
+                scene.remove(placeholder);
+                placeholder.traverse?.(o=>{
+                    if(o.geometry)o.geometry.dispose?.();
+                    if(o.material){
+                        const mats=Array.isArray(o.material)?o.material:[o.material];
+                        mats.forEach(m=>m.dispose?.());
+                    }
+                });
+                placeholder=null;
+            }
+            l4HouseFoundation(range);
+            return true;
+        }
+        return false;
+    };
+
+    if(spawnExact())return;
+
+    // The placeholder makes slow-loading / failed models obvious instead of
+    // silently leaving an empty house position.
+    placeholder=l4ColorBox('?',px,py,wpx,hpx,placeholderColor);
+
+    whenSceneryResolved(assetId,status=>{
+        if(status==='ready'){
+            spawnExact();
+        }
+        // On genuine load failure, keep the placeholder visible.
     });
 }
 function l4FenceRect(x1,y1,x2,y2){
@@ -2932,14 +3008,14 @@ function setupLakeLevel(){
     // 3 + 4 + 5 = house8.glb
     // 7 = house7.glb
     // 2 + 6 remain color-coded boxes until their GLBs are assigned.
-    l4HouseGLB('house9',1213,515,92,96);     // 1
+    l4HouseGLB('house9',1213,515,92,96,0,0xff3030);     // 1
     l4ColorBox(2,1302,445,45,57,0xff8c1a);  // 2 ORANGE — still temporary
-    l4HouseGLB('house8',1288,377,34,39);     // 3
-    l4HouseGLB('house8',1348,391,37,39);     // 4
-    l4HouseGLB('house8',847,351,35,30);      // 5
+    l4HouseGLB('house8',1288,377,34,39,0,0xffe229);     // 3
+    l4HouseGLB('house8',1348,391,37,39,0,0x30d94b);     // 4
+    l4HouseGLB('house8',847,351,35,30,0,0x2878ff);      // 5
     l4ColorBox(6,348,270,49,44,0xa838e8);   // 6 PURPLE — still temporary
-    l4HouseGLB('house7',315,618,66,49);      // 7
-    l4HouseGLB('house9',1112,100,126,61);    // 8
+    l4HouseGLB('house7',315,618,66,49,0,0x22d6d6);      // 7
+    l4HouseGLB('house9',1112,100,126,61,0,0xff74b8);    // 8
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
