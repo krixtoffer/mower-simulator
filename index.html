@@ -1679,6 +1679,10 @@ const lawnTexResolution=512;
 let lawnWorldSize=100;
 let totalCuttablePixels=0;
 
+// Bana 1 single source of truth for the central playable villa lot.
+// The lawn itself is x/z -50..50. The central house occupies the rear half.
+const VILLA1_HOUSE_BLOCK={xMin:-35,xMax:35,zMin:-50,zMax:-5};
+
 let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[], animatedClouds=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, bunkerZones=[], trampolineKids=[];
 
@@ -1851,7 +1855,7 @@ function spawnSceneryGLB(id,{x=0,y=0,z=0,rotation=0,scale=1,castShadow=null}={})
     if(!cached||cached.status!=='ready'||!cached.source)return null;
 
     // Clone the already-loaded scene graph. Geometry/material resources remain
-    // shared, so repeated trees do not duplicate the GLB download or geometry.
+    // shared, so repeated scenery does not duplicate the GLB download/geometry.
     const clone=cached.source.clone(true);
 
     if(castShadow!==null){
@@ -1860,15 +1864,20 @@ function spawnSceneryGLB(id,{x=0,y=0,z=0,rotation=0,scale=1,castShadow=null}={})
 
     clone.scale.multiplyScalar(scale);
 
-    // Ground the asset from its actual bounding box so Blender origin choice
-    // does not determine whether it floats or sinks.
+    // Normalize placement from the model's VISUAL bounds, not its Blender
+    // origin/pivot. Many downloaded GLBs have an origin far from the actual
+    // mesh. Without this, x=0,z=0 can place a house visibly off-center even
+    // though fences/collision are correctly centered.
     const box=new THREE.Box3().setFromObject(clone);
-    const groundOffset=-box.min.y;
+    const center=box.getCenter(new THREE.Vector3());
+
+    clone.position.x=-center.x;
+    clone.position.z=-center.z;
+    clone.position.y=-box.min.y;
 
     const holder=new THREE.Group();
     holder.position.set(x,y,z);
     holder.rotation.y=rotation;
-    clone.position.y=groundOffset;
     holder.add(clone);
     scene.add(holder);
     return holder;
@@ -2301,7 +2310,7 @@ function setupVillaLevel(){
             const wz=(py+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
             for(let px=0;px<lawnTexResolution;px++){
                 const wx=(px+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
-                const blocked=(wx>-35&&wx<35&&wz>-55&&wz<-5);
+                const blocked=(wx>VILLA1_HOUSE_BLOCK.xMin&&wx<VILLA1_HOUSE_BLOCK.xMax&&wz>VILLA1_HOUSE_BLOCK.zMin&&wz<VILLA1_HOUSE_BLOCK.zMax);
                 if(!blocked)count++;
             }
         }
@@ -2675,7 +2684,7 @@ function calculateProgress(){
                     const py=Math.floor(pixel/lawnTexResolution);
                     const wx=(px+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
                     const wz=(py+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
-                    const blocked=(wx>-35&&wx<35&&wz>-55&&wz<-5);
+                    const blocked=(wx>VILLA1_HOUSE_BLOCK.xMin&&wx<VILLA1_HOUSE_BLOCK.xMax&&wz>VILLA1_HOUSE_BLOCK.zMin&&wz<VILLA1_HOUSE_BLOCK.zMax);
                     if(!blocked)cut++;
                 }else{
                     cut++;
@@ -2719,7 +2728,7 @@ function animate(){
     renderer.render(scene,camera);
 }
 
-function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>-35&&nx<35&&nz>-55&&nz<-5)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
+function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax&&nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
 function updateMowerPhysics(dt=1/60){
     if(!mowerGroup)return;
 
