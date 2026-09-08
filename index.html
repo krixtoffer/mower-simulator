@@ -1551,8 +1551,12 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/');
 const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 const settings = { music:true, sfx:true, timedMode:true };
@@ -1668,9 +1672,18 @@ const sceneryAssets={
 
     // Modular fence. Normalize one source module to ~10 world units along its
     // longest horizontal axis, then repeat modules to form long lot borders.
-    fence01:{path:'./fence.glb',length:10,alignLongAxisX:true,castShadow:true,receiveShadow:true}
+    fence01:{path:'./fence.glb',length:10,alignLongAxisX:true,castShadow:true,receiveShadow:true},
+
+    // Street cars. Source files are roughly real-world proportions; normalize
+    // all four to a consistent arcade-world vehicle length.
+    car1:{path:'./car1.glb',length:12.5,castShadow:true,receiveShadow:true},
+    car2:{path:'./car2.glb',length:11.5,castShadow:true,receiveShadow:true},
+    car3:{path:'./car3.glb',length:12.0,castShadow:true,receiveShadow:true},
+    car4:{path:'./car4.glb',length:13.0,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
+const sceneryWaiters=new Map();
+let levelBuildSerial=0;
 
 let showroomScene, showroomCamera, showroomRenderer, showroomModelGroup;
 let inspectingMowerId=null;
@@ -1685,7 +1698,7 @@ let totalCuttablePixels=0;
 
 // Bana 1 single source of truth for the central playable villa lot.
 // The lawn itself is x/z -50..50. The central house occupies the rear half.
-const VILLA1_HOUSE_BLOCK={xMin:-35,xMax:35,zMin:-50,zMax:-5};
+const VILLA1_HOUSE_BLOCK={xMin:-32,xMax:32,zMin:-50,zMax:-5};
 
 let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[], animatedClouds=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, bunkerZones=[], trampolineKids=[];
@@ -1853,17 +1866,48 @@ function preloadSceneryAsset(id){
         gltf=>{
             const source=prepareScenerySource(gltf.scene,asset);
             sceneryCache.set(id,{status:'ready',source});
+
+            const waiters=sceneryWaiters.get(id)||[];
+            sceneryWaiters.delete(id);
+            waiters.forEach(fn=>fn());
         },
         undefined,
         err=>{
             console.warn('Scenery GLB failed to load:',asset.path,err);
             sceneryCache.set(id,{status:'error',source:null});
+
+            // Run queued callbacks once so wrappers can choose their explicit
+            // procedural fallback only on a genuine load failure.
+            const waiters=sceneryWaiters.get(id)||[];
+            sceneryWaiters.delete(id);
+            waiters.forEach(fn=>fn());
         }
     );
 }
 
 function preloadSceneryAssets(){
     Object.keys(sceneryAssets).forEach(preloadSceneryAsset);
+}
+
+function whenSceneryResolved(id,callback){
+    const cached=sceneryCache.get(id);
+    if(cached&&(cached.status==='ready'||cached.status==='error')){
+        callback(cached.status);
+        return;
+    }
+
+    // If this is the first request, ensure loading has started.
+    if(!cached)preloadSceneryAsset(id);
+
+    const buildSerial=levelBuildSerial;
+    if(!sceneryWaiters.has(id))sceneryWaiters.set(id,[]);
+    sceneryWaiters.get(id).push(()=>{
+        // Ignore delayed callbacks belonging to a level that has since been
+        // left/restarted. This prevents late downloads polluting another level.
+        if(buildSerial!==levelBuildSerial)return;
+        const resolved=sceneryCache.get(id);
+        callback(resolved?resolved.status:'error');
+    });
 }
 
 function spawnSceneryGLB(id,{x=0,y=0,z=0,rotation=0,scale=1,castShadow=null}={}){
@@ -2181,7 +2225,7 @@ function buildYardFence(ox,oz){
     function side(x,z,ry){const sg=new THREE.Group();[1.0,2.2].forEach(hy=>{const r=new THREE.Mesh(rGeo,mat);r.position.set(0,hy,0);sg.add(r);});for(let i=-lawnWorldSize/2;i<=lawnWorldSize/2;i+=1.5){const p=new THREE.Mesh(pGeo,mat);p.position.set(i,0,0.1);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);}
     side(ox,oz-lawnWorldSize/2,0);side(ox,oz+lawnWorldSize/2,0);side(ox-lawnWorldSize/2,oz,Math.PI/2);side(ox+lawnWorldSize/2,oz,Math.PI/2);
 }
-function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.525;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
+function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.525;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);ch.rotation.y=a+Math.PI;g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
 function spawnGrill(x,z){const g=new THREE.Group();const S=0.7;const mm=new THREE.MeshStandardMaterial({color:0x333333,metalness:0.7});const bowl=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);bowl.position.y=9*S;g.add(bowl);const lid=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);lid.position.y=9*S;lid.rotation.x=Math.PI;g.add(lid);[[-2.5,2.5],[2.5,2.5],[0,-3]].forEach(([lx,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.25*S,0.25*S,9*S,6),mm);l.position.set(lx*S,4.5*S,lz*S);g.add(l);});g.position.set(x,0,z);scene.add(g);}
 function spawnProceduralDecoTree(x,z){
     const g=new THREE.Group();
@@ -2202,14 +2246,19 @@ function spawnProceduralDecoTree(x,z){
 }
 
 function spawnDecoTree(x,z){
-    // Bana 1 test: try the cached birch first. If it is missing, still loading,
-    // or failed, the proven procedural tree is used instead.
-    const birch=spawnSceneryGLB('birch01',{
+    const opts={
         x,y:0,z,
         rotation:Math.random()*Math.PI*2,
         scale:0.88+Math.random()*0.20
+    };
+    const birch=spawnSceneryGLB('birch01',opts);
+    if(birch)return birch;
+
+    whenSceneryResolved('birch01',status=>{
+        if(status==='ready')spawnSceneryGLB('birch01',opts);
+        else spawnProceduralDecoTree(x,z);
     });
-    return birch||spawnProceduralDecoTree(x,z);
+    return null;
 }
 
 function spawnBush(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color:0x2a6a2a});for(let i=0;i<3;i++){const r=2+Math.random()*2;const p=new THREE.Mesh(new THREE.SphereGeometry(r,7,6),bm);p.position.set((Math.random()-0.5)*3,r,(Math.random()-0.5)*2);g.add(p);}g.position.set(x,0,z);scene.add(g);}
@@ -2217,13 +2266,38 @@ function spawnDog(x,z){const g=new THREE.Group();const bm=new THREE.MeshStandard
 function spawnCat(x,z){const g=new THREE.Group();const cc=[0x888888,0x333333,0xffaa44,0xeeeeee,0xccaa88];const cm=new THREE.MeshStandardMaterial({color:cc[Math.floor(Math.random()*cc.length)]}),dm=new THREE.MeshStandardMaterial({color:0x222222});const body=new THREE.Mesh(new THREE.BoxGeometry(4.5,2.8,2.2),cm);body.position.y=2.8;g.add(body);const headG=new THREE.Group();headG.position.set(3,4.4,0);headG.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,10,8),cm));[-0.7,0.7].forEach(dz=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(0.6,1.2,4),cm);ear.position.set(0,1.5,dz);headG.add(ear);});[-0.5,0.5].forEach(dz=>{const eye=new THREE.Mesh(new THREE.SphereGeometry(0.25,8,6),dm);eye.position.set(1.2,0.3,dz);headG.add(eye);});g.add(headG);[[-1.5,0,.8],[1.5,0,.8],[-1.5,0,-.8],[1.5,0,-.8]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,2.8,6),cm);l.position.set(lx,1.4,lz);g.add(l);});const tailG=new THREE.Group();tailG.position.set(-2.5,3.5,0);const tail=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.4,4,8),cm);tail.position.set(0,2,0);tail.rotation.z=0.4;tailG.add(tail);g.add(tailG);g.position.set(x,0,z);scene.add(g);animatedAnimals.push({type:'cat',headG,tailG,phase:Math.random()*Math.PI*2});}
 function spawnProceduralCar(startX,startZ,dir,speed,color){const g=new THREE.Group();const bm=new THREE.MeshStandardMaterial({color}),gm=new THREE.MeshStandardMaterial({color:0x88ccff,transparent:true,opacity:0.6}),tm=new THREE.MeshStandardMaterial({color:0x111111});const lower=new THREE.Mesh(new THREE.BoxGeometry(18,4,9),bm);lower.position.y=2;g.add(lower);const upper=new THREE.Mesh(new THREE.BoxGeometry(11,3.8,8.2),bm);upper.position.set(-1,5.9,0);g.add(upper);const ws=new THREE.Mesh(new THREE.BoxGeometry(0.2,3.5,7.8),gm);ws.position.set(4.4,6,0);g.add(ws);[[-6.5,0,-5.2],[-6.5,0,5.2],[6.5,0,-5.2],[6.5,0,5.2]].forEach(([wx,wy,wz])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(2,2,1.2,14),tm);w.rotation.x=Math.PI/2;w.position.set(wx,wy,wz);g.add(w);});const hm=new THREE.MeshStandardMaterial({color:0xffffcc,emissive:0xffffcc,emissiveIntensity:0.5}),tl=new THREE.MeshStandardMaterial({color:0xff2200,emissive:0xff2200,emissiveIntensity:0.4});[-2,2].forEach(lz=>{const h=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),hm);h.position.set(9,2,lz);g.add(h);const t=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,1.5),tl);t.position.set(-9,2,lz);g.add(t);});g.rotation.y=dir>0?-Math.PI/2:Math.PI/2;g.position.set(startX,0.5,startZ);scene.add(g);animatedCars.push({mesh:g,speed,dir,axis:'x',min:-500,max:500});}
 
+function spawnMovingStreetCar(assetId,startX,startZ,dir,speed){
+    const rotation=dir>0?Math.PI/2:-Math.PI/2;
+    const opts={x:startX,y:0.18,z:startZ,rotation,scale:1};
+
+    function activate(){
+        const car=spawnSceneryGLB(assetId,opts);
+        if(!car)return null;
+        animatedCars.push({mesh:car,speed,dir,axis:'x',min:-500,max:500});
+        return car;
+    }
+
+    const now=activate();
+    if(now)return now;
+
+    whenSceneryResolved(assetId,status=>{
+        if(status==='ready')activate();
+    });
+    return null;
+}
+
 function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8'){
-    const house=spawnSceneryGLB(assetId,{x,y:0,z,rotation,scale});
+    const opts={x,y:0,z,rotation,scale};
+    const house=spawnSceneryGLB(assetId,opts);
     if(house)return house;
 
-    // Safe fallback: if a house GLB is still loading or unavailable, retain
-    // the proven procedural villa rather than leaving a hole in the street.
-    buildHouseDetailed(x,z,fallbackColor,rotation);
+    // On slow internet, do NOT show the old procedural house while the GLB is
+    // merely loading. Wait for the intended asset. Only use the fallback after
+    // a genuine load error.
+    whenSceneryResolved(assetId,status=>{
+        if(status==='ready')spawnSceneryGLB(assetId,opts);
+        else buildHouseDetailed(x,z,fallbackColor,rotation);
+    });
     return null;
 }
 
@@ -2285,17 +2359,25 @@ function setupVillaLevel(){
 
     function spawnFenceModule(x,z,rotation,length=FENCE_MODULE){
         const scale=length/FENCE_MODULE;
-        const glb=spawnSceneryGLB('fence01',{x,y:0,z,rotation,scale});
+        const opts={x,y:0,z,rotation,scale};
+        const glb=spawnSceneryGLB('fence01',opts);
         if(glb)return glb;
 
-        const horizontal=Math.abs(Math.cos(rotation))>0.5;
-        const fallback=new THREE.Mesh(
-            new THREE.BoxGeometry(horizontal?length:1.0,2.0,horizontal?1.0:length),
-            fenceFallbackMat
-        );
-        fallback.position.set(x,1.0,z);
-        scene.add(fallback);
-        return fallback;
+        whenSceneryResolved('fence01',status=>{
+            if(status==='ready'){
+                spawnSceneryGLB('fence01',opts);
+                return;
+            }
+
+            const horizontal=Math.abs(Math.cos(rotation))>0.5;
+            const fallback=new THREE.Mesh(
+                new THREE.BoxGeometry(horizontal?length:1.0,2.0,horizontal?1.0:length),
+                fenceFallbackMat
+            );
+            fallback.position.set(x,1.0,z);
+            scene.add(fallback);
+        });
+        return null;
     }
 
     function spawnFenceRun(x1,z1,x2,z2){
@@ -2373,10 +2455,12 @@ function setupVillaLevel(){
     spawnDecoTree(-35,30);spawnDecoTree(35,30);spawnDecoTree(-35,-35);spawnDecoTree(35,-35);
     spawnBush(20,-30);spawnBush(-22,25);spawnBush(18,32);
     spawnDog(-80,10);spawnDog(90,-20);spawnCat(-85,30);spawnCat(95,15);
-    spawnProceduralCar(-300,59,1,0.8,0xcc2222);spawnProceduralCar(100,59,-1,0.65,0x2244cc);
-    spawnProceduralCar(-150,65,1,0.5,0x228822);spawnProceduralCar(250,65,-1,0.7,0xccaa22);
-    gltfLoader.load('./suv.glb',gltf=>{const c=gltf.scene;c.scale.setScalar(2.2);c.position.set(-400,0.5,59);c.rotation.y=-Math.PI/2;scene.add(c);animatedCars.push({mesh:c,speed:0.7,dir:1,axis:'x',min:-500,max:500});},undefined,()=>{});
-    gltfLoader.load('./taxi.glb',gltf=>{const c=gltf.scene;c.scale.setScalar(2.2);c.position.set(300,0.5,65);c.rotation.y=Math.PI/2;scene.add(c);animatedCars.push({mesh:c,speed:0.55,dir:-1,axis:'x',min:-500,max:500});},undefined,()=>{});
+    // Two traffic lanes, four GLB vehicles. Procedural box cars and the older
+    // suv/taxi assets are no longer spawned on Bana 1.
+    spawnMovingStreetCar('car1',-320,58, 1,0.72);
+    spawnMovingStreetCar('car2', 160,58, 1,0.56);
+    spawnMovingStreetCar('car3', 300,66,-1,0.64);
+    spawnMovingStreetCar('car4', -80,66,-1,0.50);
 }
 
 function drawPitchLines(ctx){ctx.strokeStyle='#ffffff';ctx.lineWidth=5;ctx.strokeRect(30,20,lawnTexResolution-60,lawnTexResolution-40);ctx.beginPath();ctx.moveTo(30,lawnTexResolution/2);ctx.lineTo(lawnTexResolution-30,lawnTexResolution/2);ctx.stroke();ctx.beginPath();ctx.arc(256,256,55,0,Math.PI*2);ctx.stroke();ctx.strokeRect(lawnTexResolution/2-90,20,180,80);ctx.strokeRect(lawnTexResolution/2-90,lawnTexResolution-100,180,80);ctx.strokeRect(lawnTexResolution/2-45,20,90,35);ctx.strokeRect(lawnTexResolution/2-45,lawnTexResolution-55,90,35);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(256,80,4,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(256,432,4,0,Math.PI*2);ctx.fill();}
@@ -2641,6 +2725,7 @@ window.openLevelSelect=function(){
 function showLevelIntro(id){currentLevel=id;document.getElementById('level-select-screen').style.display='none';const is=document.getElementById('level-intro-screen'),it=document.getElementById('intro-title');const map={1:['./villa.jpg','Level 1: Villakvarteret'],2:['./fotboll.jpg','Level 2: Fotbollsplanen'],3:['./golf.jpg','Level 3: Golfbanan'],4:['./bana_intro.jpg','Level 4: Sjötomten']};const[img,title]=map[id]||['','?'];is.style.backgroundImage=`url('${img}')`;it.innerText=title;is.style.display='flex';}
 
 window.confirmStartLevel=function(){
+    levelBuildSerial++;
     document.getElementById('level-intro-screen').style.display='none';
     document.getElementById('hud').style.display='flex';
     document.getElementById('hud-buttons').style.display='flex';
@@ -2661,6 +2746,14 @@ window.confirmStartLevel=function(){
     else if(currentLevel===2) setupStadiumLevel();
     else if(currentLevel===3) setupGolfLevel();
     else if(currentLevel===4) setupLakeLevel();
+
+    // Levels 2 and 4 contain substantially more procedural meshes. On mobile,
+    // cap internal render resolution slightly lower to stabilize frame pacing
+    // without altering gameplay, geometry or desktop quality.
+    const mobileLike=(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches);
+    const levelPixelCap=(mobileLike&&(currentLevel===2||currentLevel===4))?1.35:2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,levelPixelCap));
+    renderer.setSize(innerWidth,innerHeight,false);
 
     // Do NOT inherit the previous level's mower coordinates.
     mowerGroup=null;
@@ -2873,7 +2966,7 @@ function updateCameraFollow(){
 function setupJoystick(){const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');let active=false,cx2,cy2,mr;zone.addEventListener('touchstart',e=>{e.preventDefault();active=true;const r=zone.getBoundingClientRect();cx2=r.left+r.width/2;cy2=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;upd(e.touches[0]);},{passive:false});zone.addEventListener('touchmove',e=>{e.preventDefault();if(active)upd(e.touches[0]);},{passive:false});const rst=()=>{active=false;knob.style.transform='translate(-50%,-50%)';inputs.joyX=inputs.joyY=0;};zone.addEventListener('touchend',rst);zone.addEventListener('touchcancel',rst);function upd(t){let dx=t.clientX-cx2,dy=t.clientY-cy2,d=Math.sqrt(dx*dx+dy*dy);if(d>mr){const a=Math.atan2(dy,dx);dx=Math.cos(a)*mr;dy=Math.sin(a)*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;inputs.joyX=dx/mr;inputs.joyY=dy/mr;}}
 function handleKeyDown(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=true;if(k==='s'||k==='arrowdown')inputs.down=true;if(k==='a'||k==='arrowleft')inputs.left=true;if(k==='d'||k==='arrowright')inputs.right=true;}
 function handleKeyUp(e){const k=e.key.toLowerCase();if(k==='w'||k==='arrowup')inputs.up=false;if(k==='s'||k==='arrowdown')inputs.down=false;if(k==='a'||k==='arrowleft')inputs.left=false;if(k==='d'||k==='arrowright')inputs.right=false;}
-function onWindowResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setSize(innerWidth,innerHeight);const c=document.getElementById('showroom-canvas-container');if(c&&showroomRenderer&&c.clientWidth>0){showroomCamera.aspect=c.clientWidth/c.clientHeight;showroomCamera.updateProjectionMatrix();showroomRenderer.setSize(c.clientWidth,c.clientHeight);}}
+function onWindowResize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();const mobileLike=(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches);const levelPixelCap=(mobileLike&&(currentLevel===2||currentLevel===4))?1.35:2;renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,levelPixelCap));renderer.setSize(innerWidth,innerHeight);const c=document.getElementById('showroom-canvas-container');if(c&&showroomRenderer&&c.clientWidth>0){showroomCamera.aspect=c.clientWidth/c.clientHeight;showroomCamera.updateProjectionMatrix();showroomRenderer.setSize(c.clientWidth,c.clientHeight);}}
 </script>
 </body>
 </html>
