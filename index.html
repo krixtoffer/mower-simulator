@@ -1664,7 +1664,11 @@ const sceneryAssets={
     house2:{path:'./house2.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
     house3:{path:'./house3.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
     house4:{path:'./house4.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
-    house5:{path:'./house5.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true}
+    house5:{path:'./house5.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
+
+    // Modular fence. Normalize one source module to ~10 world units along its
+    // longest horizontal axis, then repeat modules to form long lot borders.
+    fence01:{path:'./fence.glb',length:10,alignLongAxisX:true,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 
@@ -1806,11 +1810,20 @@ function prepareScenerySource(root,asset){
         });
     });
 
-    const box=new THREE.Box3().setFromObject(root);
-    const size=box.getSize(new THREE.Vector3());
+    let box=new THREE.Box3().setFromObject(root);
+    let size=box.getSize(new THREE.Vector3());
 
-    // Trees and similar props use target height. Buildings can instead use
-    // target footprint width/depth so their lot occupancy stays believable.
+    // Modular linear scenery (fences, later walls/hedges) is normalized along
+    // its longest horizontal axis. Rotate the cached source so that axis is X,
+    // giving every fence run a predictable orientation.
+    if(asset.alignLongAxisX&&size.z>size.x){
+        root.rotation.y+=Math.PI/2;
+        box=new THREE.Box3().setFromObject(root);
+        size=box.getSize(new THREE.Vector3());
+    }
+
+    // Trees and similar props use target height. Buildings use footprint.
+    // Fence modules use target horizontal length.
     if(asset.height&&size.y>0){
         root.scale.multiplyScalar(asset.height/size.y);
     }else if(asset.footprint){
@@ -1820,6 +1833,9 @@ function prepareScenerySource(root,asset){
         const sz=(fd>0&&size.z>0)?fd/size.z:Infinity;
         const s=Math.min(sx,sz);
         if(Number.isFinite(s)&&s>0)root.scale.multiplyScalar(s);
+    }else if(asset.length){
+        const horizontal=Math.max(size.x,size.z);
+        if(horizontal>0)root.scale.multiplyScalar(asset.length/horizontal);
     }
 
     return root;
@@ -1883,16 +1899,27 @@ function spawnSceneryGLB(id,{x=0,y=0,z=0,rotation=0,scale=1,castShadow=null}={})
     return holder;
 }
 
+function refreshGameplayMowerIfReady(mowerId){
+    // On slower phones a level can start before its mower GLB has finished
+    // downloading. The old code then kept an empty mowerGroup forever.
+    // Rebuilding here preserves position/rotation and makes the mower appear
+    // as soon as its GLB arrives.
+    if(gameStarted&&selectedMower===mowerId&&mowerGroup){
+        buildMowerAndCharacter();
+        tuneSceneMaterials();
+    }
+}
+
 function preloadAssets(){
     preloadSceneryAssets();
 
     [['./mats-v1.glb',4.2,m=>{loadedMatsMesh=m;}],
-     ['./hand_shaded.glb',3.5,m=>{loadedHandMesh=m;if(inspectingMowerId==='standard')updateShowroomModel();}],
-     ['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();}],
-     ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();}],
-     ['./combine_shaded.glb',8.0,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();}]
+     ['./hand_shaded.glb',3.5,m=>{loadedHandMesh=m;if(inspectingMowerId==='standard')updateShowroomModel();refreshGameplayMowerIfReady('standard');}],
+     ['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();refreshGameplayMowerIfReady('klippo');}],
+     ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();refreshGameplayMowerIfReady('ts112');}],
+     ['./combine_shaded.glb',8.0,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();refreshGameplayMowerIfReady('combine');}]
     ].forEach(([path,h,cb])=>{
-        gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,()=>{});
+        gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,err=>{console.warn('Mower GLB failed to load:',path,err);});
     });
 }
 
@@ -2154,7 +2181,7 @@ function buildYardFence(ox,oz){
     function side(x,z,ry){const sg=new THREE.Group();[1.0,2.2].forEach(hy=>{const r=new THREE.Mesh(rGeo,mat);r.position.set(0,hy,0);sg.add(r);});for(let i=-lawnWorldSize/2;i<=lawnWorldSize/2;i+=1.5){const p=new THREE.Mesh(pGeo,mat);p.position.set(i,0,0.1);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);}
     side(ox,oz-lawnWorldSize/2,0);side(ox,oz+lawnWorldSize/2,0);side(ox-lawnWorldSize/2,oz,Math.PI/2);side(ox+lawnWorldSize/2,oz,Math.PI/2);
 }
-function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.7;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
+function spawnGardenTable(x,z){const g=new THREE.Group();const S=0.525;const wm=new THREE.MeshStandardMaterial({color:0xc4963c}),mm=new THREE.MeshStandardMaterial({color:0x888888});const top=new THREE.Mesh(new THREE.CylinderGeometry(8*S,8*S,0.8*S,12),wm);top.position.y=9*S;g.add(top);const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.7*S,1*S,9*S,8),mm);leg.position.y=4.5*S;g.add(leg);const base=new THREE.Mesh(new THREE.CylinderGeometry(2*S,2*S,0.5*S,12),mm);base.position.y=0.25*S;g.add(base);[0,Math.PI/2,Math.PI,-Math.PI/2].forEach(a=>{const ch=new THREE.Group();const seat=new THREE.Mesh(new THREE.BoxGeometry(5*S,0.8*S,5*S),wm);seat.position.y=5.5*S;ch.add(seat);const bk=new THREE.Mesh(new THREE.BoxGeometry(5*S,5*S,0.6*S),wm);bk.position.set(0,8*S,-2.5*S);ch.add(bk);[[-2,0,-2],[2,0,-2],[-2,0,2],[2,0,2]].forEach(([lx,,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,5.5*S,6),mm);l.position.set(lx*S,2.75*S,lz*S);ch.add(l);});ch.position.set(Math.sin(a)*13*S,0,Math.cos(a)*13*S);g.add(ch);});const up=new THREE.Mesh(new THREE.CylinderGeometry(0.3*S,0.3*S,22*S,8),mm);up.position.y=20*S;g.add(up);const um=new THREE.Mesh(new THREE.ConeGeometry(13*S,5*S,12),new THREE.MeshStandardMaterial({color:0xff6644}));um.position.y=32*S;g.add(um);g.position.set(x,0,z);scene.add(g);}
 function spawnGrill(x,z){const g=new THREE.Group();const S=0.7;const mm=new THREE.MeshStandardMaterial({color:0x333333,metalness:0.7});const bowl=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);bowl.position.y=9*S;g.add(bowl);const lid=new THREE.Mesh(new THREE.SphereGeometry(4*S,12,8,0,Math.PI*2,0,Math.PI/2),mm);lid.position.y=9*S;lid.rotation.x=Math.PI;g.add(lid);[[-2.5,2.5],[2.5,2.5],[0,-3]].forEach(([lx,lz])=>{const l=new THREE.Mesh(new THREE.CylinderGeometry(0.25*S,0.25*S,9*S,6),mm);l.position.set(lx*S,4.5*S,lz*S);g.add(l);});g.position.set(x,0,z);scene.add(g);}
 function spawnProceduralDecoTree(x,z){
     const g=new THREE.Group();
@@ -2233,8 +2260,8 @@ function setupVillaLevel(){
     // x=-35..35 and z=-55..-5.
     const southHouses=[
         {id:'house1',x:-200,z:-28,r:0,       s:0.98,c:'#ffcda8'},
-        {id:'house3',x:-100,z:-27,r:0,       s:1.00,c:'#8fb8cc'},
-        {id:'house5',x:   0,z:-27,r:0,       s:1.00,c:'#e6e6a1'},
+        {id:'house5',x:-100,z:-27,r:0,       s:1.00,c:'#8fb8cc'},
+        {id:'house3',x:   0,z:-27,r:0,       s:1.00,c:'#e6e6a1'},
         {id:'house4',x: 100,z:-26,r:0,       s:0.98,c:'#d4936e'},
         {id:'house2',x: 200,z:-28,r:0,       s:0.98,c:'#c8a0c8'}
     ];
@@ -2250,15 +2277,45 @@ function setupVillaLevel(){
     southHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
     northHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
 
-    // Temporary procedural fences, now derived from exactly the same lot grid.
-    // The central playable yard is consequently bounded visually at x=±50,
-    // matching the actual lawn plane's x edges.
-    const fenceMat=new THREE.MeshStandardMaterial({color:0x2f241c,roughness:0.95});
+    // Fence runs use fence.glb in repeated ~10-unit modules. If the GLB is
+    // unavailable or still loading, a simple procedural segment is used for
+    // that module so the lot geometry never disappears.
+    const fenceFallbackMat=new THREE.MeshStandardMaterial({color:0x2f241c,roughness:0.95});
+    const FENCE_MODULE=10;
 
-    function addFenceSegment(x,z,w,d){
-        const f=new THREE.Mesh(new THREE.BoxGeometry(w,2.0,d),fenceMat);
-        f.position.set(x,1.0,z);
-        scene.add(f);
+    function spawnFenceModule(x,z,rotation,length=FENCE_MODULE){
+        const scale=length/FENCE_MODULE;
+        const glb=spawnSceneryGLB('fence01',{x,y:0,z,rotation,scale});
+        if(glb)return glb;
+
+        const horizontal=Math.abs(Math.cos(rotation))>0.5;
+        const fallback=new THREE.Mesh(
+            new THREE.BoxGeometry(horizontal?length:1.0,2.0,horizontal?1.0:length),
+            fenceFallbackMat
+        );
+        fallback.position.set(x,1.0,z);
+        scene.add(fallback);
+        return fallback;
+    }
+
+    function spawnFenceRun(x1,z1,x2,z2){
+        const dx=x2-x1,dz=z2-z1;
+        const length=Math.hypot(dx,dz);
+        if(length<0.01)return;
+
+        const count=Math.max(1,Math.ceil(length/FENCE_MODULE));
+        const pieceLength=length/count;
+        const rotation=Math.atan2(dz,dx);
+
+        for(let i=0;i<count;i++){
+            const f=(i+0.5)/count;
+            spawnFenceModule(
+                x1+dx*f,
+                z1+dz*f,
+                rotation,
+                pieceLength
+            );
+        }
     }
 
     // Five displayed lots = 500 units across, with boundaries every 100 units.
@@ -2266,34 +2323,30 @@ function setupVillaLevel(){
     const boundaryXs=[-250,-150,-50,50,150,250];
 
     // Rear boundaries.
-    addFenceSegment((minX+maxX)/2,southRearZ,maxX-minX,1.0);
-    addFenceSegment((minX+maxX)/2,northRearZ,maxX-minX,1.0);
+    spawnFenceRun(minX,southRearZ,maxX,southRearZ);
+    spawnFenceRun(minX,northRearZ,maxX,northRearZ);
 
     // Side fences run from rear boundary all the way to the street edge.
     // For the playable central lot these are exactly x=-50 and x=50.
-    const southMidZ=(southRearZ+southStreetZ)/2;
-    const southDepth=southStreetZ-southRearZ;
-    const northMidZ=(northStreetZ+northRearZ)/2;
-    const northDepth=northRearZ-northStreetZ;
-
     boundaryXs.forEach(x=>{
-        addFenceSegment(x,southMidZ,1.0,southDepth);
-        addFenceSegment(x,northMidZ,1.0,northDepth);
+        spawnFenceRun(x,southRearZ,x,southStreetZ);
+        spawnFenceRun(x,northStreetZ,x,northRearZ);
     });
 
-    // Street-facing fence sections with one centered opening per lot.
-    // These sit at z=50 for the playable side, exactly at the mowable lawn edge.
+    // Street-facing fence sections with one centered driveway/gate opening
+    // per lot, exactly aligned to the same 100-unit lot grid.
     const drivewayOpening=30;
-    const frontPiece=(lotWidth-drivewayOpening)/2;
+    const halfOpening=drivewayOpening/2;
+    const halfLot=lotWidth/2;
 
     southLotCenters.forEach(x=>{
-        addFenceSegment(x-lotWidth/2+frontPiece/2,southStreetZ,frontPiece,1.0);
-        addFenceSegment(x+lotWidth/2-frontPiece/2,southStreetZ,frontPiece,1.0);
+        spawnFenceRun(x-halfLot,southStreetZ,x-halfOpening,southStreetZ);
+        spawnFenceRun(x+halfOpening,southStreetZ,x+halfLot,southStreetZ);
     });
 
     northLotCenters.forEach(x=>{
-        addFenceSegment(x-lotWidth/2+frontPiece/2,northStreetZ,frontPiece,1.0);
-        addFenceSegment(x+lotWidth/2-frontPiece/2,northStreetZ,frontPiece,1.0);
+        spawnFenceRun(x-halfLot,northStreetZ,x-halfOpening,northStreetZ);
+        spawnFenceRun(x+halfOpening,northStreetZ,x+halfLot,northStreetZ);
     });
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
