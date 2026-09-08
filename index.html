@@ -2694,11 +2694,9 @@ function level4IsMowable(x,z){
     const m=level4WorldToMask(x,z);
     return !!level4MaskBit(m.mx,m.my);
 }
-function level4HeightAt(x,z){
+function level4RawHeightAt(x,z){
     if(LEVEL4_HEIGHT_SCALE===0)return 0;
 
-    // Continuous bilinear sampling of the embedded height map.
-    // This removes the cell-edge "steps" from the previous nearest-neighbour sampler.
     const fx=Math.max(0,Math.min(LEVEL4_TOPO_W-1,(x/LEVEL4_WORLD_W+.5)*(LEVEL4_TOPO_W-1)));
     const fy=Math.max(0,Math.min(LEVEL4_TOPO_H-1,(z/LEVEL4_WORLD_D+.5)*(LEVEL4_TOPO_H-1)));
 
@@ -2715,6 +2713,45 @@ function level4HeightAt(x,z){
     const h0=h00+(h10-h00)*ax;
     const h1=h01+(h11-h01)*ax;
     return (h0+(h1-h0)*ay)*LEVEL4_HEIGHT_SCALE;
+}
+
+// Building sites are flattened into the terrain itself. This is safer than
+// placing a large house on a continuously sloped surface.
+const LEVEL4_HOUSE_SITES=[
+    {n:1,px:1213,py:515,wpx:92,hpx:96},
+    {n:2,px:1302,py:445,wpx:45,hpx:57},
+    {n:3,px:1288,py:377,wpx:34,hpx:39},
+    {n:4,px:1348,py:391,wpx:37,hpx:39},
+    {n:5,px:847, py:351,wpx:35,hpx:30},
+    {n:6,px:348, py:270,wpx:49,hpx:44},
+    {n:7,px:315, py:618,wpx:66,hpx:49},
+    {n:8,px:1112,py:100,wpx:126,hpx:61}
+].map(s=>{
+    const p=level4MapToWorld(s.px,s.py);
+    const w=s.wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
+    const d=s.hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D;
+    return {...s,x:p.x,z:p.z,w,d,flatY:level4RawHeightAt(p.x,p.z)};
+});
+
+function level4HeightAt(x,z){
+    let h=level4RawHeightAt(x,z);
+
+    for(const s of LEVEL4_HOUSE_SITES){
+        // Flat core is slightly larger than the building. Outside it, blend
+        // back into the original hill so there is no abrupt terrace edge.
+        const coreX=s.w*.62, coreZ=s.d*.62;
+        const outerX=s.w*.90+4, outerZ=s.d*.90+4;
+        const dx=Math.abs(x-s.x), dz=Math.abs(z-s.z);
+
+        if(dx<outerX && dz<outerZ){
+            const tx=Math.max(0,Math.min(1,(dx-coreX)/Math.max(.001,outerX-coreX)));
+            const tz=Math.max(0,Math.min(1,(dz-coreZ)/Math.max(.001,outerZ-coreZ)));
+            const q=Math.max(tx,tz);
+            const smooth=q*q*(3-2*q);
+            h=s.flatY+(h-s.flatY)*smooth;
+        }
+    }
+    return h;
 }
 
 function l4Asset(id,x,z,rotation=0,scale=1,fallback=null){
@@ -2789,30 +2826,18 @@ function l4ColorBox(number,px,py,wpx,hpx,color){
 }
 
 function level4HouseTerrainRange(px,py,wpx,hpx){
-    // Sample the WHOLE building footprint, not just its center.
-    // On steep terrain a center sample can leave uphill corners buried.
     const p=level4MapToWorld(px,py);
     const worldW=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
     const worldD=hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D;
-    let minY=Infinity,maxY=-Infinity;
-
-    const N=6;
-    for(let iz=0;iz<=N;iz++){
-        for(let ix=0;ix<=N;ix++){
-            const x=p.x-worldW/2+(ix/N)*worldW;
-            const z=p.z-worldD/2+(iz/N)*worldD;
-            const y=level4HeightAt(x,z);
-            if(y<minY)minY=y;
-            if(y>maxY)maxY=y;
-        }
-    }
-    return {x:p.x,z:p.z,worldW,worldD,minY,maxY};
+    const site=LEVEL4_HOUSE_SITES.find(s=>s.px===px&&s.py===py);
+    const flatY=site?site.flatY:level4HeightAt(p.x,p.z);
+    return {x:p.x,z:p.z,worldW,worldD,minY:flatY,maxY:flatY};
 }
 
 function l4HouseFoundation(range){
     // A shallow foundation fills the downhill gap created by placing the
     // building at the highest terrain point under its footprint.
-    const thickness=Math.max(.35,range.maxY-range.minY+.2);
+    const thickness=.45;
     const foundation=new THREE.Mesh(
         new THREE.BoxGeometry(range.worldW*.92,thickness,range.worldD*.92),
         new THREE.MeshStandardMaterial({color:0x777065,roughness:1})
@@ -2859,6 +2884,21 @@ function l4HouseGLB(assetId,px,py,wpx,hpx,rotation=0,placeholderColor=0x777777){
                 placeholder=null;
             }
             l4HouseFoundation(range);
+
+            // Temporary identification/debug label above the REAL house.
+            // This also proves where a successfully loaded model was placed.
+            const wb=new THREE.Box3().setFromObject(holder);
+            const ws=wb.getSize(new THREE.Vector3());
+            const wc=wb.getCenter(new THREE.Vector3());
+            const site=LEVEL4_HOUSE_SITES.find(s=>s.px===px&&s.py===py);
+            l4HouseLabel(site?site.n:'?',wc.x,wb.max.y+6,wc.z);
+
+            console.log(
+                'Level4 house placed',assetId,
+                'site',site?site.n:'?',
+                'bounds',ws.x.toFixed(1),ws.y.toFixed(1),ws.z.toFixed(1),
+                'groundY',range.maxY.toFixed(2)
+            );
             return true;
         }
         return false;
