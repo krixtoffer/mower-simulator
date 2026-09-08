@@ -1660,11 +1660,11 @@ const sceneryAssets={
 
     // Bana 1 villa houses. Each source is normalized by height so Blender
     // export scale does not affect placement in the level.
-    house1:{path:'./house1.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
-    house2:{path:'./house2.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
-    house3:{path:'./house3.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
-    house4:{path:'./house4.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true},
-    house5:{path:'./house5.glb',footprint:{width:34,depth:22},castShadow:true,receiveShadow:true}
+    house1:{path:'./house1.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
+    house2:{path:'./house2.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
+    house3:{path:'./house3.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
+    house4:{path:'./house4.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true},
+    house5:{path:'./house5.glb',footprint:{width:68,depth:44},castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 
@@ -2200,23 +2200,30 @@ function setupVillaLevel(){
     for(let i=-900;i<900;i+=20){const d=new THREE.Mesh(new THREE.PlaneGeometry(10,0.8),mMat);d.rotation.x=-Math.PI/2;d.position.set(i,0.06,62);scene.add(d);}
     const swMat=new THREE.MeshStandardMaterial({color:0xbbbbaa});
     [51,73].forEach(sz=>{const sw=new THREE.Mesh(new THREE.PlaneGeometry(2000,6),swMat);sw.rotation.x=-Math.PI/2;sw.position.set(0,0.04,sz);scene.add(sw);});
-    // Bana 1 villa lots based on the supplied aerial sketch:
-    // four lots on each side, houses pushed toward the rear half of each lot,
-    // lawns facing the street, and fence lines near lot boundaries.
+    // Bana 1 villa lots based on the user's aerial reference:
+    // four lots per side, houses occupying much more of each lot and sitting
+    // toward the rear, with long side fences extending all the way to the road.
     const lotCenters=[-132,-44,44,132];
-    const southHouseZ=-18;
-    const northHouseZ=142;
 
-    const southIds=['house1','house3','house5','house4'];
-    const northIds=['house2','house4','house1','house3'];
+    // Houses are deliberately not centered identically in every lot. This
+    // avoids a rigid grid while keeping them safely clear of the side fences.
+    const southHouses=[
+        {id:'house1',x:-132,z:-27,r:0,       s:0.96,c:'#ffcda8'},
+        {id:'house3',x: -42,z:-24,r:0,       s:1.02,c:'#8fb8cc'},
+        {id:'house5',x:  46,z:-25,r:0,       s:1.00,c:'#e6e6a1'},
+        {id:'house4',x: 132,z:-24,r:0,       s:0.98,c:'#d4936e'}
+    ];
+    const northHouses=[
+        {id:'house2',x:-130,z:151,r:Math.PI, s:0.98,c:'#c4e8c4'},
+        {id:'house4',x: -46,z:148,r:Math.PI, s:1.00,c:'#f0d0a0'},
+        {id:'house1',x:  45,z:149,r:Math.PI, s:1.00,c:'#b0c8e8'},
+        {id:'house3',x: 132,z:150,r:Math.PI, s:0.96,c:'#e8c4c4'}
+    ];
+    southHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
+    northHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
 
-    lotCenters.forEach((x,i)=>{
-        spawnVillaHouse(southIds[i],x,southHouseZ,0,1.0,['#ffcda8','#8fb8cc','#e6e6a1','#d4936e'][i]);
-        spawnVillaHouse(northIds[i],x,northHouseZ,Math.PI,1.0,['#c4e8c4','#f0d0a0','#b0c8e8','#e8c4c4'][i]);
-    });
-
-    // Simple fence layout for proportion testing. These remain procedural on
-    // purpose; once spacing feels right, the fence GLB can replace them.
+    // Procedural fences are still used for layout calibration. They are thin,
+    // simple visual boundaries and remain independent of mower collision.
     const fenceMat=new THREE.MeshStandardMaterial({color:0x2f241c,roughness:0.95});
 
     function addFenceSegment(x,z,w,d){
@@ -2225,27 +2232,42 @@ function setupVillaLevel(){
         scene.add(f);
     }
 
-    // Rear boundaries for both rows.
-    addFenceSegment(0,-52,352,1.0);
-    addFenceSegment(0,176,352,1.0);
+    // Lot geometry:
+    // road/sidewalk region is around z=51..73. Keep the side fences running
+    // nearly to that edge so the gardens read as individual lots.
+    const southRearZ=-58;
+    const southStreetZ=49;
+    const northStreetZ=75;
+    const northRearZ=184;
 
-    // Side boundaries between lots and outer edges.
+    // Rear boundaries.
+    addFenceSegment(0,southRearZ,352,1.0);
+    addFenceSegment(0,northRearZ,352,1.0);
+
+    // Side boundaries between lots and outer edges. These run continuously
+    // from the rear of each property toward the street, matching the sketch.
+    const southMidZ=(southRearZ+southStreetZ)/2;
+    const southDepth=southStreetZ-southRearZ;
+    const northMidZ=(northStreetZ+northRearZ)/2;
+    const northDepth=northRearZ-northStreetZ;
+
     [-176,-88,0,88,176].forEach(x=>{
-        addFenceSegment(x,-30,1.0,44);
-        addFenceSegment(x,154,1.0,44);
+        addFenceSegment(x,southMidZ,1.0,southDepth);
+        addFenceSegment(x,northMidZ,1.0,northDepth);
     });
 
-    // Front lot edges facing the road, with deliberate openings/driveways.
+    // Short front boundary pieces along the street side, with generous
+    // driveway/gate openings. These are kept near the street, not near houses.
     lotCenters.forEach((x,i)=>{
-        const southFrontZ=-8;
-        const northFrontZ=132;
-        const gapOffset=(i%2===0)?12:-12;
+        const opening=30;
+        const halfLot=44;
+        const sidePiece=(halfLot-opening/2);
 
-        addFenceSegment(x-25,southFrontZ,28,1.0);
-        addFenceSegment(x+25,southFrontZ,28,1.0);
+        addFenceSegment(x-(opening/2+sidePiece/2),southStreetZ,sidePiece,1.0);
+        addFenceSegment(x+(opening/2+sidePiece/2),southStreetZ,sidePiece,1.0);
 
-        addFenceSegment(x-25,northFrontZ,28,1.0);
-        addFenceSegment(x+25,northFrontZ,28,1.0);
+        addFenceSegment(x-(opening/2+sidePiece/2),northStreetZ,sidePiece,1.0);
+        addFenceSegment(x+(opening/2+sidePiece/2),northStreetZ,sidePiece,1.0);
     });
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
