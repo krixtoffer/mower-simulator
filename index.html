@@ -1679,7 +1679,23 @@ const sceneryAssets={
     car1:{path:'./car1.glb',length:12.5,castShadow:true,receiveShadow:true},
     car2:{path:'./car2.glb',length:11.5,castShadow:true,receiveShadow:true},
     car3:{path:'./car3.glb',length:12.0,castShadow:true,receiveShadow:true},
-    car4:{path:'./car4.glb',length:13.0,castShadow:true,receiveShadow:true}
+    car4:{path:'./car4.glb',length:13.0,castShadow:true,receiveShadow:true},
+
+    // Level 4 hardcoded map scenery.
+    house7:{path:'./house7.glb',footprint:{width:34,depth:20},castShadow:true,receiveShadow:true},
+    house8:{path:'./house8.glb',footprint:{width:24,depth:18},castShadow:true,receiveShadow:true},
+    house9:{path:'./house9.glb',footprint:{width:30,depth:22},castShadow:true,receiveShadow:true},
+    pine1:{path:'./pine1.glb',height:15,castShadow:true,receiveShadow:true},
+    pine2:{path:'./pine2.glb',height:16,castShadow:true,receiveShadow:true},
+    pine3:{path:'./pine3.glb',height:14,castShadow:true,receiveShadow:true},
+    pine4:{path:'./pine4.glb',height:17,castShadow:true,receiveShadow:true},
+    pine5:{path:'./pine5.glb',height:15,castShadow:true,receiveShadow:true},
+    birch02:{path:'./BirchTree_2.glb',height:16,castShadow:true,receiveShadow:true},
+    birch03:{path:'./BirchTree_3.glb',height:16,castShadow:true,receiveShadow:true},
+    birch04:{path:'./BirchTree_4.glb',height:16,castShadow:true,receiveShadow:true},
+    tree1:{path:'./tree1.glb',height:15,castShadow:true,receiveShadow:true},
+    tree2:{path:'./tree2.glb',height:15,castShadow:true,receiveShadow:true},
+    bush1:{path:'./bush1.glb',height:3.2,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -1969,7 +1985,7 @@ function preloadAssets(){
 
 function getTerrainHeight(x,z){
     if(currentLevel===3){ const h1=Math.sin(x*0.05)*Math.cos(z*0.05)*6; const h2=Math.sin(x*0.1+1.5)*2; const d=Math.sqrt(x*x+(z+50)*(z+50)); return (h1+h2)*(1-Math.max(0,1-d/30)); }
-    if(currentLevel===4){ const nx=(x+lawnWorldSize/2)/lawnWorldSize; if(nx<0.22)return 0; return Math.pow((nx-0.22)/0.78,1.3)*22; }
+    if(currentLevel===4)return level4HeightAt(x,z);
     return 0;
 }
 
@@ -2287,7 +2303,7 @@ function spawnMovingStreetCar(assetId,startX,startZ,dir,speed){
 }
 
 function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8'){
-    const opts={x,y:0,z,rotation,scale};
+    const opts={x,y:level4HeightAt(x,z),z,rotation,scale};
     const house=spawnSceneryGLB(assetId,opts);
     if(house)return house;
 
@@ -2633,27 +2649,249 @@ function setupGolfLevel(){
 function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMaterial({color:0x8b6914}),wireMat=new THREE.MeshStandardMaterial({color:0x666655});[{x:0,z:-half,len:size,ry:0},{x:0,z:half,len:size,ry:0},{x:-half,z:0,len:size,ry:Math.PI/2},{x:half,z:0,len:size,ry:Math.PI/2}].forEach(({x,z,len,ry})=>{const sg=new THREE.Group();[1.5,3.0].forEach(hy=>{const r=new THREE.Mesh(new THREE.BoxGeometry(len,0.15,0.15),wireMat);r.position.set(0,hy,0);sg.add(r);});for(let i=-len/2;i<=len/2;i+=8){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,3.5,6),postMat);p.position.set(i,1.75,0);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);});}
 function buildGolfSurroundings(){const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1}),snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2,dist=110+Math.random()*30,hx=Math.sin(a)*dist,hz=Math.cos(a)*dist,hillH=25+Math.random()*40,hillR=20+Math.random()*25;const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR,hillH,8),hillMat);hill.position.set(hx,hillH/2-2,hz);scene.add(hill);if(hillH>40){const cap=new THREE.Mesh(new THREE.ConeGeometry(hillR*0.3,hillH*0.25,8),snowMat);cap.position.set(hx,hillH-hillH*0.12-2,hz);scene.add(cap);}}const groundOut=new THREE.Mesh(new THREE.PlaneGeometry(600,600),new THREE.MeshStandardMaterial({color:0x3a6a2a}));groundOut.rotation.x=-Math.PI/2;groundOut.position.y=-0.5;scene.add(groundOut);}
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEVEL 4 — HARDCODED MAP DATA
+// Derived once from the user's 1629x786 design maps. No PNG is loaded at runtime.
+// v23 uses a pre-smoothed dense topology grid, bilinear sampling, and a 22-unit height range.
+// ═══════════════════════════════════════════════════════════════════════════
+const LEVEL4_MAP_W=1629,LEVEL4_MAP_H=786;
+const LEVEL4_WORLD_W=360,LEVEL4_WORLD_D=174;
+const LEVEL4_MASK_W=128,LEVEL4_MASK_H=62;
+const LEVEL4_TOPO_W=128,LEVEL4_TOPO_H=62;
+const LEVEL4_HEIGHT_SCALE=22;
+
+const LEVEL4_LAWN_B64='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAAAADwAAAAAAAAAAAAAP/AAAAB//gAAAAAAAAAAAD//wAAAf///AAAAAAAAAAA///AAAH////wAAAAAAAAAP//wAAD/////AAAAAAAAAD//+AAA/////wAAAAAAAAA///gAAP////8AAAAAAAAAP//4AAD/////AAAAAAAAAD///AAA/////wAAAAAAAAB///wAAP////8AAAAAAAAAf//8AAD/////AAAAAAAAAH///AAA/////wAAAAAAAAB///wAAP/////AAAAAAAAAf//+AAD/////PwAAAAAAAH///gAA/////xn4AAAAAAB///8AAP////84/8AAAAAAf///wAD/////8f/wAAAAAH////wA//////n/8AAAAAD/////5/////+H//AAAAAA////////////h//wAAAAAP///////////4//8AAAAAD//////////7+P//AAAAAA//////////8Az//wAAAAAP//////////AP//8AAAAAH//////////wD///gAAAAB///////8P/4A///4AAAAAf//////8AH+Af//+AAAAAH//////+AAHgH///gAAAAB///////AAAAB///4AAAAAf//////wAAAAf//+AAAAAH//////8AAAAAP//gAAAAD//////+AAAAAAAHgAAAAA///////gAAAAAAAAAAAAAP//////4AAAAAAAAAAAAAD//////8AAAAAAAAAAAAAA///////AAAAAAAAAAAAAAP//////gAAAAAAAAAAAAAD//////4AAAAAAAAAAAAAA//////8AAAAAAAAAAAAAAP//////AAAAAAAAAAAAAAB//////gAAAAAAAAAAAAAAAP////4AAAAAAAAAAAAAAAAB///+AAAAAAAAAAAAAAAAAAH//AAAAAAAAAAAAAAAAAAAAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+const LEVEL4_TOPO_B64='LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS83PkBAQEBAQEBAQEBAQEBBSFVcXFxcYGt3enp6enp6e4KOlZaWlpaWnKetrq6urq6urrC5wcPDxs/V1tbW1tbW19vi5ubm6e3w8PDw8fT4+fn5+fn6/P////////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tMDg/QEBAQEBAQEBAQEBAQEFJVlxcXFxeaXV6enp6enp6f4uUlpaWlpaapa2urq6urq6usLjAw8PFzdTW1tbW1tbW2+Lm5ubp7vDw8PDx9fj5+fn5+fr8/////////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0yOkBAQEBAQEBAQEBAQEBAQktXXFxcXF5odXp6enp6enp9iJOWlpaWlpmiq66urq6urq6vtr/Dw8XM1NbW1tbW1tbb4ubm5uru8PDw8PH1+Pn5+fn5+vz/////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLjQ8QEBAQEBAQEBAQEBAQEBCTFhcXFxcXmh1enp6enp6enuEkJaWlpaWl6Cqrq6urq6urq+0vsPDxMrS1tbW1tbW1tri5ubn6u/w8PDw8fX4+fn5+fn6/P////////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0vNj5AQEBAQEBAQEBAQEBAQENOWVxcXFxeaHV6enp6enp6eoKOlZaWlpaXnaiurq6urq6urrO9wsPEydHW1tbW1tbW2uLm5ufr7/Dw8PDx9fj5+fn5+fr8/////////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTA4P0BAQEBAQEBAQEBAQEBARE9aXFxcXF5odXp6enp6enp6f4yVlpaWlpabpq2urq6urq6usrvCw8PH0NXW1tbW1tbZ4eXm5+vv8PDw8PH1+Pn5+fn5+fz+////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tMTo/QEBAQEBAQEBAQEBAQEBEUVpcXFxcXmh1enp6enp6enp+ipSWlpaWlpmjrK6urq6urq6xusHDw8bO1dbW1tbW1tnh5ebo7PDw8PDw8fX5+fn5+fn5/P7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0zO0BAQEBAQEBAQEBAQEBAQEZTW1xcXFxeaHV6enp6enp6en2Ik5aWlpaWmKGrrq6urq6urrC4wcPDxczU1tbW1tbW2eDl5ujt8PDw8PDy9vn5+fn5+fn8/v///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLjQ9QEBAQEBAQEBAQEBAQEBAR1NbXFxcXF5odXp6enp6enp6fIaSlpaWlpaXnqmurq6urq6ur7bAw8PEy9PW1tbW1tbZ4OXm6e3w8PDw8PL2+fn5+fn5+fz+////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0vNj5AQEBAQEBAQEBAQEBAQEFIVVxcXFxcXmh1enp6enp6enp7hJGWlpaWlpacp62urq6urq6vtb7Dw8TJ0tbW1tbW1tng5ebp7vDw8PDw8vb5+fn5+fn5/P7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTA4P0BAQEBAQEBAQEBAQEBAQUpWXFxcXFxeZ3R6enp6enp6enuCj5aWlpaWlpqkra6urq6urq6zvcPDw8jQ1tbW1tbW2eDl5uru8PDw8PDy9vn5+fn5+fn8/v///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tMjpAQEBAQEBAQEBAQEBAQEBBS1dcXFxcXF1kcnl6enp6enp6e4GNlZaWlpaWmaKrrq6urq6urrK8wsPDx8/V1tbW1tbZ4OXn6u/w8PDw8PL2+fn5+fn5+fz+////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS40PEBAQEBAQEBAQEBAQEBAQEJNWFxcXFxcXGFueHp6enp6enp6f4uUlpaWlpaYoKqurq6urq6usbrCw8PFzdTW1tbW1tng5efr7/Dw8PDw8vb5+fn5+fn5+/7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLjY9QEBAQEBAQEBAQEBAQEBAQ05ZXFxcXFxcX2t2enp6enp6enp+iZSWlpaWlpedqK6urq6urq6wuMDDw8TL09bW1tbW2N/l5+vv8PDw8PDy9vn5+fn5+fn7/v///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS0wOD5AQEBAQEBAQEBAQEBAQEBDT1pcXFxcXFxdZ3R6enp6enp6en2HkpaWlpaWlpumra6urq6urq+2v8PDxMrS1tbW1tbY3+Xo7O/w8PDw8PL2+fn5+fn5+fv+////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLTE6P0BAQEBAQEBAQEBAQEBAQEVRWlxcXFxcXF1kcXl6enp6enp6e4OQlpaWlpaWmaOsrq6urq6ur7W+w8PDyNHW1tbW1tje5ejt8PDw8PDw8vb5+fn5+fn5+/7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0uMztAQEBAQEBAQEBAQEBAQEBARVJbXFxcXFxcXGFueHp6enp6enp6gIyVlpaWlpaXn6murq6urq6us7zCw8PH0NXW1tbW2N/l6e3w8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLS41PUBAQEBAQEBAQEBAQEBAQEBHVFtcXFxcXFxcX2p2enp6enp6enp9iJOWlpaWlpacpq2urq6urq6xu8LDw8bO1NbW1tbY3+Xp7vDw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0tLzc+QEBAQEBAQEBAQEBAQEBAQUhVW1xcXFxcXFxdZHF5enp6enp6enuEkJaWlpaWlpmiq66urq6urrC5wcPDxMvT1tbW1tng5enu8PDw8PDw8vb5+fn5+fn5+/7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS0xOT9AQEBAQEBAQEBAQEBAQEBBSlZcXFxcXFxcXFxfanV6enp6enp6eoCMlZaWlpaWl5+prq6urq6ur7bAw8PEydLW1tbW2eDm6u7w8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tLTI7QEBAQEBAQEBAQEBAQEBAQEJLV1xcXFxcXFxcXF1jbnh6enp6enp6fYiTlpaWlpaWm6Wtrq6urq6vtb7Dw8PI0NXW1tbZ4ebr7/Dw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0uNDxAQEBAQEBAQEBAQEBAQEBAQkxYXFxcXFxcXFxcXF5nc3l6enp6enp7hJCWlpaWlpaZoquurq6urq6zvMLDw8bO1dbW1trh5+vv8PDw8PDw8vb5+fn5+fn5+/7///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLS82PkBAQEBAQEBAQEBAQEBAQEBDTllcXFxcXFxcXFxcXGFsdnp6enp6enqAi5SWlpaWlpeeqK6urq6urrG6wsPDxczT1tbW2uLn7O/w8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0tMDg/QEBAQEBAQEBAQEBAQEBAQERPWlxcXFxcXFxcXFxcXWRxeXp6enp6en2GkpaWlpaWlpulra6urq6usLjBw8PEytLW1tbb4ufs7/Dw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLS0xOkBAQEBAQEBAQEBAQEBAQEBARVFaXFxcXFxcXFxcXFxcX2l1enp6enp6e4KOlZaWlpaWmKGrrq6urq6vt8DDw8PI0NbW1tvj6Ozw8PDw8PDw8vb5+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tLjM8QEBAQEBAQEBAQEBAQEBAQEBGUltcXFxcXFxcXFxcXFxdYm53enp6enp6fomTlpaWlpaXnqiurq6urq+1vsPDw8bO1dbX3OPo7fDw8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0vNT1AQEBAQEBAQEBAQEBAQEBAQEdUW1xcXFxcXFxcXFxcXFxeZnJ5enp6enp7hJCWlpaWlpabpayurq6ur7S+w8PDxc3U1tfc4+nt8PDw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLTA3PkBAQEBAQEBAQEBAQEBAQEBBSFVbXFxcXFxcXFxcXFxcXFxganV5enp6enp/i5SWlpaWlpihqq6urq6us7zCw8PEy9PW193k6e7w8PDw8PDw8vb5+fn5+fn5+vz///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0tMTk/QEBAQEBAQEBAQEBAQEBAQEFJVlxcXFxcXFxcXFxcXFxcXF1ibXZ6enp6enyGkZaWlpaWl52ora6urq6yvMLDw8TJ0tbX3eTq7vDw8PDw8PDy9vn5+fn5+fn7/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLS0zO0BAQEBAQEBAQEBAQEBAQEBAQktXXFxcXFxcXFxcXFxcXFxcXF1kb3d6enp6e4GNlZaWlpaWm6atrq6urrG6wsPDw8jR1tfe5eru8PDw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tLjU9QEBAQEBAQEBAQEBAQEBAQEBCTFhcXFxcXFxcXFxcXFxcXFxcXF5mcXh6enp6foiTlpaWlpaapa2urq6usbnBw8PDx8/V2N7l6+/w8PDw8PDw8vb5+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0tLS0vNz5AQEBAQEBAQEBAQEBAQEBAQENOWVxcXFxcXFxcXFxcXFxcXFxcXF9oc3l6enp7g4+VlpaWlpmirK6urq6wuMHDw8PFztXY3+br7/Dw8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLTA5P0BAQEBAQEBAQEBAQEBAQEBARE9ZXFxcXFxcXFxcXFxcXFxcXFxcXGBrdXp6enp/ipOWlpaWmKCqrq6urrC3wMPDw8XM1Njf5uzv8PDw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0tMjtAQEBAQEBAQEBAQEBAQEBAQEBDTFRYWVpbXFxcXFxcXFxcXFxcXFxcXWNud3p6enyEj5WWlpaXnqmurq6ur7a/w8PDxMrT2ODn7PDw8PDw8PDw8fX4+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0tLS40PEBAQEBAQEBAQEBAQEBAQEBAQEFFSUxOUVNWV1laW1xcXFxcXFxcXFxcXmZyeXp6en+Kk5aWlpacp62urq6vtb7Dw8PDydHZ4Ojt8PDw8PDw8PDy9vn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0tLzY+QEBAQEBAQEBAQEBAQEBAQEBAQEBBQkNFR0lLTlFUVlhaXFxcXFxcXFxcYGt2enp6fISPlZaWlpulra6urq60vcPDw8PH0Nnh6e7w8PDw8PDw8PL2+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS0wOD9AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQUJDRUdKTVJWWVtcXFxcXFxdZHB4enp6f4qTlpaWmaOsrq6urrO8wsPDw8bP2eLq7vDw8PDw8PDw8vb5+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0tLTE6P0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEFDRkpPU1daW1xcXFxfaHV6enp8hI+VlpaYoauurq6usrvCw8PDxs7Z4+rv8PDw8PDw8PDy9/n5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0uMzxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQkRHTFBVWVxcXFxibnh6enp/ipSWlpefqa6urq6xusLDw8PGztnj6u/w8PDw8PDw8PT4+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLS41PUBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEFCRUpSWVxcXF5nc3l6enyFkZaWl52orq6urrG5wcPDw8bO2uTr7/Dw8PDw8PDx9Pj5+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0tLzc+QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQkpVXFxcXGFueHp6e4OQlpaWm6atrq6usLjAw8PDxs/b5ezw8PDw8PDw8PH0+Pn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLS0tLS0xOT9AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBARVBaXFxcX2l2enp7gY6VlpaapKyurq6vt8DDw8PFztvl7PDw8PDw8PDw8fX4+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0tLS0tLTI7QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBCS1dcXFxdZ3R6enp/i5WWlpmkrK6urq+1v8PDw8XO2+Xs7/Dw8PDw8PDx9fj5+fn5+fn5+v3///////////////////8tLS0tLS0tLS0tLS0tLS0uND1AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBGUlpcXF1kcnl6en6KlJaWmaOsrq6ur7S+w8PDxc7b5ezv8PDw8PDw8PH1+fn5+fn5+fn5+/7//////////////////y0tLS0tLS0tLS0tLS0tLS82PkBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQENMWFxcXGFveHp6fYiTlpaZo6yurq6vtL7Dw8PFztvl6+/w8PDw8PDw8vb5+fn5+fn5+fn7/v//////////////////LS0tLS0tLS0tLS0tLS0tMDg/QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQUdTW1xcYGx3enp9iJOWlpmirK6urq60vcPDw8XO2+Tq7/Dw8PDw8PDy9vn5+fn5+fn5+vz///////////////////8tLS0tLS0tLS0tLS0tLS0yOj9AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBARE9ZXFxeaXZ6en6KlJaWmaKsrq6urrS9w8PDxc3a5Oru8PDw8PDw8PL2+fn5+fn5+fn6/P///////////////////y0tLS0tLS0tLS0tLS0tLjQ8QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBDTllcXF1ndHp6f4uUlpaYoquurq6utL3Dw8PFzdnj6e7w8PDw8PDw8vb5+fn5+fn5+fn7/v//////////////////LS0tLS0tLS0tLS0tLS0uNj1AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQENOWVxcXmh1enp/i5SWlpihq66urq6zvcLDw8TM2OPo7fDw8PDw8PDy9/n5+fn5+fn5+fv+//////////////////8tLS0tLS0tLS0tLS0tLTA4P0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ09aXFxfanZ6eoCMlZaWmKGrrq6urrO9wsPDxMvX4ujt8PDw8PDw8PP3+fn5+fn5+fn5/P7//////////////////y0tLS0tLS0tLS0tLS0tMTo/QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBEUFpcXGBteHp6gY2VlpaYoauurq6us73Cw8PEytbh5+zw8PDw8PDw8/f5+fn5+fn5+fn7/v//////////////////LS0tLS0tLS0tLS0tLS4zO0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEVRWlxcYnB5enuCj5WWlpihq66urq6zvcLDw8TK1uHn7O/w8PDw8PH0+Pn5+fn5+fn5+fv+//////////////////8tLS0tLS0tLS0tLS0tLjU9QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBARlJbXF1lcnl6fIWRlpaWmaKsrq6urrS9w8PDxMrV4Obr7/Dw8PDw8fX4+fn5+fn5+fn5/P7//////////////////y0tLS0tLS0tLS0tLS0wNz5AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBGU1tcX2l2enp+iZOWlpaZo6yurq6vtL7Dw8PEydTf5uvv8PDw8PDy9vn5+fn5+fn5+fn8/v//////////////////LS0tLS0tLS0tLS0tLTE5P0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQUdUW1xib3h6eoCMlZaWlpmkrK6urq+2v8PDw8TI097l6u7w8PDw8PP3+fn5+fn5+fn5+fz+//////////////////8tLS0tLS0tLS0tLS0uMztAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBBSFVbXmZzenp7hJCWlpaWmqSsrq6ur7fAw8PDw8jS3eXp7vDw8PDx9Pj5+fn5+fn5+fn5/P7//////////////////y0tLS0tLS0tLS0tLS40PUBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEFIVlxgbHd6en2IkpaWlpaapa2urq6wuMHDw8PDyNLd5Onu8PDw8PH1+Pn5+fn5+fn5+fn8/v//////////////////LS0tLS0tLS0tLS0tLzY+QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQUlWXGRxeXp6f4uUlpaWlpumra6urrG5wcPDw8PH0dzk6e7w8PDw8vb5+fn5+fn5+fn5+vz///////////////////8tLS0tLS0tLS0tLS0wOD9AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBBSlZeaXV6enuCjpWWlpaWm6atrq6usbrCw8PDw8fQ3OTp7vDw8PDz9/n5+fn5+fn5+fn6/f///////////////////y0tLS0tLS0tLS0tLTI6P0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEJLWGJueHp6e4SRlpaWlpacp62urq6yu8LDw8PDxtDb5Onu8PDw8fT4+fn5+fn5+fn5+fr9////////////////////LS0tLS0tLS0tLS0uNDxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQkxaZnN6enp8h5KWlpaWlp2ora6urrO9wsPDw8PGz9vk6e7w8PDy9vn5+fn5+fn5+fn5+/7///////////////////8tLS0tLS0tLS0tLS81PUBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBDTlxqdnp6en6JlJaWlpaXnqmurq6vtb7Dw8PDw8bO2+Tp7vDw8PL3+fn5+fn5+fn5+fn7/v///////////////////w==';
+
+function decodeBase64Bytes(s){
+    const raw=atob(s),out=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+    return out;
+}
+const LEVEL4_LAWN_BITS=decodeBase64Bytes(LEVEL4_LAWN_B64);
+const LEVEL4_TOPO=decodeBase64Bytes(LEVEL4_TOPO_B64);
+
+function level4MapToWorld(px,py){
+    return {
+        x:(px/LEVEL4_MAP_W-.5)*LEVEL4_WORLD_W,
+        z:(py/LEVEL4_MAP_H-.5)*LEVEL4_WORLD_D
+    };
+}
+function level4WorldToMask(x,z){
+    return {
+        mx:Math.floor((x/LEVEL4_WORLD_W+.5)*LEVEL4_MASK_W),
+        my:Math.floor((z/LEVEL4_WORLD_D+.5)*LEVEL4_MASK_H)
+    };
+}
+function level4MaskBit(mx,my){
+    if(mx<0||my<0||mx>=LEVEL4_MASK_W||my>=LEVEL4_MASK_H)return 0;
+    const bit=my*LEVEL4_MASK_W+mx;
+    return (LEVEL4_LAWN_BITS[bit>>3]>>(7-(bit&7)))&1;
+}
+function level4IsMowable(x,z){
+    const m=level4WorldToMask(x,z);
+    return !!level4MaskBit(m.mx,m.my);
+}
+function level4HeightAt(x,z){
+    if(LEVEL4_HEIGHT_SCALE===0)return 0;
+
+    // Continuous bilinear sampling of the embedded height map.
+    // This removes the cell-edge "steps" from the previous nearest-neighbour sampler.
+    const fx=Math.max(0,Math.min(LEVEL4_TOPO_W-1,(x/LEVEL4_WORLD_W+.5)*(LEVEL4_TOPO_W-1)));
+    const fy=Math.max(0,Math.min(LEVEL4_TOPO_H-1,(z/LEVEL4_WORLD_D+.5)*(LEVEL4_TOPO_H-1)));
+
+    const x0=Math.floor(fx), y0=Math.floor(fy);
+    const x1=Math.min(x0+1,LEVEL4_TOPO_W-1);
+    const y1=Math.min(y0+1,LEVEL4_TOPO_H-1);
+    const ax=fx-x0, ay=fy-y0;
+
+    const h00=LEVEL4_TOPO[y0*LEVEL4_TOPO_W+x0]/255;
+    const h10=LEVEL4_TOPO[y0*LEVEL4_TOPO_W+x1]/255;
+    const h01=LEVEL4_TOPO[y1*LEVEL4_TOPO_W+x0]/255;
+    const h11=LEVEL4_TOPO[y1*LEVEL4_TOPO_W+x1]/255;
+
+    const h0=h00+(h10-h00)*ax;
+    const h1=h01+(h11-h01)*ax;
+    return (h0+(h1-h0)*ay)*LEVEL4_HEIGHT_SCALE;
+}
+
+function l4Asset(id,x,z,rotation=0,scale=1,fallback=null){
+    const opts={x,y:0,z,rotation,scale};
+    const now=spawnSceneryGLB(id,opts);
+    if(now)return now;
+    whenSceneryResolved(id,status=>{
+        if(status==='ready')spawnSceneryGLB(id,opts);
+        else if(fallback)fallback();
+    });
+    return null;
+}
+function l4CheapTree(x,z,s=1){
+    const g=new THREE.Group();
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.32,.50,4.3,5),new THREE.MeshStandardMaterial({color:0x5a3b22}));
+    trunk.position.y=2.15;g.add(trunk);
+    const crown=new THREE.Mesh(new THREE.ConeGeometry(2.5,7.5,6),new THREE.MeshStandardMaterial({color:0x285b2b}));
+    crown.position.y=6.8;g.add(crown);
+    g.scale.setScalar(s);g.position.set(x,level4HeightAt(x,z),z);scene.add(g);
+}
+function l4Forest(x1,y1,x2,y2,count){
+    for(let i=0;i<count;i++){
+        const p=level4MapToWorld(x1+Math.random()*(x2-x1),y1+Math.random()*(y2-y1));
+        if(i%7===0){
+            const ids=['pine1','pine2','pine3','pine4','pine5','birch01','birch02','birch03','birch04'];
+            const id=ids[i%ids.length];
+            l4Asset(id,p.x,p.z,Math.random()*Math.PI*2,.82+Math.random()*.30,()=>l4CheapTree(p.x,p.z,.9));
+        }else l4CheapTree(p.x,p.z,.70+Math.random()*.35);
+    }
+}
+function l4RedBox(px,py,wpx,hpx){
+    const p=level4MapToWorld(px,py);
+    const w=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W,d=hpx/LEVEL4_MAP_H*LEVEL4_WORLD_D,h=Math.max(6,Math.min(12,w*.45));
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:0xa52a2a,roughness:.85}));
+    m.position.set(p.x,level4HeightAt(p.x,p.z)+h/2,p.z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
+}
+function l4House(id,px,py,wpx,hpx){
+    const p=level4MapToWorld(px,py);
+    const drawnW=wpx/LEVEL4_MAP_W*LEVEL4_WORLD_W;
+    const base=id==='house9'?30:(id==='house7'?34:24);
+    const s=Math.max(.55,drawnW/base);
+    l4Asset(id,p.x,p.z,0,s,()=>l4RedBox(px,py,wpx,hpx));
+}
+function l4FenceRect(x1,y1,x2,y2){
+    const a=level4MapToWorld(x1,y1),b=level4MapToWorld(x2,y2);
+    const runs=[[a.x,a.z,b.x,a.z],[b.x,a.z,b.x,b.z],[b.x,b.z,a.x,b.z],[a.x,b.z,a.x,a.z]];
+    runs.forEach(([ax,az,bx,bz])=>{
+        const dx=bx-ax,dz=bz-az,L=Math.hypot(dx,dz),n=Math.max(1,Math.ceil(L/10));
+        for(let i=0;i<n;i++){
+            const f=(i+.5)/n,x=ax+dx*f,z=az+dz*f;
+            l4Asset('fence01',x,z,Math.atan2(dz,dx),(L/n)/10);
+        }
+    });
+}
+function l4Strip(p1,p2,width,color){
+    const a=level4MapToWorld(...p1),b=level4MapToWorld(...p2);
+    const dx=b.x-a.x,dz=b.z-a.z,L=Math.hypot(dx,dz);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(L,width),new THREE.MeshStandardMaterial({color,roughness:1}));
+    m.rotation.x=-Math.PI/2;m.rotation.z=-Math.atan2(dz,dx);
+    const sx=(a.x+b.x)/2,sz=(a.z+b.z)/2;
+    m.position.set(sx,level4HeightAt(sx,sz)+.05,sz);scene.add(m);
+}
+
 function setupLakeLevel(){
-    lawnWorldSize=180;animatedClouds=[];trampolineKids=[];
+    lawnWorldSize=LEVEL4_WORLD_W;
+    animatedClouds=[];trampolineKids=[];
     addSunAndClouds();
-    const res=lawnTexResolution;
-    lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=res;
+
+    // v23 topology: pre-smoothed and denser embedded height data for stronger, softer hills.
+    const groundGeo=new THREE.PlaneGeometry(LEVEL4_WORLD_W,LEVEL4_WORLD_D,192,92);
+    groundGeo.rotateX(-Math.PI/2);
+    const gp=groundGeo.attributes.position;
+    for(let i=0;i<gp.count;i++){
+        gp.setY(i,level4HeightAt(gp.getX(i),gp.getZ(i)));
+    }
+    gp.needsUpdate=true;
+    groundGeo.computeVertexNormals();
+    const ground=new THREE.Mesh(
+        groundGeo,
+        new THREE.MeshStandardMaterial({color:0x6cae45,roughness:.92})
+    );
+    ground.receiveShadow=true;scene.add(ground);
+
+    // Build the mowing canvas directly from the embedded hardcoded bit mask.
+    // lawnTexResolution is a global const (=512) in the stable game core.
+    lawnCanvas=document.createElement('canvas');
+    lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
-    lawnContext.fillStyle='#0f380f';lawnContext.fillRect(0,0,res,res);
-    lawnContext.fillStyle='#1e90ff';lawnContext.fillRect(0,0,res*0.22,res);
-    lawnContext.fillStyle=COLOR_UNCUT;lawnContext.beginPath();lawnContext.moveTo(res*0.22,0);lawnContext.lineTo(res*0.95,0);lawnContext.lineTo(res*0.95,res);lawnContext.lineTo(res*0.22,res);lawnContext.fill();
-    lawnContext.fillStyle='#0f380f';lawnContext.beginPath();lawnContext.arc(res*0.55,res*0.25,70,0,Math.PI*2);lawnContext.fill();
-    lawnContext.fillStyle='#c2b280';lawnContext.fillRect(res*0.35,res*0.1,res*0.2,18);lawnContext.fillRect(res*0.8,res*0.05,res*0.18,18);lawnContext.fillRect(res*0.8,res*0.25,res*0.18,18);lawnContext.fillRect(res*0.35,res*0.92,res*0.25,20);
-    {const d=lawnContext.getImageData(0,0,res,res).data;let count=0;for(let i=0;i<d.length;i+=4){if(d[i]>80&&d[i+1]>100&&d[i+2]<80)count++;}totalCuttablePixels=Math.max(count,1);}
+    lawnContext.fillStyle='#0f380f';
+    lawnContext.fillRect(0,0,lawnTexResolution,lawnTexResolution);
+
+    const cellW=lawnTexResolution/LEVEL4_MASK_W;
+    const cellH=lawnTexResolution/LEVEL4_MASK_H;
+    lawnContext.fillStyle=COLOR_UNCUT;
+    let mowableCells=0;
+    for(let my=0;my<LEVEL4_MASK_H;my++){
+        for(let mx=0;mx<LEVEL4_MASK_W;mx++){
+            if(level4MaskBit(mx,my)){
+                lawnContext.fillRect(mx*cellW,my*cellH,Math.ceil(cellW)+1,Math.ceil(cellH)+1);
+                mowableCells++;
+            }
+        }
+    }
+    totalCuttablePixels=Math.max(1,Math.round(mowableCells*cellW*cellH));
+
     lawnTexture=new THREE.CanvasTexture(lawnCanvas);
-    lawn=new THREE.Mesh(new THREE.PlaneGeometry(lawnWorldSize,lawnWorldSize),new THREE.MeshStandardMaterial({map:lawnTexture,roughness:0.8}));
-    lawn.rotation.x=-Math.PI/2;scene.add(lawn);
-    const world=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000),new THREE.MeshStandardMaterial({color:0x0f380f}));world.rotation.x=-Math.PI/2;world.position.y=-0.2;scene.add(world);
-    for(let i=0;i<50;i++){const tx=-80+Math.random()*20,tz=-80+Math.random()*160;spawnTree(tx,tz,0);const tx2=20+Math.random()*25,tz2=-50+Math.random()*30;spawnTree(tx2,tz2,0);}
-    spawnFruitTree(30,-30,0);spawnFruitTree(38,-30,0);spawnFruitTree(46,-30,0);
-    spawnTrampoline(-10,-40,0);
-    spawnRedHouse(-30,-60,0,false);spawnRedHouse(-35,20,0,false);spawnRedHouse(65,25,0,true);spawnRedHouse(75,-40,0,false);spawnRedHouse(85,-30,0,false);spawnRedHouse(78,-10,0,false);
-    if(mowerGroup)mowerGroup.position.set(0,0,0);
+    const lawnGeo=new THREE.PlaneGeometry(LEVEL4_WORLD_W,LEVEL4_WORLD_D,192,92);
+    lawnGeo.rotateX(-Math.PI/2);
+    const lgp=lawnGeo.attributes.position;
+    for(let i=0;i<lgp.count;i++){
+        lgp.setY(i,level4HeightAt(lgp.getX(i),lgp.getZ(i))+.025);
+    }
+    lgp.needsUpdate=true;
+    lawnGeo.computeVertexNormals();
+    lawn=new THREE.Mesh(
+        lawnGeo,
+        new THREE.MeshStandardMaterial({map:lawnTexture,roughness:.88})
+    );
+    scene.add(lawn);
+
+    // Water on the left.
+    const water=new THREE.Mesh(
+        new THREE.PlaneGeometry(78,LEVEL4_WORLD_D+18),
+        new THREE.MeshStandardMaterial({color:0x4f79d9,roughness:.25})
+    );
+    water.rotation.x=-Math.PI/2;
+    water.position.set(-141,.04,0);
+    scene.add(water);
+
+    // Road and ditches from the user's item map.
+    l4Strip([1510,80],[1605,770],9,0x555555);
+    l4Strip([1280,330],[1545,370],6,0x555555);
+    l4Strip([335,715],[810,780],1.8,0xd9d5b9);
+    l4Strip([880,174],[1220,215],1.8,0xd9d5b9);
+
+    // Forest masses: cheap trees for density, occasional GLB trees for variety.
+    l4Forest(180,85,405,710,52);
+    l4Forest(545,10,975,410,64);
+    l4Forest(825,515,1515,700,50);
+    l4Forest(1280,200,1455,345,20);
+
+    // Explicit lighter-green tree markers.
+    [[902,287],[925,298],[946,294],[963,309],[980,318],
+      [1448,430],[1445,456],[1442,484],[1436,521],[1428,556]].forEach((p,i)=>{
+        const w=level4MapToWorld(...p);
+        l4Asset(i%2?'tree2':'tree1',w.x,w.z,Math.random()*Math.PI*2,.95+Math.random()*.10,()=>l4CheapTree(w.x,w.z,1));
+    });
+
+    // Dark-green bush markers use bush1.glb.
+    [[895,329],[911,338],[927,337],[941,349],[954,360]].forEach(p=>{
+        const w=level4MapToWorld(...p);
+        l4Asset('bush1',w.x,w.z,Math.random()*Math.PI*2,.9+Math.random()*.15);
+    });
+
+    // Cyan agriculture plot: fence + several bushes.
+    l4FenceRect(725,560,785,637);
+    for(let y=575;y<=622;y+=15){
+        for(let x=738;x<=772;x+=17){
+            const w=level4MapToWorld(x,y);
+            l4Asset('bush1',w.x,w.z,0,.65);
+        }
+    }
+
+    // Existing trampoline with two jumping children.
+    {
+        const w=level4MapToWorld(585,310);
+        spawnTrampoline(w.x,w.z,level4HeightAt(w.x,w.z));
+    }
+
+    // Buildings from the numbered map.
+    l4House('house9',1213,515,92,96); // 1
+    l4RedBox(1302,445,45,57);         // 2
+    l4RedBox(1288,377,34,39);         // 3
+    l4RedBox(1348,391,37,39);         // 4
+    l4House('house8',847,351,35,30);  // 5
+    l4RedBox(348,270,49,44);          // 6
+    l4House('house7',315,618,66,49);  // 7
+    l4House('house9',1112,100,126,61);// 8
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
@@ -2766,7 +3004,7 @@ window.confirmStartLevel=function(){
         1:{x:0,z:25},
         2:{x:0,z:0},
         3:{x:0,z:50},
-        4:{x:25,z:55}
+        4:level4MapToWorld(650,520)
     };
     const spawn=spawnMap[currentLevel]||{x:0,z:0};
     mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
@@ -2874,7 +3112,7 @@ function animate(){
     renderer.render(scene,camera);
 }
 
-function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax&&nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&nx<-(lawnWorldSize/2)*0.56)return false;return true;}
+function canMoveTo(nx,nz){const b=(lawnWorldSize/2)-mowerStats.radius;if(nx<-b||nx>b||nz<-b||nz>b)return false;if(currentLevel===1&&nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax&&nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax)return false;if(currentLevel===3&&pondCollider){const ex=(nx-pondCollider.cx)/pondCollider.rx,ez=(nz-pondCollider.cz)/pondCollider.rz;if(ex*ex+ez*ez<1.0)return false;}if(currentLevel===4&&!level4IsMowable(nx,nz))return false;return true;}
 function updateMowerPhysics(dt=1/60){
     if(!mowerGroup)return;
 
@@ -2921,8 +3159,12 @@ function updateMowerPhysics(dt=1/60){
 function paintCutTrail(){
     if(!lawnContext||!mowerGroup)return;
 
-    const uvX=(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;
-    const uvY=(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;
+    const uvX=currentLevel===4
+        ?(mowerGroup.position.x+LEVEL4_WORLD_W/2)/LEVEL4_WORLD_W
+        :(mowerGroup.position.x+lawnWorldSize/2)/lawnWorldSize;
+    const uvY=currentLevel===4
+        ?(mowerGroup.position.z+LEVEL4_WORLD_D/2)/LEVEL4_WORLD_D
+        :(mowerGroup.position.z+lawnWorldSize/2)/lawnWorldSize;
     const tx=uvX*lawnTexResolution,ty=uvY*lawnTexResolution;
     const lx=lawnCanvas.lastPaintedX||tx,ly=lawnCanvas.lastPaintedY||ty;
 
@@ -2936,7 +3178,7 @@ function paintCutTrail(){
             lawnContext.strokeStyle=COLOR_CUT;
         }
 
-        lawnContext.lineWidth=(mowerStats.cutWidth/lawnWorldSize)*lawnTexResolution;
+        lawnContext.lineWidth=(mowerStats.cutWidth/(currentLevel===4?LEVEL4_WORLD_W:lawnWorldSize))*lawnTexResolution;
         lawnContext.lineCap='round';
         lawnContext.beginPath();
         lawnContext.moveTo(lx,ly);
