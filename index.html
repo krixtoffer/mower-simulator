@@ -774,6 +774,12 @@ function getTerrainHeight(x,z){
     return 0;
 }
 
+
+function positioned(obj,x,y,z){
+    obj.position.set(x,y,z);
+    return obj;
+}
+
 function addSunAndClouds(){
     const sun=new THREE.Mesh(new THREE.SphereGeometry(8,16,16),new THREE.MeshBasicMaterial({color:0xffee88})); sun.position.set(120,160,-200); scene.add(sun);
     const halo=new THREE.Mesh(new THREE.SphereGeometry(12,16,16),new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:0.15})); halo.position.copy(sun.position); scene.add(halo);
@@ -802,53 +808,53 @@ function buildCharacter(pose){
     const beardMat =new THREE.MeshStandardMaterial({color:0xffffff});
     const S=1.0;
     const torso=new THREE.Group();
-    torso.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2.8*S,3.2*S,1.6*S),shirtMat),{position:new THREE.Vector3(0,0,0)}));
-    torso.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.6*S,3.2*S,1.65*S),shirtMat2),{position:new THREE.Vector3(0,0,0)}));
-    torso.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.4*S,0.5*S,1.65*S),shirtMat2),{position:new THREE.Vector3(0,1.7*S,0)}));
+    torso.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(2.8*S,3.2*S,1.6*S),shirtMat),0,0,0));
+    torso.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.6*S,3.2*S,1.65*S),shirtMat2),0,0,0));
+    torso.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(1.4*S,0.5*S,1.65*S),shirtMat2),0,1.7*S,0));
     torso.position.set(0,4.2*S,0); torso.castShadow=true; g.add(torso);
     const suspGeo=new THREE.BoxGeometry(0.18*S,3.2*S,0.18*S);
-    g.add(Object.assign(new THREE.Mesh(suspGeo,suspMat),{position:new THREE.Vector3(-0.9*S,4.2*S,0.82*S)}));
-    g.add(Object.assign(new THREE.Mesh(suspGeo,suspMat),{position:new THREE.Vector3(0.9*S,4.2*S,0.82*S)}));
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.18*S,0.18*S),suspMat),{position:new THREE.Vector3(0,5.5*S,-0.82*S)}));
+    g.add(positioned(new THREE.Mesh(suspGeo,suspMat),-0.9*S,4.2*S,0.82*S));
+    g.add(positioned(new THREE.Mesh(suspGeo,suspMat),0.9*S,4.2*S,0.82*S));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.18*S,0.18*S),suspMat),0,5.5*S,-0.82*S));
     const headG=new THREE.Group();
     const head=new THREE.Mesh(new THREE.BoxGeometry(2.2*S,2.4*S,2.1*S),skinMat); head.scale.set(1,1,0.9); headG.add(head);
     [-0.85,0.85].forEach(hx=>{ const cheek=new THREE.Mesh(new THREE.SphereGeometry(0.45*S,8,8),skinMat); cheek.position.set(hx*S,0.1*S,0.9*S); headG.add(cheek); });
     const nose=new THREE.Mesh(new THREE.SphereGeometry(0.22*S,8,8),skinMat); nose.scale.set(1,0.8,1.4); nose.position.set(0,-0.1*S,1.05*S); headG.add(nose);
-    headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.6*S,0.7*S,0.5*S),beardMat),{position:new THREE.Vector3(0,-0.9*S,0.8*S)}));
-    headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.0*S,0.25*S,0.3*S),beardMat),{position:new THREE.Vector3(0,-0.3*S,1.05*S)}));
+    headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(1.6*S,0.7*S,0.5*S),beardMat),0,-0.9*S,0.8*S));
+    headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(1.0*S,0.25*S,0.3*S),beardMat),0,-0.3*S,1.05*S));
     [-0.5,0.5].forEach(gx=>{
         const lensRim=new THREE.Mesh(new THREE.TorusGeometry(0.28*S,0.05*S,8,16),frameMat); lensRim.position.set(gx*S,0.2*S,1.06*S); headG.add(lensRim);
-        headG.add(Object.assign(new THREE.Mesh(new THREE.CircleGeometry(0.23*S,16),glassMat),{position:new THREE.Vector3(gx*S,0.2*S,1.07*S)}));
+        headG.add(positioned(new THREE.Mesh(new THREE.CircleGeometry(0.23*S,16),glassMat),gx*S,0.2*S,1.07*S));
     });
-    headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.44*S,0.06*S,0.06*S),frameMat),{position:new THREE.Vector3(0,0.2*S,1.06*S)}));
-    [-1.15,1.15].forEach(ex=>{ headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.08*S,0.06*S,0.5*S),frameMat),{position:new THREE.Vector3(ex*S,0.2*S,0.8*S)})); });
+    headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.44*S,0.06*S,0.06*S),frameMat),0,0.2*S,1.06*S));
+    [-1.15,1.15].forEach(ex=>{ headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.08*S,0.06*S,0.5*S),frameMat),ex*S,0.2*S,0.8*S)); });
     const hairSide=new THREE.MeshStandardMaterial({color:0xdddddd});
-    [-0.9,0.9].forEach(hx=>{ headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.35*S,0.8*S,1.6*S),hairSide),{position:new THREE.Vector3(hx*S,0.9*S,0)})); });
-    headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.6*S,0.4*S),hairSide),{position:new THREE.Vector3(0,0.8*S,-0.85*S)}));
-    headG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2.6*S,0.2*S,2.4*S),capMat),{position:new THREE.Vector3(0,1.25*S,0.1*S)}));
-    headG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(1.1*S,1.2*S,1.1*S,12),capMat),{position:new THREE.Vector3(0,1.8*S,0)}));
-    headG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.15*S,0.15*S,0.2*S,8),new THREE.MeshStandardMaterial({color:0x222222})),{position:new THREE.Vector3(0,2.4*S,0)}));
+    [-0.9,0.9].forEach(hx=>{ headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.35*S,0.8*S,1.6*S),hairSide),hx*S,0.9*S,0)); });
+    headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(1.8*S,0.6*S,0.4*S),hairSide),0,0.8*S,-0.85*S));
+    headG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(2.6*S,0.2*S,2.4*S),capMat),0,1.25*S,0.1*S));
+    headG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(1.1*S,1.2*S,1.1*S,12),capMat),0,1.8*S,0));
+    headG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.15*S,0.15*S,0.2*S,8),new THREE.MeshStandardMaterial({color:0x222222})),0,2.4*S,0));
     const peak=new THREE.Mesh(new THREE.BoxGeometry(2.2*S,0.18*S,1.0*S),capMat); peak.position.set(0,1.25*S,1.2*S); peak.rotation.x=0.15; headG.add(peak);
     headG.position.set(0,7.0*S,0); headG.castShadow=true; g.add(headG);
     const leftArmG=new THREE.Group(); leftArmG.position.set(-1.6*S,5.8*S,0);
-    leftArmG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.38*S,2.0*S,8),shirtMat),{position:new THREE.Vector3(0,-1.0*S,0)}));
-    leftArmG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.35*S,0.3*S,1.8*S,8),shirtMat),{position:new THREE.Vector3(0,-2.9*S,0)}));
-    leftArmG.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(0.32*S,8,8),skinMat),{position:new THREE.Vector3(0,-3.85*S,0)}));
+    leftArmG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.38*S,2.0*S,8),shirtMat),0,-1.0*S,0));
+    leftArmG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.35*S,0.3*S,1.8*S,8),shirtMat),0,-2.9*S,0));
+    leftArmG.add(positioned(new THREE.Mesh(new THREE.SphereGeometry(0.32*S,8,8),skinMat),0,-3.85*S,0));
     leftArmG.castShadow=true; g.add(leftArmG); charLeftArm=leftArmG;
     const rightArmG=new THREE.Group(); rightArmG.position.set(1.6*S,5.8*S,0);
-    rightArmG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.38*S,2.0*S,8),shirtMat),{position:new THREE.Vector3(0,-1.0*S,0)}));
-    rightArmG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.35*S,0.3*S,1.8*S,8),shirtMat),{position:new THREE.Vector3(0,-2.9*S,0)}));
-    rightArmG.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(0.32*S,8,8),skinMat),{position:new THREE.Vector3(0,-3.85*S,0)}));
+    rightArmG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.38*S,2.0*S,8),shirtMat),0,-1.0*S,0));
+    rightArmG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.35*S,0.3*S,1.8*S,8),shirtMat),0,-2.9*S,0));
+    rightArmG.add(positioned(new THREE.Mesh(new THREE.SphereGeometry(0.32*S,8,8),skinMat),0,-3.85*S,0));
     rightArmG.castShadow=true; g.add(rightArmG); charRightArm=rightArmG;
     const leftLegG=new THREE.Group(); leftLegG.position.set(-0.75*S,2.6*S,0);
-    leftLegG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.55*S,0.48*S,2.4*S,8),pantsMat),{position:new THREE.Vector3(0,-1.2*S,0)}));
-    leftLegG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.36*S,2.2*S,8),pantsMat),{position:new THREE.Vector3(0,-3.3*S,0)}));
-    leftLegG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.9*S,0.6*S,1.4*S),bootMat),{position:new THREE.Vector3(0,-4.5*S,0.2*S)}));
+    leftLegG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.55*S,0.48*S,2.4*S,8),pantsMat),0,-1.2*S,0));
+    leftLegG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.36*S,2.2*S,8),pantsMat),0,-3.3*S,0));
+    leftLegG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.9*S,0.6*S,1.4*S),bootMat),0,-4.5*S,0.2*S));
     leftLegG.castShadow=true; g.add(leftLegG); charLeftLeg=leftLegG;
     const rightLegG=new THREE.Group(); rightLegG.position.set(0.75*S,2.6*S,0);
-    rightLegG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.55*S,0.48*S,2.4*S,8),pantsMat),{position:new THREE.Vector3(0,-1.2*S,0)}));
-    rightLegG.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.36*S,2.2*S,8),pantsMat),{position:new THREE.Vector3(0,-3.3*S,0)}));
-    rightLegG.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.9*S,0.6*S,1.4*S),bootMat),{position:new THREE.Vector3(0,-4.5*S,0.2*S)}));
+    rightLegG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.55*S,0.48*S,2.4*S,8),pantsMat),0,-1.2*S,0));
+    rightLegG.add(positioned(new THREE.Mesh(new THREE.CylinderGeometry(0.42*S,0.36*S,2.2*S,8),pantsMat),0,-3.3*S,0));
+    rightLegG.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(0.9*S,0.6*S,1.4*S),bootMat),0,-4.5*S,0.2*S));
     rightLegG.castShadow=true; g.add(rightLegG); charRightLeg=rightLegG;
     if(pose==='sit'){
         charLeftLeg.rotation.x=-Math.PI/2; charLeftLeg.position.set(-0.75*S,1.8*S,0);
@@ -920,26 +926,26 @@ function buildHouseDetailed(x,z,wallColor,rotY=0){
     const doorMat=new THREE.MeshStandardMaterial({color:0x5c3317});
     const door=new THREE.Mesh(new THREE.BoxGeometry(8,14,0.8),doorMat); door.position.set(0,7,20.5); g.add(door);
     const stepMat=new THREE.MeshStandardMaterial({color:0x999988});
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(12,2,4),stepMat),{position:new THREE.Vector3(0,1,22.5)}));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(12,2,4),stepMat),0,1,22.5));
     addWin(g,-18,14,20.5,false); addWin(g,18,14,20.5,false); addWin(g,-18,14,-20.5,false); addWin(g,18,14,-20.5,false);
     addWin(g,30.5,14,-10,true); addWin(g,-30.5,14,-10,true);
     const garMat=new THREE.MeshStandardMaterial({color:0xddddbb});
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(28,20,35),garMat),{position:new THREE.Vector3(-44,10,2)}));
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(30,2,37),roofMat),{position:new THREE.Vector3(-44,21,2)}));
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(22,14,0.5),new THREE.MeshStandardMaterial({color:0xaaaaaa})),{position:new THREE.Vector3(-44,7,19.6)}));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(28,20,35),garMat),-44,10,2));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(30,2,37),roofMat),-44,21,2));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(22,14,0.5),new THREE.MeshStandardMaterial({color:0xaaaaaa})),-44,7,19.6));
     g.position.set(x,0,z); g.rotation.y=rotY; scene.add(g);
 }
 function addWin(g,x,y,z,isSide){
     const gMat=new THREE.MeshStandardMaterial({color:0x9ecfff,transparent:true,opacity:0.6});
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.5:10,10,isSide?10:0.5),gMat),{position:new THREE.Vector3(x,y,z)}));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.5:10,10,isSide?10:0.5),gMat),x,y,z));
     const fw=new THREE.MeshStandardMaterial({color:0xffffff});
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.7:12,1.5,isSide?12:0.7),fw),{position:new THREE.Vector3(x,y+5.5,z)}));
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.7:12,1.5,isSide?12:0.7),fw),{position:new THREE.Vector3(x,y-5.5,z)}));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.7:12,1.5,isSide?12:0.7),fw),x,y+5.5,z));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(isSide?0.7:12,1.5,isSide?12:0.7),fw),x,y-5.5,z));
     const cc=[0xff9999,0xffcc88,0xaaccff,0xddaaff,0xaaffaa,0xffd700];
     const cMat=new THREE.MeshStandardMaterial({color:cc[Math.floor(Math.random()*cc.length)],side:THREE.DoubleSide});
     if(isSide){[-3,3].forEach(dz=>{const c=new THREE.Mesh(new THREE.PlaneGeometry(4,8),cMat);c.position.set(x+(x>0?.5:-.5),y,z+dz);c.rotation.y=Math.PI/2;g.add(c);});}
     else{[-3,3].forEach(dx=>{const c=new THREE.Mesh(new THREE.PlaneGeometry(4,8),cMat);c.position.set(x+dx,y,z+(z>0?.5:-.5));g.add(c);});}
-    g.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(isSide?1:12,2,isSide?12:1),new THREE.MeshStandardMaterial({color:0x8b4513})),{position:new THREE.Vector3(x,y-7,z+(isSide?0:(z>0?1.2:-1.2)))}));
+    g.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(isSide?1:12,2,isSide?12:1),new THREE.MeshStandardMaterial({color:0x8b4513})),x,y-7,z+(isSide?0:(z>0?1.2:-1.2))));
     const fc=[0xff4444,0xff9900,0xffff00,0xff88cc];
     for(let fi=0;fi<4;fi++){const fl=new THREE.Mesh(new THREE.SphereGeometry(1.2,6,5),new THREE.MeshStandardMaterial({color:fc[fi%4]}));if(isSide)fl.position.set(x+(x>0?1.8:-1.8),y-5.5,z-4+fi*2.5);else fl.position.set(x-4+fi*2.5,y-5.5,z+(z>0?1.8:-1.8));g.add(fl);}
 }
@@ -1108,7 +1114,7 @@ function updateShowroomModel(){
     else if(inspectingMowerId==='ts112'&&loadedRideMesh)mesh=loadedRideMesh.clone();
     else if(inspectingMowerId==='klippo'&&loadedKlippoMesh)mesh=loadedKlippoMesh.clone();
     else if(inspectingMowerId==='standard')mesh=buildShowroomHandjagare();
-    else{const pg=new THREE.Group();pg.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2,1,3),new THREE.MeshStandardMaterial({color:0x555555})),{position:new THREE.Vector3(0,0.5,0)}));mesh=pg;}
+    else{const pg=new THREE.Group();pg.add(positioned(new THREE.Mesh(new THREE.BoxGeometry(2,1,3),new THREE.MeshStandardMaterial({color:0x555555})),0,0.5,0));mesh=pg;}
     if(mesh){showroomModelGroup.add(mesh);const box=new THREE.Box3().setFromObject(mesh);const center=box.getCenter(new THREE.Vector3());mesh.position.sub(center);const size=box.getSize(new THREE.Vector3());const maxD=Math.max(size.x,size.y,size.z);showroomCamera.position.set(maxD*0.6,maxD*0.5,maxD*1.5);showroomCamera.lookAt(0,0,0);}
 }
 window.closeShowroom=function(){inspectingMowerId=null;document.getElementById('showroom-screen').style.display='none';document.getElementById('shop-screen').style.display='flex';};
