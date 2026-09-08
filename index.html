@@ -2200,30 +2200,50 @@ function setupVillaLevel(){
     for(let i=-900;i<900;i+=20){const d=new THREE.Mesh(new THREE.PlaneGeometry(10,0.8),mMat);d.rotation.x=-Math.PI/2;d.position.set(i,0.06,62);scene.add(d);}
     const swMat=new THREE.MeshStandardMaterial({color:0xbbbbaa});
     [51,73].forEach(sz=>{const sw=new THREE.Mesh(new THREE.PlaneGeometry(2000,6),swMat);sw.rotation.x=-Math.PI/2;sw.position.set(0,0.04,sz);scene.add(sw);});
-    // Bana 1 villa lots based on the user's aerial reference:
-    // four lots per side, houses occupying much more of each lot and sitting
-    // toward the rear, with long side fences extending all the way to the road.
-    const lotCenters=[-132,-44,44,132];
+    // Bana 1 villa street is aligned to the actual playable lawn.
+    //
+    // The mowable lawn is 100 x 100 world units, centered at x=0,z=0.
+    // Therefore the player's lot is exactly:
+    //   x = -50..50
+    //   z = -50..50
+    // and the neighbouring lots repeat every 100 units along x.
+    //
+    // This shared grid now drives houses AND fences so the visual geometry
+    // matches the gameplay lawn instead of being independently offset.
+    const lotWidth=100;
+    const southRearZ=-50;
+    const southStreetZ=50;
+    const northStreetZ=74;
+    const northRearZ=174;
 
-    // Houses are deliberately not centered identically in every lot. This
-    // avoids a rigid grid while keeping them safely clear of the side fences.
+    const southLotCenters=[-200,-100,0,100,200];
+    const northLotCenters=[-200,-100,0,100,200];
+
+    // Houses occupy the rear half of each lot. The central house lines up
+    // with the existing level-1 blocked gameplay rectangle:
+    // x=-35..35 and z=-55..-5.
     const southHouses=[
-        {id:'house1',x:-132,z:-27,r:0,       s:0.96,c:'#ffcda8'},
-        {id:'house3',x: -42,z:-24,r:0,       s:1.02,c:'#8fb8cc'},
-        {id:'house5',x:  46,z:-25,r:0,       s:1.00,c:'#e6e6a1'},
-        {id:'house4',x: 132,z:-24,r:0,       s:0.98,c:'#d4936e'}
+        {id:'house1',x:-200,z:-28,r:0,       s:0.98,c:'#ffcda8'},
+        {id:'house3',x:-100,z:-27,r:0,       s:1.00,c:'#8fb8cc'},
+        {id:'house5',x:   0,z:-27,r:0,       s:1.00,c:'#e6e6a1'},
+        {id:'house4',x: 100,z:-26,r:0,       s:0.98,c:'#d4936e'},
+        {id:'house2',x: 200,z:-28,r:0,       s:0.98,c:'#c8a0c8'}
     ];
+
     const northHouses=[
-        {id:'house2',x:-130,z:151,r:Math.PI, s:0.98,c:'#c4e8c4'},
-        {id:'house4',x: -46,z:148,r:Math.PI, s:1.00,c:'#f0d0a0'},
-        {id:'house1',x:  45,z:149,r:Math.PI, s:1.00,c:'#b0c8e8'},
-        {id:'house3',x: 132,z:150,r:Math.PI, s:0.96,c:'#e8c4c4'}
+        {id:'house2',x:-200,z:151,r:Math.PI, s:0.98,c:'#c4e8c4'},
+        {id:'house4',x:-100,z:150,r:Math.PI, s:0.98,c:'#f0d0a0'},
+        {id:'house1',x:   0,z:151,r:Math.PI, s:1.00,c:'#b0c8e8'},
+        {id:'house3',x: 100,z:149,r:Math.PI, s:0.98,c:'#e8c4c4'},
+        {id:'house5',x: 200,z:151,r:Math.PI, s:0.98,c:'#d8d8a8'}
     ];
+
     southHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
     northHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
 
-    // Procedural fences are still used for layout calibration. They are thin,
-    // simple visual boundaries and remain independent of mower collision.
+    // Temporary procedural fences, now derived from exactly the same lot grid.
+    // The central playable yard is consequently bounded visually at x=±50,
+    // matching the actual lawn plane's x edges.
     const fenceMat=new THREE.MeshStandardMaterial({color:0x2f241c,roughness:0.95});
 
     function addFenceSegment(x,z,w,d){
@@ -2232,42 +2252,39 @@ function setupVillaLevel(){
         scene.add(f);
     }
 
-    // Lot geometry:
-    // road/sidewalk region is around z=51..73. Keep the side fences running
-    // nearly to that edge so the gardens read as individual lots.
-    const southRearZ=-58;
-    const southStreetZ=49;
-    const northStreetZ=75;
-    const northRearZ=184;
+    // Five displayed lots = 500 units across, with boundaries every 100 units.
+    const minX=-250,maxX=250;
+    const boundaryXs=[-250,-150,-50,50,150,250];
 
     // Rear boundaries.
-    addFenceSegment(0,southRearZ,352,1.0);
-    addFenceSegment(0,northRearZ,352,1.0);
+    addFenceSegment((minX+maxX)/2,southRearZ,maxX-minX,1.0);
+    addFenceSegment((minX+maxX)/2,northRearZ,maxX-minX,1.0);
 
-    // Side boundaries between lots and outer edges. These run continuously
-    // from the rear of each property toward the street, matching the sketch.
+    // Side fences run from rear boundary all the way to the street edge.
+    // For the playable central lot these are exactly x=-50 and x=50.
     const southMidZ=(southRearZ+southStreetZ)/2;
     const southDepth=southStreetZ-southRearZ;
     const northMidZ=(northStreetZ+northRearZ)/2;
     const northDepth=northRearZ-northStreetZ;
 
-    [-176,-88,0,88,176].forEach(x=>{
+    boundaryXs.forEach(x=>{
         addFenceSegment(x,southMidZ,1.0,southDepth);
         addFenceSegment(x,northMidZ,1.0,northDepth);
     });
 
-    // Short front boundary pieces along the street side, with generous
-    // driveway/gate openings. These are kept near the street, not near houses.
-    lotCenters.forEach((x,i)=>{
-        const opening=30;
-        const halfLot=44;
-        const sidePiece=(halfLot-opening/2);
+    // Street-facing fence sections with one centered opening per lot.
+    // These sit at z=50 for the playable side, exactly at the mowable lawn edge.
+    const drivewayOpening=30;
+    const frontPiece=(lotWidth-drivewayOpening)/2;
 
-        addFenceSegment(x-(opening/2+sidePiece/2),southStreetZ,sidePiece,1.0);
-        addFenceSegment(x+(opening/2+sidePiece/2),southStreetZ,sidePiece,1.0);
+    southLotCenters.forEach(x=>{
+        addFenceSegment(x-lotWidth/2+frontPiece/2,southStreetZ,frontPiece,1.0);
+        addFenceSegment(x+lotWidth/2-frontPiece/2,southStreetZ,frontPiece,1.0);
+    });
 
-        addFenceSegment(x-(opening/2+sidePiece/2),northStreetZ,sidePiece,1.0);
-        addFenceSegment(x+(opening/2+sidePiece/2),northStreetZ,sidePiece,1.0);
+    northLotCenters.forEach(x=>{
+        addFenceSegment(x-lotWidth/2+frontPiece/2,northStreetZ,frontPiece,1.0);
+        addFenceSegment(x+lotWidth/2-frontPiece/2,northStreetZ,frontPiece,1.0);
     });
     lawnCanvas=document.createElement('canvas');lawnCanvas.width=lawnCanvas.height=lawnTexResolution;
     lawnContext=lawnCanvas.getContext('2d',{willReadFrequently:true});
