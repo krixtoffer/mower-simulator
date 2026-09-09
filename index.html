@@ -3064,8 +3064,8 @@ window.startGameFromCover=function(){
 
 const sfxEls = { fan1:document.getElementById('sfx-fan1'), fan2:document.getElementById('sfx-fan2'), fan3:document.getElementById('sfx-fan3'), swing:document.getElementById('sfx-swing'), fore:document.getElementById('sfx-fore') };
 const mowerSfx = document.getElementById('sfx-mower');
-const MOWER_SFX_VOLUME_NORMAL=0.245; // another 30% reduction from 0.35
-const MOWER_SFX_VOLUME_GALLERY=0.14; // 60% reduction from the former 0.35 level
+const MOWER_SFX_VOLUME_NORMAL=0.147; // 40% quieter than 0.245
+const MOWER_SFX_VOLUME_GALLERY=0.084; // 40% quieter than 0.14
 mowerSfx.volume=MOWER_SFX_VOLUME_NORMAL;
 let mowerSfxPlaying = false;
 const mowerSfxFiles = { standard:'./handjag.mp3', klippo:'./klippo.mp3', ts112:'./rideon.mp3', combine:'./combine.mp3' };
@@ -3193,7 +3193,7 @@ const VILLA1_HOUSE_BLOCK={xMin:-32,xMax:32,zMin:-50,zMax:-5};
 
 let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[], animatedClouds=[];
 let animatedLevel4Fire=[];
-let animatedFlag=null, animatedPond=null, pondCollider=null, bunkerZones=[], trampolineKids=[];
+let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 
 let charLeftLeg=null, charRightLeg=null, charLeftArm=null, charRightArm=null;
 let charLeftFoot=null, charRightFoot=null;
@@ -4357,9 +4357,19 @@ function spawnFootballPlayers(pitchSize){
             ballVX:0,
             ballVZ:0,
             kickCooldown:0,
+            reactionTime:0,
+            reactionBaseY:0,
 
             update(dt){
                 this.kickCooldown=Math.max(0,this.kickCooldown-dt);
+                if(this.reactionTime>0){
+                    this.reactionTime=Math.max(0,this.reactionTime-dt);
+                    // Simplest readable "what happened?!" gesture: stop briefly
+                    // and hop roughly one third of the player's visible height.
+                    const phase=1-this.reactionTime/.72;
+                    this.mesh.position.y=this.reactionBaseY+Math.sin(Math.PI*Math.min(1,phase))*2.15;
+                    if(this.reactionTime<=0)this.mesh.position.y=this.reactionBaseY;
+                }
 
                 if(this.detached){
                     // The kicked ball coasts forward and gradually slows.
@@ -4376,12 +4386,14 @@ function spawnFootballPlayers(pitchSize){
                         this.ballVZ*=-0.35;
                     }
 
-                    const friction=Math.pow(0.25,dt);
+                    const friction=Math.pow(0.5,dt);
                     this.ballVX*=friction;
                     this.ballVZ*=friction;
                     this.ball.rotation.x+=Math.hypot(this.ballVX,this.ballVZ)*dt*1.6;
 
-                    // Its player abandons the previous route and chases the ball.
+                    // Its player reacts for a moment before chasing the lost ball.
+                    if(this.reactionTime>0)return;
+
                     const dx=this.ball.position.x-this.mesh.position.x;
                     const dz=this.ball.position.z-this.mesh.position.z;
                     const d=Math.hypot(dx,dz);
@@ -4480,6 +4492,8 @@ function updateFootballBallInteractions(){
             p.ballVX=kx*kickSpeed;
             p.ballVZ=kz*kickSpeed;
             p.kickCooldown=.55;
+            p.reactionBaseY=p.mesh.position.y;
+            p.reactionTime=.72;
 
             // Push the ball just outside the mower radius immediately so the
             // same contact does not retrigger for several consecutive frames.
@@ -4492,7 +4506,7 @@ function updateFootballBallInteractions(){
 function buildPlayerMesh(team){const g=new THREE.Group();const sk=new THREE.MeshStandardMaterial({color:0xffcc99}),jm=new THREE.MeshStandardMaterial({color:team.jersey}),sm=new THREE.MeshStandardMaterial({color:team.shorts}),so=new THREE.MeshStandardMaterial({color:0xeeeeee}),bm=new THREE.MeshStandardMaterial({color:0x111111});const torso=new THREE.Mesh(new THREE.BoxGeometry(2.8,3.8,1.8),jm);torso.position.y=8.5;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),sk);head.position.y=12;g.add(head);[-1.9,1.9].forEach(ax=>{const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,3,8),jm);arm.position.set(ax,8.5,0);arm.rotation.z=ax>0?0.3:-0.3;g.add(arm);});const lL=new THREE.Group(),rL=new THREE.Group();[[-0.9,lL],[0.9,rL]].forEach(([lx,leg])=>{const t=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.65,2.8,8),sm);t.position.y=-1.4;leg.add(t);const s=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.5,2.6,8),so);s.position.y=-4.2;leg.add(s);const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.9,2),bm);b.position.set(0,-5.8,0.4);leg.add(b);leg.position.set(lx,7,0);g.add(leg);});g.userData.leftLeg=lL;g.userData.rightLeg=rL;return g;}
 
 function setupGolfLevel(){
-    lawnWorldSize=360;animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedClouds=[];
+    lawnWorldSize=360;animatedFlag=null;animatedPond=null;pondCollider=null;clubhouseCollider=null;bunkerZones=[];animatedClouds=[];
     addSunAndClouds();buildGolfSurroundings();
     buildGolfCourseLights();
 
@@ -4591,7 +4605,7 @@ function setupGolfLevel(){
     lawn.position.y=0.035;
     scene.add(lawn);
 
-    pondCollider={cx:32,cz:22,rx:17,rz:17};
+    pondCollider={cx:69.6,cz:52.0,rx:38.7,rz:38.7};
     // Bunkers remain tracked for future effects, but no longer block cutting.
     bunkerZones=[{cx:-20,cz:-20,rx:9,rz:14},{cx:18,cz:3,rx:8,rz:11}];
 
@@ -4623,16 +4637,17 @@ function setupGolfLevel(){
         });
     }
 
-    // Large clubhouse on the western side of the expanded course. It is
-    // decorative and uses the same cache/delayed-load system, so a slow GLB
-    // cannot block gameplay.
+    // Clubhouse sits on the western rough, clear of the green/fairway and
+    // clear of the perimeter vegetation. It is now a sane scale and collidable.
+    const golfClubhouseSite={x:-132,z:112,rotation:Math.PI/2,scale:2.6};
+    clubhouseCollider={cx:golfClubhouseSite.x,cz:golfClubhouseSite.z,rx:25,rz:19};
     const spawnGolfClubhouse=()=>{
         const c=spawnSceneryGLB('clubhouse',{
-            x:-125,
+            x:golfClubhouseSite.x,
             y:0,
-            z:-90,
-            rotation:Math.PI/2,
-            scale:8
+            z:golfClubhouseSite.z,
+            rotation:golfClubhouseSite.rotation,
+            scale:golfClubhouseSite.scale
         });
         return !!c;
     };
@@ -4642,16 +4657,17 @@ function setupGolfLevel(){
         });
     }
 
+    // Green is painted at texture pixel (256,100), which maps to world (0,-109.7).
+    // Keep the cup/flag visually centred on that green.
+    const greenCenter={x:0,z:-109.7};
     const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,10,8),new THREE.MeshStandardMaterial({color:0xffffff}));
-    fp.position.set(0,5,-55);scene.add(fp);
+    fp.position.set(greenCenter.x,5,greenCenter.z);scene.add(fp);
     const fc=new THREE.Mesh(new THREE.BoxGeometry(4,2.5,0.1),new THREE.MeshStandardMaterial({color:0xff0000,side:THREE.DoubleSide}));
     fc.position.set(2,3.5,0);fp.add(fc);animatedFlag=fc;
 
-    const pond=new THREE.Mesh(
-        new THREE.CylinderGeometry(17,17,0.3,32),
-        new THREE.MeshStandardMaterial({color:0x1a6ea8,transparent:true,opacity:0.82,roughness:0.05,metalness:0.2})
-    );
-    pond.position.set(32,0.2,22);scene.add(pond);animatedPond=pond;
+    // The blue water is already painted into the course texture. Do not add a
+    // second offset/darker pond mesh; use the exact same painted area for collision.
+    animatedPond=null;
 
     for(let i=0;i<60;i++){
         const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20;
@@ -4660,7 +4676,26 @@ function setupGolfLevel(){
     startGolfSfx();
 }
 function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMaterial({color:0x8b6914}),wireMat=new THREE.MeshStandardMaterial({color:0x666655});[{x:0,z:-half,len:size,ry:0},{x:0,z:half,len:size,ry:0},{x:-half,z:0,len:size,ry:Math.PI/2},{x:half,z:0,len:size,ry:Math.PI/2}].forEach(({x,z,len,ry})=>{const sg=new THREE.Group();[1.5,3.0].forEach(hy=>{const r=new THREE.Mesh(new THREE.BoxGeometry(len,0.15,0.15),wireMat);r.position.set(0,hy,0);sg.add(r);});for(let i=-len/2;i<=len/2;i+=8){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,3.5,6),postMat);p.position.set(i,1.75,0);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);});}
-function buildGolfSurroundings(){const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1}),snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2,dist=110+Math.random()*30,hx=Math.sin(a)*dist,hz=Math.cos(a)*dist,hillH=25+Math.random()*40,hillR=20+Math.random()*25;const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR,hillH,8),hillMat);hill.position.set(hx,hillH/2-2,hz);scene.add(hill);if(hillH>40){const cap=new THREE.Mesh(new THREE.ConeGeometry(hillR*0.3,hillH*0.25,8),snowMat);cap.position.set(hx,hillH-hillH*0.12-2,hz);scene.add(cap);}}const groundOut=new THREE.Mesh(new THREE.PlaneGeometry(600,600),new THREE.MeshStandardMaterial({color:0x3a6a2a}));groundOut.rotation.x=-Math.PI/2;groundOut.position.y=-0.5;scene.add(groundOut);}
+function buildGolfSurroundings(){
+    const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1});
+    const snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});
+    // The course was expanded to 360 units; keep hills/shrubbery OUTSIDE it.
+    const courseHalf=lawnWorldSize/2;
+    for(let i=0;i<24;i++){
+        const a=(i/24)*Math.PI*2;
+        const dist=courseHalf+65+Math.random()*35;
+        const hx=Math.sin(a)*dist,hz=Math.cos(a)*dist;
+        const hillH=25+Math.random()*40,hillR=20+Math.random()*25;
+        const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR,hillH,8),hillMat);
+        hill.position.set(hx,hillH/2-2,hz);scene.add(hill);
+        if(hillH>40){
+            const cap=new THREE.Mesh(new THREE.ConeGeometry(hillR*0.3,hillH*0.25,8),snowMat);
+            cap.position.set(hx,hillH-hillH*0.12-2,hz);scene.add(cap);
+        }
+    }
+    const groundOut=new THREE.Mesh(new THREE.PlaneGeometry(700,700),new THREE.MeshStandardMaterial({color:0x3a6a2a}));
+    groundOut.rotation.x=-Math.PI/2;groundOut.position.y=-0.5;scene.add(groundOut);
+}
 
 
 
@@ -6268,7 +6303,7 @@ window.confirmStartLevel=function(){
         2:{x:0,z:0},
         3:{x:0,z:50},
         4:level4MapToWorld(650,520),
-        5:{x:0,z:48}
+        5:{x:0,z:40}
     };
     const spawn=spawnMap[currentLevel]||{x:0,z:0};
     mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
@@ -6291,8 +6326,8 @@ window.confirmStartLevel=function(){
     // Start directly in the same camera geometry that the active level will
     // use. Galleri needs its shorter/lower indoor chase camera immediately;
     // otherwise the first frame can begin behind the end wall and show brown.
-    const initialCameraDistance=(currentLevel===5)?10.5:20;
-    const initialCameraHeight=(currentLevel===5)?8.2:16;
+    const initialCameraDistance=(currentLevel===5)?8.0:20;
+    const initialCameraHeight=(currentLevel===5)?7.2:16;
     const initialLookHeight=(currentLevel===5)?2.6:2;
     camera.position.set(
         mowerGroup.position.x-Math.sin(mowerStats.rotation)*initialCameraDistance,
@@ -6491,6 +6526,13 @@ function canMoveTo(nx,nz){
         const ex=(nx-pondCollider.cx)/pondCollider.rx;
         const ez=(nz-pondCollider.cz)/pondCollider.rz;
         if(ex*ex+ez*ez<1.0)return false;
+    }
+    if(currentLevel===3&&clubhouseCollider){
+        const margin=mowerStats.radius+1.5;
+        if(
+            Math.abs(nx-clubhouseCollider.cx)<clubhouseCollider.rx+margin &&
+            Math.abs(nz-clubhouseCollider.cz)<clubhouseCollider.rz+margin
+        )return false;
     }
 
     if(currentLevel===4){
