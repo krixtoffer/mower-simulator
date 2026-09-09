@@ -3456,6 +3456,14 @@ const lawnTexResolution=512;
 let lawnWorldSize=100;
 let totalCuttablePixels=0;
 
+// v81: Progress is measured from a tiny 64x64 shadow canvas.
+// The visible mowing texture remains full 512x512 resolution.
+const PROGRESS_RES=64;
+const progressCanvas=document.createElement('canvas');
+progressCanvas.width=progressCanvas.height=PROGRESS_RES;
+const progressCtx=progressCanvas.getContext('2d',{willReadFrequently:true});
+progressCtx.imageSmoothingEnabled=false;
+
 // Bana 1 single source of truth for the central playable villa lot.
 // The lawn itself is x/z -50..50. The central house occupies the rear half.
 const VILLA1_HOUSE_BLOCK={xMin:-32,xMax:32,zMin:-50,zMax:-5};
@@ -7445,43 +7453,68 @@ window.leaveLevel=function(){
 };
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
 function calculateProgress(){
-    if(!lawnContext)return;
-    const d=lawnContext.getImageData(0,0,lawnTexResolution,lawnTexResolution).data;
+    if(!lawnCanvas||!progressCtx)return;
+
+    // Downsample the current 512x512 mowing state to 64x64 first, then read
+    // only 4,096 pixels instead of 262,144. Nearest-neighbour sampling keeps
+    // the overlay/colour tests crisp and avoids averaging cut boundaries.
+    progressCtx.clearRect(0,0,PROGRESS_RES,PROGRESS_RES);
+    progressCtx.imageSmoothingEnabled=false;
+    progressCtx.drawImage(lawnCanvas,0,0,PROGRESS_RES,PROGRESS_RES);
+    const d=progressCtx.getImageData(0,0,PROGRESS_RES,PROGRESS_RES).data;
+
     let cut=0;
+    let eligible=0;
 
-    for(let i=0;i<d.length;i+=4){
-        const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+    for(let py=0;py<PROGRESS_RES;py++){
+        for(let px=0;px<PROGRESS_RES;px++){
+            const p=py*PROGRESS_RES+px;
+            const i=p*4;
+            const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
 
-        if(currentLevel===2){
-            // Stadium mowing reveals the already-rendered striped pitch by
-            // erasing the overlay canvas.
-            if(a<128)cut++;
-        }else if(currentLevel===3){
-            // Golf scoring follows the removable overlay rather than colour.
-            // This lets fairway, green, rough and sand retain their own
-            // underlying colours while still counting as cut.
-            const p=i/4;
-            if(golfCuttableMask&&golfCuttableMask[p]&&a<64)cut++;
-        }else{
-            // Villa and lake levels paint the standard cut colour
-            // COLOR_CUT / #7CFC00.
-            if(r>=105&&r<=145&&g>=230&&g<=255&&b<=35){
-                if(currentLevel===1){
-                    const pixel=i/4;
-                    const px=pixel%lawnTexResolution;
-                    const py=Math.floor(pixel/lawnTexResolution);
-                    const wx=(px+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
-                    const wz=(py+0.5)/lawnTexResolution*lawnWorldSize-lawnWorldSize/2;
-                    const blocked=(wx>VILLA1_HOUSE_BLOCK.xMin&&wx<VILLA1_HOUSE_BLOCK.xMax&&wz>VILLA1_HOUSE_BLOCK.zMin&&wz<VILLA1_HOUSE_BLOCK.zMax);
-                    if(!blocked)cut++;
-                }else{
-                    cut++;
+            if(currentLevel===2){
+                // Entire football pitch overlay is mowable.
+                eligible++;
+                if(a<128)cut++;
+            }else if(currentLevel===3){
+                // Sample the existing full-resolution golf cuttable mask at
+                // the centre of this low-resolution progress cell.
+                const sx=Math.min(lawnTexResolution-1,
+                    Math.floor((px+.5)/PROGRESS_RES*lawnTexResolution));
+                const sy=Math.min(lawnTexResolution-1,
+                    Math.floor((py+.5)/PROGRESS_RES*lawnTexResolution));
+                const fp=sy*lawnTexResolution+sx;
+                if(golfCuttableMask&&golfCuttableMask[fp]){
+                    eligible++;
+                    if(a<64)cut++;
+                }
+            }else if(currentLevel===1){
+                // Preserve the villa rule: the central house footprint is
+                // excluded from the denominator as well as the cut count.
+                const wx=(px+.5)/PROGRESS_RES*lawnWorldSize-lawnWorldSize/2;
+                const wz=(py+.5)/PROGRESS_RES*lawnWorldSize-lawnWorldSize/2;
+                const blocked=(wx>VILLA1_HOUSE_BLOCK.xMin&&wx<VILLA1_HOUSE_BLOCK.xMax&&
+                               wz>VILLA1_HOUSE_BLOCK.zMin&&wz<VILLA1_HOUSE_BLOCK.zMax);
+                if(!blocked){
+                    eligible++;
+                    if(r>=105&&r<=145&&g>=230&&g<=255&&b<=35)cut++;
+                }
+            }else{
+                // Fanbyviken: only pixels belonging to the mowable lawn count.
+                // At initialization they are COLOR_UNCUT (#389e38); after
+                // mowing they become COLOR_CUT (#7CFC00). Everything else is
+                // excluded from the denominator.
+                const isCut=(r>=105&&r<=145&&g>=230&&g<=255&&b<=35);
+                const isUncut=(r>=45&&r<=70&&g>=145&&g<=175&&b>=45&&b<=70);
+                if(isCut||isUncut){
+                    eligible++;
+                    if(isCut)cut++;
                 }
             }
         }
     }
 
-    const pct=Math.min(100,Math.floor((cut/Math.max(totalCuttablePixels,1))*100));
+    const pct=Math.min(100,Math.floor((cut/Math.max(eligible,1))*100));
     if(pct!==currentProgress){
         currentProgress=pct;
         document.getElementById('progress').innerText=currentProgress;
