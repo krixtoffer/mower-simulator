@@ -1685,6 +1685,126 @@
             #gallery-info p{font-size:13px}
         }
 
+
+        /* ══ v79: TABLET COMPATIBILITY LAYER ═══════════════════════════════
+           Phone rules above are intentionally left untouched.
+           This activates automatically on touch/coarse-pointer screens that
+           are wider than the established phone breakpoint. No user choice. */
+        @media (pointer:coarse) and (min-width:641px) {
+            /* A touch tablet must always have the driving joystick. This also
+               covers tablets whose CSS width looks "desktop-like". */
+            #joystick-zone {
+                display:block;
+                width:clamp(126px,15vmin,164px) !important;
+                height:clamp(126px,15vmin,164px) !important;
+                left:clamp(92px,12vw,150px) !important;
+                bottom:calc(clamp(24px,4vh,48px) + env(safe-area-inset-bottom)) !important;
+                transform:none !important;
+                z-index:220 !important;
+            }
+            #joystick-knob {
+                width:clamp(46px,5.5vmin,60px) !important;
+                height:clamp(46px,5.5vmin,60px) !important;
+            }
+
+            /* Keep gameplay information clear of the touch controls and safe
+               areas without changing the phone HUD geometry. */
+            #hud {
+                padding:
+                    calc(14px + env(safe-area-inset-top))
+                    calc(18px + env(safe-area-inset-right))
+                    14px
+                    calc(18px + env(safe-area-inset-left)) !important;
+            }
+            .hud-panel {
+                font-size:clamp(9px,1.15vw,13px) !important;
+            }
+            #hud-buttons {
+                right:calc(20px + env(safe-area-inset-right)) !important;
+                bottom:calc(20px + env(safe-area-inset-bottom)) !important;
+            }
+            #hud-buttons .arcade-btn {
+                min-width:110px !important;
+                min-height:44px !important;
+                font-size:9px !important;
+            }
+
+            /* Menus scale to the available tablet viewport rather than using
+               phone-sized panels floating at odd positions. */
+            #main-menu-screen,#level-select-screen,#shop-screen,#showroom-screen,
+            #settings-overlay,#jukebox-overlay,#game-over,#level-intro-screen,
+            #minigames-screen,#arcade-minigame-overlay {
+                padding:
+                    calc(18px + env(safe-area-inset-top))
+                    calc(22px + env(safe-area-inset-right))
+                    calc(18px + env(safe-area-inset-bottom))
+                    calc(22px + env(safe-area-inset-left)) !important;
+                box-sizing:border-box !important;
+                max-height:100dvh !important;
+            }
+            .menu-panel,#shop-panel,#settings-panel,#jukebox-panel,#go-panel,
+            #showroom-screen .menu-panel {
+                width:min(620px,88vw) !important;
+                max-width:88vw !important;
+                max-height:calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+                overflow-y:auto !important;
+                overscroll-behavior:contain;
+                -webkit-overflow-scrolling:touch;
+            }
+            #level-intro-screen > div:last-child {
+                width:min(720px,90vw) !important;
+                flex-wrap:wrap !important;
+                gap:14px !important;
+            }
+            #level-intro-screen .arcade-btn {
+                min-width:220px !important;
+            }
+
+            /* Gallery UI remains usable in both tablet orientations. */
+            #gallery-topbar {
+                left:calc(16px + env(safe-area-inset-left)) !important;
+                right:calc(16px + env(safe-area-inset-right)) !important;
+                top:calc(16px + env(safe-area-inset-top)) !important;
+            }
+            #gallery-hint { max-width:min(440px,52vw) !important; }
+            #gallery-info {
+                width:min(720px,82vw) !important;
+                bottom:calc(30px + env(safe-area-inset-bottom)) !important;
+            }
+        }
+
+        /* Portrait tablets: center the main panels and leave a generous lower
+           control zone for thumbs. */
+        @media (pointer:coarse) and (min-width:641px) and (orientation:portrait) {
+            #joystick-zone {
+                left:clamp(86px,14vw,130px) !important;
+                bottom:calc(34px + env(safe-area-inset-bottom)) !important;
+            }
+            #hud-buttons {
+                bottom:calc(34px + env(safe-area-inset-bottom)) !important;
+            }
+            .menu-panel,#shop-panel,#settings-panel,#jukebox-panel,#go-panel,
+            #showroom-screen .menu-panel {
+                width:min(600px,86vw) !important;
+            }
+        }
+
+        /* Landscape tablets: use the extra horizontal room and keep controls
+           in opposite corners instead of crowding the center of the view. */
+        @media (pointer:coarse) and (min-width:641px) and (orientation:landscape) {
+            #joystick-zone {
+                left:calc(34px + env(safe-area-inset-left)) !important;
+                bottom:calc(26px + env(safe-area-inset-bottom)) !important;
+            }
+            #hud-buttons {
+                right:calc(28px + env(safe-area-inset-right)) !important;
+                bottom:calc(26px + env(safe-area-inset-bottom)) !important;
+            }
+            .menu-panel,#shop-panel,#settings-panel,#jukebox-panel,#go-panel,
+            #showroom-screen .menu-panel {
+                width:min(680px,70vw) !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -7245,7 +7365,11 @@ window.confirmStartLevel=function(){
         // after visiting Galleri. Clear that inline override when starting any
         // normal level; CSS then shows it on coarse/mobile screens and keeps it
         // hidden on desktop exactly as before.
-        document.getElementById('joystick-zone').style.display='';
+        const joystickZone=document.getElementById('joystick-zone');
+        const touchLike=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+        // Phone/tablet touch devices always get the joystick. Fine-pointer
+        // desktop/laptop keeps the existing CSS behavior.
+        joystickZone.style.display=touchLike?'block':'';
     }
     tuneSceneMaterials();
     // Start directly in the same camera geometry that the active level will
