@@ -47,6 +47,10 @@
             position:absolute;left:0;bottom:18px;width:112px;height:auto;
             transform:translateX(-50%);image-rendering:pixelated;
             pointer-events:none;will-change:left;
+            visibility:hidden;
+        }
+        #startup-loader.mower-ready #startup-loader-mower{
+            visibility:visible;
         }
         #startup-loader-slow{
             display:none;width:min(78vw,460px);margin-top:14px;
@@ -1818,11 +1822,30 @@
            This avoids iPad/tablet browsers that report pointer:fine or pointer:none.
            Desktop still does not receive the joystick unless it is a touch-capable
            device, while any touch tablet/phone does. */
-        body.touch-gameplay #joystick-zone {
+        body.touch-gameplay #joystick-zone,
+        body.tablet-gameplay #joystick-zone {
             display:block !important;
             visibility:visible !important;
             opacity:1 !important;
             pointer-events:auto !important;
+            z-index:220 !important;
+        }
+
+        /* Tablet failsafe: does not alter the established <=640px phone layout.
+           Positioning is keyed to the explicit JS tablet class rather than to
+           pointer:coarse, because some tablets report fine/none pointer modes. */
+        @media (min-width:641px) {
+            body.tablet-gameplay #joystick-zone {
+                width:clamp(126px,15vmin,164px) !important;
+                height:clamp(126px,15vmin,164px) !important;
+                left:calc(34px + env(safe-area-inset-left)) !important;
+                bottom:calc(26px + env(safe-area-inset-bottom)) !important;
+                transform:none !important;
+            }
+            body.tablet-gameplay #joystick-knob {
+                width:clamp(46px,5.5vmin,60px) !important;
+                height:clamp(46px,5.5vmin,60px) !important;
+            }
         }
 
         /* ══ v84: loading UI ═══════════════════════════════════════════════ */
@@ -1874,6 +1897,10 @@
             transform:translateX(-50%);image-rendering:pixelated;
             pointer-events:none;will-change:left;
             transition:left .10s linear;
+            visibility:hidden;
+        }
+        body.loader-mower-ready #level-loading-mower{
+            visibility:visible;
         }
         #level-loading-status{
             margin-top:18px;font-size:9px;line-height:1.6;color:#ddd;
@@ -3746,11 +3773,61 @@ function saveLevelRecord(levelId,progress,stars){
     return {isNewBest,record:nextRecord};
 }
 
-// Request the tiny loading-screen mower first. Immediately after that,
-// prepare the actual cover before the heavier GLB requests compete for bandwidth.
+// The loading-screen mower is part of the loader itself. The actual loading
+// progression does not begin until this tiny image has loaded and decoded.
 const startupMowerPrime=new Image();
-startupMowerPrime.decoding='sync';
-startupMowerPrime.src='./2dmower2.png';
+startupMowerPrime.decoding='async';
+
+function preloadLoaderMowerThenStart(){
+    let started=false;
+    const begin=()=>{
+        if(started)return;
+        started=true;
+
+        const startupImg=document.getElementById('startup-loader-mower');
+        if(startupImg){
+            startupImg.src='./2dmower2.png';
+            startupImg.style.visibility='visible';
+        }
+        const startupLoader=document.getElementById('startup-loader');
+        if(startupLoader)startupLoader.classList.add('mower-ready');
+        document.body.classList.add('loader-mower-ready');
+
+        beginStartupCountdown();
+        requestAnimationFrame(()=>{
+            try{
+                initThree();
+                initShowroomThree();
+                preloadAssets();
+                animate();
+            }catch(e){
+                console.error('[Startup initialization]',e);
+                const note=document.getElementById('startup-loader-slow');
+                if(note){
+                    note.style.display='block';
+                    note.textContent='ETT FEL UPPSTOD VID INITIERING. LADDA OM SIDAN.';
+                }
+            }
+        });
+    };
+
+    const decoded=()=>{
+        if(startupMowerPrime.decode){
+            startupMowerPrime.decode().then(begin).catch(begin);
+        }else begin();
+    };
+
+    startupMowerPrime.onload=decoded;
+    startupMowerPrime.onerror=()=>{
+        // Do not permanently strand the game if the decorative loader sprite
+        // itself fails. The loader can still function without the picture.
+        console.warn('[Loader] 2dmower2.png could not be loaded.');
+        begin();
+    };
+    startupMowerPrime.src='./2dmower2.png';
+
+    if(startupMowerPrime.complete && startupMowerPrime.naturalWidth>0)decoded();
+}
 
 const startCoverPrime=new Image();
 startCoverPrime.decoding='async';
@@ -3988,24 +4065,7 @@ function beginStartupCountdown(){
     updateStartupAudioBuffer();
     setStartupProgress();
 }
-beginStartupCountdown();
-requestAnimationFrame(()=>{
-    try{
-        initThree();
-        initShowroomThree();
-        preloadAssets();
-        animate();
-    }catch(e){
-        console.error('[Startup initialization]',e);
-        // Do not silently leave a static 0% screen if an unrelated subsystem
-        // throws during initialization.
-        const note=document.getElementById('startup-loader-slow');
-        if(note){
-            note.style.display='block';
-            note.textContent='ETT FEL UPPSTOD VID INITIERING. LADDA OM SIDAN.';
-        }
-    }
-});
+preloadLoaderMowerThenStart();
 
 function initThree(){
     scene=new THREE.Scene(); scene.background=new THREE.Color(0x87CEEB); scene.fog=new THREE.Fog(0x87CEEB,80,250);
@@ -6172,7 +6232,7 @@ window.leaveGallery=function(){
     mowerStats.speed=0;
     document.getElementById('gallery-ui').style.display='none';
     document.getElementById('gallery-info').style.display='none';
-    document.body.classList.remove('touch-gameplay');
+    document.body.classList.remove('touch-gameplay','tablet-gameplay');
     document.getElementById('joystick-zone').style.display='none';
     openLevelSelect();
 };
@@ -7815,6 +7875,67 @@ function showLevelIntro(id){
     is.style.display='flex';
 }
 
+
+function gameplayTouchProfile(){
+    const ua=navigator.userAgent||'';
+    const platform=navigator.platform||'';
+    const maxTouch=Number(navigator.maxTouchPoints||0);
+    const coarse=!!(window.matchMedia&&(
+        window.matchMedia('(any-pointer:coarse)').matches ||
+        window.matchMedia('(pointer:coarse)').matches
+    ));
+    const touchAPI=('ontouchstart' in window);
+    const ipadOS=(platform==='MacIntel'&&maxTouch>1);
+    const tabletUA=/iPad|Tablet|Silk|Kindle|PlayBook/i.test(ua) ||
+        (/Android/i.test(ua)&&!/Mobile/i.test(ua));
+
+    // Last-resort tablet geometry is only accepted when there is at least one
+    // additional touch/tablet signal, so ordinary desktop windows do not gain
+    // a joystick.
+    const minSide=Math.min(window.innerWidth||0,window.innerHeight||0);
+    const maxSide=Math.max(window.innerWidth||0,window.innerHeight||0);
+    const tabletGeometry=minSide>=600&&maxSide<=1500;
+    const anyTouch=touchAPI||maxTouch>0||coarse||ipadOS||tabletUA;
+    const tablet=ipadOS||tabletUA||(tabletGeometry&&anyTouch);
+
+    return {touch:anyTouch,tablet};
+}
+
+function ensureGameplayJoystick(){
+    const zone=document.getElementById('joystick-zone');
+    if(!zone)return false;
+
+    const profile=gameplayTouchProfile();
+    const shouldShow=profile.touch||profile.tablet;
+
+    document.body.classList.toggle('touch-gameplay',shouldShow);
+    document.body.classList.toggle('tablet-gameplay',profile.tablet);
+
+    if(shouldShow){
+        zone.style.setProperty('display','block','important');
+        zone.style.setProperty('visibility','visible','important');
+        zone.style.setProperty('opacity','1','important');
+        zone.style.setProperty('pointer-events','auto','important');
+        zone.style.setProperty('z-index','220','important');
+    }
+    return shouldShow;
+}
+
+// A tablet can change pointer reporting after rotation, keyboard/trackpad
+// attachment or browser chrome changes. Re-assert the control while gameplay
+// is active instead of trusting one device-detection snapshot at level start.
+let joystickFailsafeTimer=0;
+function startJoystickFailsafe(){
+    if(joystickFailsafeTimer)clearInterval(joystickFailsafeTimer);
+    ensureGameplayJoystick();
+    joystickFailsafeTimer=setInterval(()=>{
+        if(gameActive)ensureGameplayJoystick();
+    },1000);
+}
+window.addEventListener('resize',()=>{if(gameActive)ensureGameplayJoystick();},{passive:true});
+window.addEventListener('orientationchange',()=>{if(gameActive)setTimeout(ensureGameplayJoystick,120);},{passive:true});
+window.addEventListener('touchstart',()=>{if(gameActive)ensureGameplayJoystick();},{passive:true});
+
 function buildConfirmedLevel(){
     levelBuildSerial++;
     document.getElementById('level-intro-screen').style.display='none';
@@ -7894,7 +8015,7 @@ function buildConfirmedLevel(){
         document.getElementById('hud').style.display='none';
         document.getElementById('hud-buttons').style.display='none';
         document.getElementById('gallery-ui').style.display='block';
-        document.getElementById('joystick-zone').style.display='block';
+        ensureGameplayJoystick();
         enterGalleryMusic();
     }else{
         document.getElementById('gallery-ui').style.display='none';
@@ -7905,19 +8026,10 @@ function buildConfirmedLevel(){
         // after visiting Galleri. Clear that inline override when starting any
         // normal level; CSS then shows it on coarse/mobile screens and keeps it
         // hidden on desktop exactly as before.
-        const joystickZone=document.getElementById('joystick-zone');
-        // Do not rely only on pointer:coarse: some iPads/tablets report a fine
-        // or absent primary pointer, especially with a keyboard/trackpad attached.
-        const touchLike=('ontouchstart' in window) ||
-            (navigator.maxTouchPoints && navigator.maxTouchPoints>0) ||
-            (window.matchMedia && window.matchMedia('(any-pointer:coarse)').matches);
-
-        document.body.classList.toggle('touch-gameplay',!!touchLike);
-        joystickZone.style.display=touchLike?'block':'';
-        if(touchLike){
-            joystickZone.style.visibility='visible';
-            joystickZone.style.opacity='1';
-        }
+        // Centralized tablet/phone detection plus watchdog. This preserves the
+        // existing phone CSS but adds a tablet failsafe when pointer media
+        // queries are inaccurate.
+        ensureGameplayJoystick();
     }
     tuneSceneMaterials();
     // Start directly in the same camera geometry that the active level will
@@ -7944,6 +8056,7 @@ function buildConfirmedLevel(){
     document.getElementById('timer').innerText=settings.timedMode?'01:30':'∞';
 
     gameStarted=true;gameActive=true;
+    startJoystickFailsafe();
     if(timerInterval)clearInterval(timerInterval);
     if(settings.timedMode&&currentLevel!==5)timerInterval=setInterval(updateTimer,1000);
 
