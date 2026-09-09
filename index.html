@@ -1816,6 +1816,53 @@
             opacity:1 !important;
             pointer-events:auto !important;
         }
+
+        /* ══ v84: loading UI ═══════════════════════════════════════════════ */
+        /* Completion text/button no longer participate in flex layout, so the
+           mower and progress track never jump vertically when REDO appears. */
+        #startup-loader { position:fixed; }
+        #startup-loader-text {
+            position:absolute !important;
+            left:20px;right:20px;top:calc(50% - 118px);
+            margin:0 !important;
+        }
+        #startup-loader-track {
+            position:absolute !important;
+            top:50%;left:50%;
+            transform:translate(-50%,-50%);
+        }
+        #startup-ready-btn {
+            position:absolute !important;
+            top:calc(50% + 82px);left:50%;
+            transform:translateX(-50%);
+            margin:0 !important;
+        }
+
+        #level-loading-overlay{
+            position:fixed;inset:0;z-index:255;display:none;
+            flex-direction:column;align-items:center;justify-content:center;
+            background:rgba(5,7,13,.96);color:#fff;text-align:center;
+            padding:24px;box-sizing:border-box;
+        }
+        #level-loading-title{
+            font-size:clamp(14px,2.4vw,22px);color:#ffff00;
+            text-shadow:3px 3px #ff0055,5px 5px #000;margin-bottom:24px;
+        }
+        #level-loading-track{
+            position:relative;width:min(72vw,460px);height:18px;
+            border:3px solid #fff;background:#182018;box-shadow:4px 4px #000;
+            overflow:hidden;
+        }
+        #level-loading-fill{
+            position:absolute;left:-35%;top:0;width:35%;height:100%;
+            background:#55b84b;animation:levelLoadSweep 1.05s linear infinite;
+        }
+        #level-loading-status{
+            margin-top:18px;font-size:9px;line-height:1.6;color:#ddd;
+        }
+        @keyframes levelLoadSweep{
+            from{left:-35%} to{left:100%}
+        }
 </style>
 </head>
 <body>
@@ -1853,8 +1900,8 @@
 
             <div class="setting-feature-card">
                 <div>
-                    <div class="setting-feature-name">VÄLJ KLIPPARMUSIK</div>
-                    <div class="setting-feature-desc">Välj vilken låt som spelar</div>
+                    <div class="setting-feature-name">JUKEBOX</div>
+                    <div class="setting-feature-desc">Välj klipparmusik</div>
                 </div>
                 <button class="arcade-btn feature-jukebox-btn" onclick="openJukebox()">🎵 ÖPPNA</button>
             </div>
@@ -1933,6 +1980,12 @@
         <img id="startup-loader-mower" src="./2dmower2.png" alt="" decoding="sync">
     </div>
     <button id="startup-ready-btn" type="button" onclick="enterStartScreen()">START</button>
+</div>
+
+<div id="level-loading-overlay">
+    <div id="level-loading-title">LADDAR BANA...</div>
+    <div id="level-loading-track"><div id="level-loading-fill"></div></div>
+    <div id="level-loading-status">FÖRBEREDER...</div>
 </div>
 
 <div id="start-screen">
@@ -3671,48 +3724,117 @@ startCoverPrime.src='./startbild.jpg';
 
 // Five-second startup buffer. Heavy assets begin loading immediately underneath
 // this overlay; the cover image is explicitly decoded while menu audio buffers.
-const STARTUP_DELAY_MS=5000;
-function beginStartupCountdown(){
-    const loader=document.getElementById('startup-loader');
-    const label=document.getElementById('startup-loader-text');
+let startupAssetProgress={image:0,audio:0};
+let startupImageReady=false,startupAudioReady=false,startupGateReady=false;
+
+function setStartupProgress(){
     const fill=document.getElementById('startup-loader-fill');
     const mower=document.getElementById('startup-loader-mower');
-    if(!loader||!label||!fill||!mower)return;
+    const label=document.getElementById('startup-loader-text');
+    if(!fill||!mower||!label)return;
+    const p=Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2));
+    const pct=p*100;
+    fill.style.width=pct.toFixed(1)+'%';
+    mower.style.left=pct.toFixed(1)+'%';
 
-    const started=performance.now();
-    let lastShown=5;
-
-    // While the mower crosses the screen, decode startbild.jpg and buffer the
-    // first menu MP3. The normal asset preloader is already running in parallel.
-    if(startCoverPrime.decode)startCoverPrime.decode().catch(()=>{});
-    try{bgMusic.load();}catch(e){}
-
-    function tick(now){
-        const elapsed=Math.min(STARTUP_DELAY_MS,now-started);
-        const progress=elapsed/STARTUP_DELAY_MS;
-        const pct=progress*100;
-        fill.style.width=pct.toFixed(1)+'%';
-        mower.style.left=pct.toFixed(1)+'%';
-
-        const remaining=Math.max(1,Math.ceil((STARTUP_DELAY_MS-elapsed)/1000));
-        if(remaining!==lastShown){
-            lastShown=remaining;
-            label.textContent='SPELET STARTAR OM '+remaining;
-        }
-
-        if(elapsed<STARTUP_DELAY_MS){
-            requestAnimationFrame(tick);
-        }else{
-            fill.style.width='100%';
-            mower.style.left='100%';
-            label.textContent='REDO!';
-            const readyBtn=document.getElementById('startup-ready-btn');
-            if(readyBtn)readyBtn.style.display='block';
-        }
+    if(startupImageReady&&startupAudioReady){
+        startupGateReady=true;
+        fill.style.width='100%';
+        mower.style.left='100%';
+        label.textContent='REDO!';
+        const btn=document.getElementById('startup-ready-btn');
+        if(btn)btn.style.display='block';
+    }else{
+        const names=[];
+        if(!startupImageReady)names.push('STARTBILD');
+        if(!startupAudioReady)names.push('MUSIK');
+        label.textContent='LADDAR '+names.join(' + ')+'... '+Math.floor(pct)+'%';
     }
-    requestAnimationFrame(tick);
 }
 
+function trackStartupFile(url,key,onComplete){
+    try{
+        const xhr=new XMLHttpRequest();
+        xhr.open('GET',url,true);
+        xhr.responseType='blob';
+        xhr.onprogress=e=>{
+            if(e.lengthComputable&&e.total>0){
+                startupAssetProgress[key]=Math.min(.98,e.loaded/e.total);
+                setStartupProgress();
+            }
+        };
+        xhr.onload=()=>{
+            if(xhr.status>=200&&xhr.status<400){
+                startupAssetProgress[key]=1;
+                onComplete(xhr.response);
+            }else{
+                // The normal browser URL remains a fallback if progress fetch fails.
+                startupAssetProgress[key]=1;
+                onComplete(null);
+            }
+        };
+        xhr.onerror=()=>{
+            startupAssetProgress[key]=1;
+            onComplete(null);
+        };
+        xhr.send();
+    }catch(e){
+        startupAssetProgress[key]=1;
+        onComplete(null);
+    }
+}
+
+function beginStartupCountdown(){
+    const label=document.getElementById('startup-loader-text');
+    if(label)label.textContent='LADDAR STARTBILD + MUSIK... 0%';
+
+    trackStartupFile('./startbild.jpg','image',blob=>{
+        const finish=()=>{
+            startupImageReady=true;
+            startupAssetProgress.image=1;
+            setStartupProgress();
+        };
+        if(blob){
+            const url=URL.createObjectURL(blob);
+            startCoverPrime.onload=()=>{
+                const cover=document.getElementById('start-cover-img');
+                if(cover)cover.src=url;
+                if(startCoverPrime.decode)startCoverPrime.decode().then(finish).catch(finish);
+                else finish();
+            };
+            startCoverPrime.onerror=finish;
+            startCoverPrime.src=url;
+        }else{
+            if(startCoverPrime.complete){
+                if(startCoverPrime.decode)startCoverPrime.decode().then(finish).catch(finish);
+                else finish();
+            }else{
+                startCoverPrime.onload=finish;startCoverPrime.onerror=finish;
+            }
+        }
+    });
+
+    trackStartupFile('./golf.mp3','audio',blob=>{
+        if(blob)bgMusic.src=URL.createObjectURL(blob);
+        else bgMusic.src='./golf.mp3';
+
+        let finished=false;
+        const finish=()=>{
+            if(finished)return;finished=true;
+            startupAudioReady=true;
+            startupAssetProgress.audio=1;
+            setStartupProgress();
+        };
+        bgMusic.addEventListener('canplaythrough',finish,{once:true});
+        bgMusic.addEventListener('loadeddata',finish,{once:true});
+        bgMusic.addEventListener('error',finish,{once:true});
+        try{bgMusic.load();}catch(e){finish();}
+        // The entire MP3 has already been fetched as a Blob at this point;
+        // loadeddata is enough to confirm the audio element can decode it.
+    });
+
+    setStartupProgress();
+}
 initThree(); initShowroomThree(); preloadAssets(); animate(); beginStartupCountdown();
 
 function initThree(){
@@ -5275,7 +5397,8 @@ function updateFootballBallInteractions(){
             p.mowerGoalEligible=true;
             p.goalLatched=false;
             p.kickCooldown=.55;
-            p.reactionBaseY=p.mesh.position.y;
+            p.reactionBaseY=0;
+            p.mesh.position.y=0;
             p.reactionTime=.72;
 
             // Push the ball just outside the mower radius immediately so the
@@ -5511,8 +5634,8 @@ const GALLERY_ITEMS=[
     {file:'./legend1.jpg',title:'Edwin Beard Budding (1796–1846)',text:'Brittisk ingenjör som patenterade den första cylinderklipparen 1830 och lade grunden för hela industrin.'},
     {file:'./legend2.jpg',title:'Amariah Hills (1838–1912)',text:'Amerikansk uppfinnare som 1868 skapade den första lättviktiga handgräsklipparen med höjdjustering.'},
     {file:'./legend3.jpg',title:'Mervyn Victor Richardson (1911–1991)',text:'Grundade Victa och gjorde rotorklipparen till en global succé för hemmabruk under 1950-talet.'},
-    {file:'./legend4.jpg',title:'(1912–2003)',text:'Pionjären bakom åkgräsklipparen som 1945 lanserade den trehjuliga och självordnande Ride-King.'},
-    {file:'./legend5.jpg',title:'(1804–1886)',text:'Grundare av det ikoniska varumärket som blev synonymt med åkgräsklippare och storskalig grönyteskötsel.'}
+    {file:'./legend4.jpg',title:'Max Swisher (1912–2003)',text:'Pionjären bakom åkgräsklipparen som 1945 lanserade den trehjuliga och självordnande Ride-King.'},
+    {file:'./legend5.jpg',title:'John Deere (1804–1886)',text:'Grundare av det ikoniska varumärket som blev synonymt med åkgräsklippare och storskalig grönyteskötsel.'}
 ];
 
 function galleryPlaceholderTexture(label){
@@ -7513,7 +7636,7 @@ function showLevelIntro(id){
     is.style.display='flex';
 }
 
-window.confirmStartLevel=function(){
+function buildConfirmedLevel(){
     levelBuildSerial++;
     document.getElementById('level-intro-screen').style.display='none';
     document.getElementById('hud').style.display='flex';
@@ -7649,6 +7772,29 @@ window.confirmStartLevel=function(){
     updateMowerSfxVolume();
     mowerSfxPlaying=false;
     clock.start();
+}
+
+window.confirmStartLevel=function(){
+    const overlay=document.getElementById('level-loading-overlay');
+    const status=document.getElementById('level-loading-status');
+    const title=document.getElementById('level-loading-title');
+    const names={1:'VILLAKVARTERET',2:'FOTBOLLSPLANEN',3:'GOLFBANAN',4:'FANBYVIKEN',5:'GALLERIET'};
+    if(title)title.textContent='LADDAR '+(names[currentLevel]||'BANA')+'...';
+    if(status)status.textContent='BYGGER BANA...';
+    if(overlay)overlay.style.display='flex';
+
+    // Two frames guarantee that the loading overlay is actually painted before
+    // synchronous Three.js construction begins.
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        try{
+            buildConfirmedLevel();
+            if(status)status.textContent='REDO!';
+        }finally{
+            requestAnimationFrame(()=>{
+                if(overlay)overlay.style.display='none';
+            });
+        }
+    }));
 };
 
 window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
