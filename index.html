@@ -1679,6 +1679,8 @@
 <audio id="sfx-fan3"  src="./fan3.mp3"    preload="auto"></audio>
 <audio id="sfx-swing" src="./swing.mp3"   preload="auto"></audio>
 <audio id="sfx-fore"  src="./fore.mp3"    preload="auto"></audio>
+<audio id="sfx-goal2" src="./goal2.mp3" preload="auto"></audio>
+<audio id="sfx-goal" src="./goal.mp3" preload="auto"></audio>
 <audio id="sfx-mower" src="./handjag.mp3" loop preload="auto"></audio>
 
 <div id="settings-overlay">
@@ -3063,6 +3065,56 @@ window.startGameFromCover=function(){
 };
 
 const sfxEls = { fan1:document.getElementById('sfx-fan1'), fan2:document.getElementById('sfx-fan2'), fan3:document.getElementById('sfx-fan3'), swing:document.getElementById('sfx-swing'), fore:document.getElementById('sfx-fore') };
+const goal2Sfx=document.getElementById('sfx-goal2');
+const goalSfx=document.getElementById('sfx-goal');
+
+function playFootballGoalSfx(){
+    if(!settings.sfx)return;
+    try{
+        goal2Sfx.currentTime=0;
+        goal2Sfx.play().catch(()=>{});
+    }catch(e){}
+    setTimeout(()=>{
+        if(!settings.sfx||currentLevel!==2||!gameActive)return;
+        try{
+            goalSfx.currentTime=0;
+            goalSfx.play().catch(()=>{});
+        }catch(e){}
+    },200);
+}
+function spawnFootballGoalConfetti(goalZ){
+    const dir=Math.sign(goalZ)||1;
+    const colors=[0xffe13b,0xff3b75,0x34d6ff,0xffffff,0x66ff66];
+    for(let i=0;i<52;i++){
+        const mesh=new THREE.Mesh(
+            new THREE.PlaneGeometry(.55,.28),
+            new THREE.MeshBasicMaterial({
+                color:colors[i%colors.length],
+                side:THREE.DoubleSide,
+                transparent:true,
+                opacity:.95,
+                depthWrite:false
+            })
+        );
+        mesh.position.set((Math.random()-.5)*24,7+Math.random()*7,goalZ+dir*(5+Math.random()*7));
+        mesh.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+        scene.add(mesh);
+        footballGoalConfetti.push({
+            mesh,
+            vx:(Math.random()-.5)*7,
+            vy:8+Math.random()*8,
+            vz:dir*(2+Math.random()*5)+(Math.random()-.5)*2,
+            life:2.2+Math.random()*.7
+        });
+    }
+}
+function triggerFootballGoal(goalZ){
+    playFootballGoalSfx();
+    spawnFootballGoalConfetti(goalZ);
+    footballCrowdCelebration.side=Math.sign(goalZ)||1;
+    footballCrowdCelebration.time=3.0;
+}
+
 const mowerSfx = document.getElementById('sfx-mower');
 const MOWER_SFX_VOLUME_NORMAL=0.147; // 40% quieter than 0.245
 const MOWER_SFX_VOLUME_GALLERY=0.084; // 40% quieter than 0.14
@@ -3192,6 +3244,9 @@ let totalCuttablePixels=0;
 const VILLA1_HOUSE_BLOCK={xMin:-32,xMax:32,zMin:-50,zMax:-5};
 
 let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[], animatedClouds=[];
+let footballGoalConfetti=[];
+let animatedCrowdPeople=[];
+let footballCrowdCelebration={side:0,time:0};
 let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 
@@ -4245,7 +4300,7 @@ function setupVillaLevel(){
 function drawPitchLines(ctx){ctx.strokeStyle='#ffffff';ctx.lineWidth=5;ctx.strokeRect(30,20,lawnTexResolution-60,lawnTexResolution-40);ctx.beginPath();ctx.moveTo(30,lawnTexResolution/2);ctx.lineTo(lawnTexResolution-30,lawnTexResolution/2);ctx.stroke();ctx.beginPath();ctx.arc(256,256,55,0,Math.PI*2);ctx.stroke();ctx.strokeRect(lawnTexResolution/2-90,20,180,80);ctx.strokeRect(lawnTexResolution/2-90,lawnTexResolution-100,180,80);ctx.strokeRect(lawnTexResolution/2-45,20,90,35);ctx.strokeRect(lawnTexResolution/2-45,lawnTexResolution-55,90,35);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(256,80,4,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(256,432,4,0,Math.PI*2);ctx.fill();}
 
 function setupStadiumLevel(){
-    lawnWorldSize=120;animatedPlayers=[];animatedCrowdArms=[];animatedClouds=[];stadiumOverlayMesh=null;
+    lawnWorldSize=120;animatedPlayers=[];animatedCrowdArms=[];animatedClouds=[];footballGoalConfetti=[];animatedCrowdPeople=[];footballCrowdCelebration={side:0,time:0};stadiumOverlayMesh=null;
     addSunAndClouds();
     const world=new THREE.Mesh(new THREE.PlaneGeometry(1000,1000),new THREE.MeshStandardMaterial({color:0x113311}));world.rotation.x=-Math.PI/2;world.position.y=-0.1;scene.add(world);
     stadiumCutCanvas=document.createElement('canvas');stadiumCutCanvas.width=stadiumCutCanvas.height=lawnTexResolution;
@@ -4274,6 +4329,7 @@ function buildAllBleachers(size){
     const cMat=new THREE.MeshStandardMaterial({color:0x888880});const numRows=8,rowDepth=4,rowH=1.2;const sCols=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xeeeeee];
     function buildStand(cx,cz,length,rotY){
         const g=new THREE.Group();
+        g.userData.goalSide=(cz<-size/2)?-1:((cz>size/2)?1:0);
         for(let row=0;row<numRows;row++){const rH=(row+1)*rowH;const step=new THREE.Mesh(new THREE.BoxGeometry(length,rH,rowDepth),cMat);step.position.set(0,rH/2,-(row*rowDepth+rowDepth/2));step.castShadow=true;g.add(step);const sW=3,nS=Math.floor(length/sW);for(let s=0;s<nS;s++){const sc=sCols[Math.floor(Math.random()*sCols.length)];const seat=new THREE.Mesh(new THREE.BoxGeometry(sW-0.3,0.6,rowDepth-0.5),new THREE.MeshStandardMaterial({color:sc}));seat.position.set(-length/2+s*sW+sW/2,rH+0.3,-(row*rowDepth+rowDepth/2));g.add(seat);if(Math.random()>0.12)buildCrowdPerson(g,-length/2+s*sW+sW/2,rH+1.1,-(row*rowDepth+rowDepth/2));}}
         const roof=new THREE.Mesh(new THREE.BoxGeometry(length+4,1,numRows*rowDepth*0.6),new THREE.MeshStandardMaterial({color:0x555566,transparent:true,opacity:0.85}));roof.position.set(0,numRows*rowH+4,-(numRows*rowDepth*0.7));g.add(roof);
         for(let ci=0;ci<=3;ci++){const col=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,numRows*rowH+4,8),cMat);col.position.set(-length/2+ci*(length/3),(numRows*rowH+4)/2,-numRows*rowDepth+1);g.add(col);}
@@ -4282,7 +4338,45 @@ function buildAllBleachers(size){
     buildStand(size/2+2,0,size+16,-Math.PI/2);buildStand(-size/2-2,0,size+16,Math.PI/2);
     buildStand(0,-size/2-2,size+16,0);buildStand(0,size/2+2,size+16,Math.PI);
 }
-function buildCrowdPerson(pg,x,y,z){const skins=[0xffcc99,0xcc9966,0x885533,0xffddbb],jerseys=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff];const sm=new THREE.MeshStandardMaterial({color:skins[Math.floor(Math.random()*skins.length)]}),jm=new THREE.MeshStandardMaterial({color:jerseys[Math.floor(Math.random()*jerseys.length)]});const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,1),jm);body.position.set(x,y,z);pg.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(0.7,6,6),sm);head.position.set(x,y+1.6,z);pg.add(head);if(Math.random()>0.5){const ai={left:null,right:null,phase:Math.random()*Math.PI*2};[-1.2,1.2].forEach((ax,idx)=>{const arm=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.6,0.5),jm);arm.position.set(x+ax,y+0.8,z);arm.rotation.z=ax>0?-0.8:0.8;pg.add(arm);if(idx===0)ai.left=arm;else ai.right=arm;});animatedCrowdArms.push(ai);}}
+function buildCrowdPerson(pg,x,y,z){
+    const skins=[0xffcc99,0xcc9966,0x885533,0xffddbb];
+    const jerseys=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff];
+    const sm=new THREE.MeshStandardMaterial({color:skins[Math.floor(Math.random()*skins.length)]});
+    const jm=new THREE.MeshStandardMaterial({color:jerseys[Math.floor(Math.random()*jerseys.length)]});
+
+    const person=new THREE.Group();
+    person.position.set(x,y,z);
+
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,1),jm);
+    body.position.set(0,0,0);
+    person.add(body);
+
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.7,6,6),sm);
+    head.position.set(0,1.6,0);
+    person.add(head);
+
+    if(Math.random()>0.5){
+        const ai={left:null,right:null,phase:Math.random()*Math.PI*2};
+        [-1.2,1.2].forEach((ax,idx)=>{
+            const arm=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.6,0.5),jm);
+            arm.position.set(ax,0.8,0);
+            arm.rotation.z=ax>0?-0.8:0.8;
+            person.add(arm);
+            if(idx===0)ai.left=arm;else ai.right=arm;
+        });
+        animatedCrowdArms.push(ai);
+    }
+
+    pg.add(person);
+    animatedCrowdPeople.push({
+        mesh:person,
+        baseY:y,
+        phase:Math.random()*Math.PI*2,
+        speed:1.25+Math.random()*1.15,
+        amp:0.08+Math.random()*0.16,
+        goalSide:pg.userData.goalSide||0
+    });
+}
 function buildGoal(x,z,rotY){const gm=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.5});const g=new THREE.Group();[-9,9].forEach(ox=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,8,8),gm);p.position.set(ox,4,0);g.add(p);});const bar=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,18,8),gm);bar.rotation.z=Math.PI/2;bar.position.set(0,8,0);g.add(bar);const net=new THREE.Mesh(new THREE.BoxGeometry(18,8,5),new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.25,wireframe:true}));net.position.set(0,4,-2.5);g.add(net);g.position.set(x,0.1,z);g.rotation.y=rotY;scene.add(g);}
 function buildFloodlightPoles(size){
     const pm=new THREE.MeshStandardMaterial({color:0xddddcc,metalness:0.5});
@@ -4332,8 +4426,10 @@ function spawnFootballPlayers(pitchSize){
         const player=buildPlayerMesh(teams[i<7?0:1]);
         player.scale.setScalar(0.5);
 
-        const px=(Math.random()-0.5)*half*2;
-        const pz=(Math.random()-0.5)*half*2;
+        const playerHalfX=half;
+        const playerHalfZ=Math.min(half,46);
+        const px=(Math.random()-0.5)*playerHalfX*2;
+        const pz=(Math.random()-0.5)*playerHalfZ*2;
         player.position.set(px,0,pz);
         scene.add(player);
 
@@ -4348,8 +4444,10 @@ function spawnFootballPlayers(pitchSize){
         const item={
             mesh:player,
             ball,
-            tx:(Math.random()-0.5)*half*2,
-            tz:(Math.random()-0.5)*half*2,
+            tx:(Math.random()-0.5)*playerHalfX*2,
+            tz:(Math.random()-0.5)*playerHalfZ*2,
+            playerHalfX,
+            playerHalfZ,
             wait:Math.random(),
             spd:4+Math.random()*4,
             half,
@@ -4359,6 +4457,8 @@ function spawnFootballPlayers(pitchSize){
             kickCooldown:0,
             reactionTime:0,
             reactionBaseY:0,
+            mowerGoalEligible:false,
+            goalLatched:false,
 
             update(dt){
                 this.kickCooldown=Math.max(0,this.kickCooldown-dt);
@@ -4391,6 +4491,15 @@ function spawnFootballPlayers(pitchSize){
                     this.ballVZ*=friction;
                     this.ball.rotation.x+=Math.hypot(this.ballVX,this.ballVZ)*dt*1.6;
 
+                    const inGoalMouth=Math.abs(this.ball.position.x)<=10.5 &&
+                        Math.abs(this.ball.position.z)>=54.0;
+                    if(this.mowerGoalEligible&&inGoalMouth&&!this.goalLatched){
+                        this.goalLatched=true;
+                        triggerFootballGoal(this.ball.position.z);
+                    }else if(!inGoalMouth&&Math.abs(this.ball.position.z)<51.5){
+                        this.goalLatched=false;
+                    }
+
                     // Its player reacts for a moment before chasing the lost ball.
                     if(this.reactionTime>0)return;
 
@@ -4401,8 +4510,14 @@ function spawnFootballPlayers(pitchSize){
                     if(d>1.75){
                         const nx=dx/(d||1),nz=dz/(d||1);
                         const chaseSpeed=Math.max(this.spd,7.5);
-                        this.mesh.position.x+=nx*chaseSpeed*dt;
-                        this.mesh.position.z+=nz*chaseSpeed*dt;
+                        this.mesh.position.x=THREE.MathUtils.clamp(
+                            this.mesh.position.x+nx*chaseSpeed*dt,
+                            -this.playerHalfX,this.playerHalfX
+                        );
+                        this.mesh.position.z=THREE.MathUtils.clamp(
+                            this.mesh.position.z+nz*chaseSpeed*dt,
+                            -this.playerHalfZ,this.playerHalfZ
+                        );
                         this.mesh.rotation.y=Math.atan2(nx,nz);
 
                         if(this.mesh.userData.leftLeg)
@@ -4416,9 +4531,11 @@ function spawnFootballPlayers(pitchSize){
                         if(ballSpeed<2.4){
                             this.detached=false;
                             this.ballVX=this.ballVZ=0;
+                            this.mowerGoalEligible=false;
+                            this.goalLatched=false;
                             this.wait=.15;
-                            this.tx=(Math.random()-.5)*this.half*2;
-                            this.tz=(Math.random()-.5)*this.half*2;
+                            this.tx=(Math.random()-.5)*this.playerHalfX*2;
+                            this.tz=(Math.random()-.5)*this.playerHalfZ*2;
                         }
                     }
                     return;
@@ -4434,15 +4551,21 @@ function spawnFootballPlayers(pitchSize){
                 const dist=Math.hypot(dx,dz);
 
                 if(dist<2){
-                    this.tx=(Math.random()-.5)*this.half*2;
-                    this.tz=(Math.random()-.5)*this.half*2;
+                    this.tx=(Math.random()-.5)*this.playerHalfX*2;
+                    this.tz=(Math.random()-.5)*this.playerHalfZ*2;
                     this.wait=Math.random()*.8;
                     return;
                 }
 
                 const nx=dx/(dist||1),nz=dz/(dist||1);
-                this.mesh.position.x+=nx*this.spd*dt;
-                this.mesh.position.z+=nz*this.spd*dt;
+                this.mesh.position.x=THREE.MathUtils.clamp(
+                    this.mesh.position.x+nx*this.spd*dt,
+                    -this.playerHalfX,this.playerHalfX
+                );
+                this.mesh.position.z=THREE.MathUtils.clamp(
+                    this.mesh.position.z+nz*this.spd*dt,
+                    -this.playerHalfZ,this.playerHalfZ
+                );
                 this.mesh.rotation.y=Math.atan2(nx,nz);
 
                 this.ball.position.x=this.mesh.position.x+nx*1.2;
@@ -4491,6 +4614,8 @@ function updateFootballBallInteractions(){
             p.detached=true;
             p.ballVX=kx*kickSpeed;
             p.ballVZ=kz*kickSpeed;
+            p.mowerGoalEligible=true;
+            p.goalLatched=false;
             p.kickCooldown=.55;
             p.reactionBaseY=p.mesh.position.y;
             p.reactionTime=.72;
@@ -6442,6 +6567,37 @@ function animate(){
         animatedAnimals.forEach(a=>{const p=a.phase+t;if(a.type==='dog'){a.tailG.rotation.z=Math.sin(p*4)*0.6;a.headG.rotation.x=Math.sin(p*1.5)*0.08;a.headG.rotation.y=Math.sin(p*0.7)*0.15;}else{a.tailG.rotation.y=Math.sin(p*1.2)*0.5;a.headG.rotation.y=Math.sin(p*0.8)*0.12;}});
         animatedPlayers.forEach(p=>p.update(dt));
         animatedCrowdArms.forEach(ca=>{if(ca.left)ca.left.rotation.z=-0.8+Math.sin(t*2+ca.phase)*0.5;if(ca.right)ca.right.rotation.z=0.8-Math.sin(t*2+ca.phase)*0.5;});
+
+        if(footballCrowdCelebration.time>0){
+            footballCrowdCelebration.time=Math.max(0,footballCrowdCelebration.time-dt);
+        }
+        animatedCrowdPeople.forEach(cp=>{
+            const celebrating=footballCrowdCelebration.time>0 &&
+                cp.goalSide!==0 &&
+                cp.goalSide===footballCrowdCelebration.side;
+            const amp=celebrating?(0.42+cp.amp*1.8):cp.amp;
+            const speed=celebrating?(cp.speed*4.0):cp.speed;
+            // Positive-only hop keeps spectators seated/standing on their step.
+            cp.mesh.position.y=cp.baseY+Math.max(0,Math.sin(t*speed+cp.phase))*amp;
+        });
+
+        for(let i=footballGoalConfetti.length-1;i>=0;i--){
+            const c=footballGoalConfetti[i];
+            c.life-=dt;
+            c.vy-=18*dt;
+            c.mesh.position.x+=c.vx*dt;
+            c.mesh.position.y+=c.vy*dt;
+            c.mesh.position.z+=c.vz*dt;
+            c.mesh.rotation.x+=dt*7;
+            c.mesh.rotation.z+=dt*9;
+            if(c.life<.65)c.mesh.material.opacity=Math.max(0,c.life/.65);
+            if(c.life<=0||c.mesh.position.y<0){
+                scene.remove(c.mesh);
+                if(c.mesh.geometry)c.mesh.geometry.dispose();
+                if(c.mesh.material)c.mesh.material.dispose();
+                footballGoalConfetti.splice(i,1);
+            }
+        }
         animatedClouds.forEach(c=>{c.mesh.position.x+=c.speed*dt;if(c.mesh.position.x>300)c.mesh.position.x=-300;});
         if(animatedFlag)animatedFlag.rotation.z=Math.sin(t*2.5)*0.25;
         if(animatedPond)animatedPond.rotation.y+=0.005;
