@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mower Simulator</title>
+    <link rel="preload" as="image" href="./startbild.jpg" fetchpriority="high">
+    <link rel="preload" as="audio" href="./golf.mp3">
     <!-- Stable mechanics baseline + mower-only GLB gameplay + UI redesign v2 -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap');
@@ -11,9 +13,13 @@
         canvas { display:block; }
         #start-screen {
             position:absolute; top:0; left:0; width:100%; height:100%;
-            background-image:url('./startbild.jpg'); background-size:cover; background-position:center;
+            background:#07142a url('./startbild.jpg') center/cover no-repeat;
             display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
             z-index:200; padding-bottom:50px; box-sizing:border-box;
+        }
+        #start-cover-img{
+            position:absolute;inset:0;width:100%;height:100%;
+            object-fit:cover;object-position:center;z-index:-1;
         }
         #start-btn-row { display:flex; flex-direction:row; gap:15px; justify-content:center; align-items:center; }
         #main-menu-screen, #level-select-screen, #shop-screen {
@@ -1635,8 +1641,9 @@
 </div>
 
 <div id="start-screen">
+    <img id="start-cover-img" src="./startbild.jpg" alt="" fetchpriority="high" decoding="async">
     <div id="start-btn-row">
-        <button class="arcade-btn" onclick="openMainMenu()">STARTA SPELET</button>
+        <button class="arcade-btn" onclick="startGameFromCover()">STARTA SPELET</button>
         <button class="arcade-btn" style="background:#3498db;" onclick="openSettings()">⚙ INSTÄLLNINGAR</button>
     </div>
 </div>
@@ -2896,17 +2903,41 @@ window.jukeboxSelect = function(trackId){
 // ── AUDIO ─────────────────────────────────────────────────────────────────────
 const bgMusic = document.getElementById('bg-music');
 bgMusic.volume = 0.35;
+
+// Ask the browser to fetch/decode the menu music immediately. Autoplay may still
+// be blocked by mobile browsers, so STARTA SPELET also performs an explicit
+// user-gesture play attempt below.
+try{bgMusic.load();}catch(e){}
 bgMusic.play().catch(()=>{});
-document.addEventListener('click', ()=>{ if(settings.music && bgMusic.paused) bgMusic.play().catch(()=>{}); }, {once:true});
+document.addEventListener('click',()=>{if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});},{once:true});
+
+window.startGameFromCover=function(){
+    if(settings.music){
+        // This runs directly inside the user's click gesture, which is the most
+        // reliable way to unlock audio on iOS/Android browsers.
+        bgMusic.play().catch(()=>{});
+    }
+    openMainMenu();
+};
 
 const sfxEls = { fan1:document.getElementById('sfx-fan1'), fan2:document.getElementById('sfx-fan2'), fan3:document.getElementById('sfx-fan3'), swing:document.getElementById('sfx-swing'), fore:document.getElementById('sfx-fore') };
 const mowerSfx = document.getElementById('sfx-mower');
-mowerSfx.volume = 0.35; // v40: all mower engine clips 30% lower than before
+const MOWER_SFX_VOLUME_NORMAL=0.245; // another 30% reduction from 0.35
+const MOWER_SFX_VOLUME_GALLERY=0.14; // 60% reduction from the former 0.35 level
+mowerSfx.volume=MOWER_SFX_VOLUME_NORMAL;
 let mowerSfxPlaying = false;
 const mowerSfxFiles = { standard:'./handjag.mp3', klippo:'./klippo.mp3', ts112:'./rideon.mp3', combine:'./combine.mp3' };
 
 function playSfx(id){ if(!settings.sfx) return; const e=sfxEls[id]; if(!e) return; e.currentTime=0; e.play().catch(()=>{}); }
-function startMowerSfx(){ if(!settings.sfx||mowerSfxPlaying) return; mowerSfx.play().catch(()=>{}); mowerSfxPlaying=true; }
+function updateMowerSfxVolume(){
+    mowerSfx.volume=(currentLevel===5)?MOWER_SFX_VOLUME_GALLERY:MOWER_SFX_VOLUME_NORMAL;
+}
+function startMowerSfx(){
+    if(!settings.sfx||mowerSfxPlaying)return;
+    updateMowerSfxVolume();
+    mowerSfx.play().catch(()=>{});
+    mowerSfxPlaying=true;
+}
 function stopMowerSfx(){ if(!mowerSfxPlaying) return; mowerSfx.pause(); mowerSfxPlaying=false; }
 
 let sfxTimer = null;
@@ -3086,6 +3117,11 @@ function saveLevelRecord(levelId,progress,stars){
     try{localStorage.setItem('mower_level_records',JSON.stringify(levelRecords));}catch(e){}
     return {isNewBest,record:nextRecord};
 }
+
+// Prime the cover before the heavier GLB requests compete for bandwidth.
+const startCoverPrime=new Image();
+startCoverPrime.decoding='async';
+startCoverPrime.src='./startbild.jpg';
 
 initThree(); initShowroomThree(); preloadAssets(); animate();
 
@@ -4519,7 +4555,7 @@ function loadGalleryStatue(){
             // museum scale regardless of the source model's native units.
             let box=new THREE.Box3().setFromObject(statue);
             let size=box.getSize(new THREE.Vector3());
-            if(size.y>0)statue.scale.multiplyScalar(7.2/size.y);
+            if(size.y>0)statue.scale.multiplyScalar(9.36/size.y);
 
             box=new THREE.Box3().setFromObject(statue);
             const center=box.getCenter(new THREE.Vector3());
@@ -4531,21 +4567,31 @@ function loadGalleryStatue(){
             statue.position.y+=1.72-box.min.y;
             statue.position.z+=-51;
 
-            statue.rotation.y=-THREE.MathUtils.degToRad(150);
+            statue.rotation.y=-THREE.MathUtils.degToRad(240);
             scene.add(statue);
 
             // Dedicated warm museum spotlight, shadow-free for mobile stability.
-            const spot=new THREE.SpotLight(0xffd29a,6.4,38,Math.PI/6.5,.48,1.35);
+            const spot=new THREE.SpotLight(0xffdfb0,8.8,42,Math.PI/6,.45,1.25);
             spot.position.set(0,14.8,-45.5);
             spot.target.position.set(0,4.5,-51);
             spot.castShadow=false;
             scene.add(spot);
             scene.add(spot.target);
 
-            const topLamp=new THREE.PointLight(0xffc77d,2.3,18,2);
-            topLamp.position.set(0,12.8,-51);
+            const topLamp=new THREE.PointLight(0xffd29a,3.8,22,2);
+            topLamp.position.set(0,13.2,-51);
             topLamp.castShadow=false;
             scene.add(topLamp);
+
+            const lampShade=new THREE.Mesh(
+                new THREE.CylinderGeometry(.65,1.05,.48,16),
+                new THREE.MeshStandardMaterial({
+                    color:0x6b4a25,metalness:.65,roughness:.35,
+                    emissive:0xffb85c,emissiveIntensity:.35
+                })
+            );
+            lampShade.position.set(0,14.25,-51);
+            scene.add(lampShade);
         },
         undefined,
         err=>console.warn('Gallery statue failed to load:',err)
@@ -4606,8 +4652,10 @@ function setupGalleryLevel(){
     plinth.position.set(0,1.0,-51);scene.add(plinth);
     loadGalleryStatue();
 
-    // Architectural rhythm: pilasters, ceiling beams and brass capitals.
-    for(let z=-48;z<=48;z+=12){
+    // Architectural rhythm: place pilasters BETWEEN the five picture bays so
+    // no vertical timber can cover a framed image.
+    const galleryBayDividers=[-50,-30,-10,10,30,50];
+    galleryBayDividers.forEach(z=>{
         [-14.9,14.9].forEach(x=>{
             const col=new THREE.Mesh(new THREE.BoxGeometry(.9,11,.9),walnut2);
             col.position.set(x,7,z);scene.add(col);
@@ -4616,7 +4664,7 @@ function setupGalleryLevel(){
         });
         const beam=new THREE.Mesh(new THREE.BoxGeometry(30,.42,.75),walnut2);
         beam.position.set(0,15.55,z);scene.add(beam);
-    }
+    });
 
     // Three chandeliers down the centre.
     [-32,0,32].forEach(buildGalleryChandelier);
@@ -4658,7 +4706,7 @@ function galleryNearestFrame(){
         const d=Math.hypot(mowerGroup.position.x-wp.x,mowerGroup.position.z-wp.z);
         if(d<bestD){bestD=d;best=f;}
     }
-    return bestD<=10.5?best:null;
+    return bestD<=22?best:null;
 }
 
 function showGalleryInfo(frame){
@@ -4682,16 +4730,15 @@ function showGalleryInfo(frame){
 function onGalleryPointer(e){
     if(!galleryMode||currentLevel!==5||!mowerGroup)return;
 
-    // Once an exhibit card is open, a second click/tap anywhere in the 3D
-    // view dismisses it. No need to hit the picture again.
+    // Once an exhibit card is open, a second click/tap anywhere dismisses it.
     if(galleryOpenItem!==null){
         showGalleryInfo(null);
         return;
     }
 
-    const near=galleryNearestFrame();
-    if(!near)return;
-
+    // Deliberate picture clicks are no longer proximity-gated. Because the
+    // picture material is DoubleSide, a visible frame can be selected from
+    // oblique angles and from much farther down the hall.
     const rect=renderer.domElement.getBoundingClientRect();
     const mouse=new THREE.Vector2(
         ((e.clientX-rect.left)/rect.width)*2-1,
@@ -4703,7 +4750,7 @@ function onGalleryPointer(e){
     if(hits.length){
         const idx=hits[0].object.userData.galleryIndex;
         const frame=galleryFrames.find(f=>f.index===idx);
-        if(frame===near)showGalleryInfo(frame);
+        if(frame)showGalleryInfo(frame);
     }
 }
 
@@ -5769,6 +5816,7 @@ window.confirmStartLevel=function(){
     if(settings.timedMode&&currentLevel!==5)timerInterval=setInterval(updateTimer,1000);
 
     mowerSfx.src=mowerSfxFiles[selectedMower]||'./handjag.mp3';
+    updateMowerSfxVolume();
     mowerSfxPlaying=false;
     clock.start();
 };
