@@ -3222,7 +3222,10 @@ const sceneryAssets={
     plant4:{path:'./plant4.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true},
     swing:{path:'./swing.glb',height:5.0,castShadow:true,receiveShadow:true},
-    hammock2:{path:'./hammock2.glb',length:5.2,castShadow:true,receiveShadow:true}
+    hammock2:{path:'./hammock2.glb',length:5.2,castShadow:true,receiveShadow:true},
+
+    // Night-only roaming apparition. Visual-only: it never participates in collision.
+    ghost:{path:'./ghost.glb',height:6.5,castShadow:false,receiveShadow:false}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -3249,6 +3252,12 @@ let animatedCrowdPeople=[];
 let footballCrowdCelebration={side:0,time:0};
 let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
+
+// Night ghost: one lightweight GLB clone crossing the level at a time.
+let nightGhost=null;
+let nightGhostMotion=null;
+let nightGhostRespawnTimer=0;
+let nightGhostLoadRequested=false;
 
 let charLeftLeg=null, charRightLeg=null, charLeftArm=null, charRightArm=null;
 let charLeftFoot=null, charRightFoot=null;
@@ -3590,6 +3599,158 @@ function preloadAssets(){
     ].forEach(([path,h,cb])=>{
         gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,err=>{console.warn('Mower GLB failed to load:',path,err);});
     });
+}
+
+
+function disposeNightGhost(){
+    if(nightGhost&&nightGhost.parent)nightGhost.parent.remove(nightGhost);
+    nightGhost=null;
+    nightGhostMotion=null;
+}
+
+function nightGhostBounds(){
+    if(currentLevel===5){
+        return {halfX:GALLERY_HALF_W-1.5,halfZ:GALLERY_HALF_D-2};
+    }
+    const half=Math.max(35,lawnWorldSize/2);
+    return {halfX:half,halfZ:half};
+}
+
+function makeNightGhostRoute(){
+    const b=nightGhostBounds();
+    const edgePad=currentLevel===5?1.5:5;
+    const chooseX=Math.random()<0.5;
+    const side=Math.random()<0.5?-1:1;
+
+    let start,end;
+    if(chooseX){
+        start=new THREE.Vector2(side*(b.halfX+edgePad),(Math.random()*2-1)*b.halfZ*.82);
+        end=new THREE.Vector2(-side*(b.halfX+edgePad),(Math.random()*2-1)*b.halfZ*.82);
+    }else{
+        start=new THREE.Vector2((Math.random()*2-1)*b.halfX*.82,side*(b.halfZ+edgePad));
+        end=new THREE.Vector2((Math.random()*2-1)*b.halfX*.82,-side*(b.halfZ+edgePad));
+    }
+
+    // Bend the crossing path around the middle instead of moving in a straight line.
+    const mid=new THREE.Vector2(
+        (start.x+end.x)*.5+(Math.random()*2-1)*b.halfX*.38,
+        (start.y+end.y)*.5+(Math.random()*2-1)*b.halfZ*.38
+    );
+
+    return {
+        start,mid,end,
+        progress:0,
+        duration:(currentLevel===5?10:13)+Math.random()*7,
+        floatHeight:currentLevel===5?2.2:(2.7+Math.random()*1.2),
+        bobPhase:Math.random()*Math.PI*2
+    };
+}
+
+function applyNightGhostLook(holder){
+    const glowColor=new THREE.Color(0xb9e8ff);
+    holder.userData.ghostMaterials=[];
+
+    holder.traverse(c=>{
+        if(!c.isMesh)return;
+        c.castShadow=false;
+        c.receiveShadow=false;
+
+        const src=Array.isArray(c.material)?c.material:[c.material];
+        const cloned=src.map(mat=>{
+            if(!mat)return mat;
+            const m=mat.clone();
+            m.transparent=true;
+            m.opacity=.50;
+            m.depthWrite=false;
+            m.side=THREE.DoubleSide;
+            if('emissive' in m){
+                m.emissive=glowColor.clone();
+                m.emissiveIntensity=Math.max(m.emissiveIntensity||0,.75);
+            }
+            m.needsUpdate=true;
+            holder.userData.ghostMaterials.push(m);
+            return m;
+        });
+        c.material=Array.isArray(c.material)?cloned:cloned[0];
+    });
+
+    const glow=new THREE.PointLight(0xb9e8ff,2.4,22,2);
+    glow.position.set(0,3,0);
+    holder.add(glow);
+}
+
+function spawnNightGhostNow(){
+    if(!settings.nightMode||!gameStarted||!gameActive||nightGhost)return;
+
+    const g=spawnSceneryGLB('ghost',{x:0,y:0,z:0,scale:1,castShadow:false});
+    if(!g){
+        if(!nightGhostLoadRequested){
+            nightGhostLoadRequested=true;
+            whenSceneryResolved('ghost',status=>{
+                nightGhostLoadRequested=false;
+                if(status==='ready'&&settings.nightMode&&gameStarted&&gameActive&&!nightGhost){
+                    spawnNightGhostNow();
+                }
+            });
+        }
+        return;
+    }
+
+    applyNightGhostLook(g);
+    nightGhost=g;
+    nightGhostMotion=makeNightGhostRoute();
+}
+
+function resetNightGhostForLevel(){
+    disposeNightGhost();
+    nightGhostRespawnTimer=.8+Math.random()*2.4;
+    nightGhostLoadRequested=false;
+}
+
+function updateNightGhost(dt,t){
+    if(!settings.nightMode){
+        disposeNightGhost();
+        return;
+    }
+    if(!gameStarted||!gameActive)return;
+
+    if(!nightGhost||!nightGhostMotion){
+        nightGhostRespawnTimer-=dt;
+        if(nightGhostRespawnTimer<=0)spawnNightGhostNow();
+        return;
+    }
+
+    const m=nightGhostMotion;
+    m.progress=Math.min(1,m.progress+dt/m.duration);
+    const u=m.progress;
+    const inv=1-u;
+
+    // Quadratic Bezier in X/Z for smooth, collision-free trajectories.
+    const x=inv*inv*m.start.x+2*inv*u*m.mid.x+u*u*m.end.x;
+    const z=inv*inv*m.start.y+2*inv*u*m.mid.y+u*u*m.end.y;
+
+    const dx=2*inv*(m.mid.x-m.start.x)+2*u*(m.end.x-m.mid.x);
+    const dz=2*inv*(m.mid.y-m.start.y)+2*u*(m.end.y-m.mid.y);
+
+    const ground=currentLevel===4?level4HeightAt(x,z):0;
+    const bob=Math.sin(t*1.55+m.bobPhase)*.34;
+    nightGhost.position.set(x,ground+m.floatHeight+bob,z);
+    nightGhost.rotation.y=Math.atan2(dx,dz);
+
+    // Material is intrinsically 50% transparent; fade only at entry/exit edges.
+    const edgeFade=Math.min(1,u/.10,(1-u)/.10);
+    const opacity=.50*Math.max(0,edgeFade);
+    const mats=nightGhost.userData.ghostMaterials||[];
+    mats.forEach(mat=>{mat.opacity=opacity;});
+
+    // Gentle spectral pulse without adding geometry.
+    const light=nightGhost.children.find(c=>c.isPointLight);
+    if(light)light.intensity=1.9+Math.sin(t*2.1+m.bobPhase)*.45;
+
+    if(u>=1){
+        disposeNightGhost();
+        nightGhostRespawnTimer=2+Math.random()*5;
+    }
 }
 
 function getTerrainHeight(x,z){
@@ -6380,16 +6541,12 @@ function showLevelIntro(id){
         1:['./villa.jpg','Level 1: Villakvarteret'],
         2:['./fotboll.jpg','Level 2: Fotbollsplanen'],
         3:['./golf.jpg','Level 3: Golfbanan'],
-        4:['./bana_intro.jpg','Level 4: Fanbyviken']
+        4:['./bana_intro.jpg','Level 4: Fanbyviken'],
+        5:['./galleri.jpg','Galleriet']
     };
-    if(id===5){
-        is.style.backgroundImage='radial-gradient(circle at 50% 35%,rgba(220,168,82,.34),rgba(35,12,7,.96) 65%),linear-gradient(#32160d,#100807)';
-        it.innerText='GALLERI';
-    }else{
-        const[img,title]=map[id]||['','?'];
-        is.style.backgroundImage=`url('${img}')`;
-        it.innerText=title;
-    }
+    const[img,title]=map[id]||['','?'];
+    is.style.backgroundImage=`url('${img}')`;
+    it.innerText=title;
     is.style.display='flex';
 }
 
@@ -6403,6 +6560,7 @@ window.confirmStartLevel=function(){
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
     animatedAnimals=[];trampolineKids=[];animatedLevel4Fire=[];stadiumOverlayMesh=null;
+    resetNightGhostForLevel();
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
@@ -6422,6 +6580,9 @@ window.confirmStartLevel=function(){
     else if(currentLevel===3) setupGolfLevel();
     else if(currentLevel===4) setupLakeLevel();
     else if(currentLevel===5) setupGalleryLevel();
+
+    // Night-only roaming ghost works in every level, including the gallery.
+    if(settings.nightMode)nightGhostRespawnTimer=.35+Math.random()*1.2;
 
     // Levels 2 and 4 contain substantially more procedural meshes. On mobile,
     // cap internal render resolution slightly lower to stabilize frame pacing
@@ -6575,6 +6736,7 @@ function animate(){
         if(currentLevel===5)updateGalleryUI();
         updateLevel4TrampolineAudio();
         updateFootballBallInteractions();
+        updateNightGhost(dt,t);
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
