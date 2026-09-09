@@ -22,15 +22,22 @@
             text-shadow:3px 3px #ff0055,5px 5px #000;
             margin-bottom:22px;
         }
-        #startup-loader-bar{
-            width:min(78vw,420px);height:18px;
-            border:3px solid #00ffff;background:#111;
-            box-shadow:4px 4px 0 #ff00ff;
-            padding:3px;box-sizing:border-box;
+        #startup-loader-track{
+            position:relative;width:min(78vw,460px);height:92px;overflow:visible;
+        }
+        #startup-loader-ground{
+            position:absolute;left:0;right:0;bottom:10px;height:12px;
+            background:#263425;border:2px solid #111;box-sizing:border-box;
         }
         #startup-loader-fill{
-            width:0%;height:100%;background:#ffff00;
-            transition:width .18s linear;
+            position:absolute;left:0;bottom:12px;width:0%;height:8px;
+            background:#55b84b;box-shadow:0 -3px 0 #7bd65e;
+            transition:width .08s linear;
+        }
+        #startup-loader-mower{
+            position:absolute;left:0;bottom:18px;width:112px;height:auto;
+            transform:translateX(-50%);image-rendering:pixelated;
+            pointer-events:none;will-change:left;
         }
         #start-screen {
             position:absolute; top:0; left:0; width:100%; height:100%;
@@ -1669,7 +1676,11 @@
 
 <div id="startup-loader">
     <div id="startup-loader-text">SPELET STARTAR OM 5</div>
-    <div id="startup-loader-bar"><div id="startup-loader-fill"></div></div>
+    <div id="startup-loader-track">
+        <div id="startup-loader-ground"></div>
+        <div id="startup-loader-fill"></div>
+        <img id="startup-loader-mower" src="./2dmower2.png" alt="" decoding="sync">
+    </div>
 </div>
 
 <div id="start-screen">
@@ -2135,7 +2146,7 @@
     let miniJoyX=0,miniJoyY=0;
     const hillInput={gas:false,brake:false,rotL:false,rotR:false};
     const hillMowerImage=new Image();
-    hillMowerImage.src='./2dmower.png';
+    hillMowerImage.src='./2dmower2.png';
 
     function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
     function rnd(a,b){return a+Math.random()*(b-a);}
@@ -3151,7 +3162,12 @@ function saveLevelRecord(levelId,progress,stars){
     return {isNewBest,record:nextRecord};
 }
 
-// Prime the cover before the heavier GLB requests compete for bandwidth.
+// Request the tiny loading-screen mower first. Immediately after that,
+// prepare the actual cover before the heavier GLB requests compete for bandwidth.
+const startupMowerPrime=new Image();
+startupMowerPrime.decoding='sync';
+startupMowerPrime.src='./2dmower2.png';
+
 const startCoverPrime=new Image();
 startCoverPrime.decoding='async';
 startCoverPrime.src='./startbild.jpg';
@@ -3163,19 +3179,23 @@ function beginStartupCountdown(){
     const loader=document.getElementById('startup-loader');
     const label=document.getElementById('startup-loader-text');
     const fill=document.getElementById('startup-loader-fill');
-    if(!loader||!label||!fill)return;
+    const mower=document.getElementById('startup-loader-mower');
+    if(!loader||!label||!fill||!mower)return;
 
     const started=performance.now();
     let lastShown=5;
 
-    // Ask the cover to finish decoding during the countdown where supported.
+    // While the mower crosses the screen, decode startbild.jpg and buffer the
+    // first menu MP3. The normal asset preloader is already running in parallel.
     if(startCoverPrime.decode)startCoverPrime.decode().catch(()=>{});
     try{bgMusic.load();}catch(e){}
 
     function tick(now){
         const elapsed=Math.min(STARTUP_DELAY_MS,now-started);
         const progress=elapsed/STARTUP_DELAY_MS;
-        fill.style.width=(progress*100).toFixed(1)+'%';
+        const pct=progress*100;
+        fill.style.width=pct.toFixed(1)+'%';
+        mower.style.left=pct.toFixed(1)+'%';
 
         const remaining=Math.max(1,Math.ceil((STARTUP_DELAY_MS-elapsed)/1000));
         if(remaining!==lastShown){
@@ -3187,8 +3207,8 @@ function beginStartupCountdown(){
             requestAnimationFrame(tick);
         }else{
             fill.style.width='100%';
+            mower.style.left='100%';
             label.textContent='SPELET STARTAR OM 1';
-            // Let the final painted frame land, then reveal startbild.jpg.
             requestAnimationFrame(()=>{loader.style.display='none';});
         }
     }
