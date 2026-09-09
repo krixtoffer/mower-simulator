@@ -3225,7 +3225,22 @@ const sceneryAssets={
     hammock2:{path:'./hammock2.glb',length:5.2,castShadow:true,receiveShadow:true},
 
     // Night-only roaming apparition. Visual-only: it never participates in collision.
-    ghost:{path:'./ghost.glb',height:6.5,castShadow:false,receiveShadow:false}
+    ghost:{path:'./ghost.glb',height:6.5,castShadow:false,receiveShadow:false},
+
+    // Fanbyviken wildlife. Lazy loading keeps these decorative GLBs from
+    // competing with startup/menu assets; they load only when Level 4 needs them.
+    // Scale is based on the actual uploaded model bounds. In particular, the
+    // eagle and bat have very wide wings relative to their Y-height, so they
+    // are normalized by horizontal span instead of body height.
+    duck:{path:'./duck.glb',height:1.05,castShadow:true,receiveShadow:false,lazy:true},
+    gull:{path:'./gull.glb',length:3.0,castShadow:false,receiveShadow:false,lazy:true},
+    eagle:{path:'./eagle.glb',length:5.8,castShadow:false,receiveShadow:false,lazy:true},
+    robin:{path:'./robin.glb',height:.42,castShadow:true,receiveShadow:false,lazy:true},
+    squirrel:{path:'./squirrel.glb',height:.78,castShadow:true,receiveShadow:false,lazy:true},
+    wren:{path:'./wren.glb',height:.32,castShadow:true,receiveShadow:false,lazy:true},
+    bat:{path:'./bat.glb',length:2.2,castShadow:false,receiveShadow:false,lazy:true},
+    owl:{path:'./owl.glb',height:1.05,castShadow:true,receiveShadow:false,lazy:true},
+    bee:{path:'./bee.glb',length:.11,castShadow:false,receiveShadow:false,lazy:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -3258,6 +3273,17 @@ let nightGhost=null;
 let nightGhostMotion=null;
 let nightGhostRespawnTimer=0;
 let nightGhostLoadRequested=false;
+
+// Fanbyviken wildlife. All are visual-only and never enter mower collision.
+let level4Ducks=[];
+let level4Gulls=[];
+let level4Eagles=[];
+let level4Robins=[];
+let level4Squirrels=[];
+let level4Wrens=[];
+let level4Bats=[];
+let level4Owls=[];
+let level4Bees=[];
 
 let charLeftLeg=null, charRightLeg=null, charLeftArm=null, charRightArm=null;
 let charLeftFoot=null, charRightFoot=null;
@@ -3520,7 +3546,9 @@ function preloadSceneryAsset(id){
 }
 
 function preloadSceneryAssets(){
-    Object.keys(sceneryAssets).forEach(preloadSceneryAsset);
+    Object.keys(sceneryAssets).forEach(id=>{
+        if(!sceneryAssets[id].lazy)preloadSceneryAsset(id);
+    });
 }
 
 function whenSceneryResolved(id,callback){
@@ -6218,6 +6246,457 @@ function l4Strip(p1,p2,width,color){
     m.position.set(sx,level4HeightAt(sx,sz)+.05,sz);scene.add(m);
 }
 
+
+function resetLevel4Wildlife(){
+    level4Ducks=[];
+    level4Gulls=[];
+    level4Eagles=[];
+    level4Robins=[];
+    level4Squirrels=[];
+    level4Wrens=[];
+    level4Bats=[];
+    level4Owls=[];
+    level4Bees=[];
+}
+
+function l4WildlifeAsset(id,opts,onSpawn){
+    const buildSerial=levelBuildSerial;
+    const trySpawn=()=>{
+        if(buildSerial!==levelBuildSerial||currentLevel!==4)return;
+        const holder=spawnSceneryGLB(id,opts);
+        if(holder&&onSpawn)onSpawn(holder);
+    };
+
+    const cached=sceneryCache.get(id);
+    if(cached&&cached.status==='ready'){
+        trySpawn();
+        return;
+    }
+
+    whenSceneryResolved(id,status=>{
+        if(status==='ready')trySpawn();
+    });
+}
+
+function level4WaterSurfaceY(){
+    return (LEVEL4_WATER_TOPO_VALUE/255)*LEVEL4_HEIGHT_SCALE+.18;
+}
+
+function faceLevel4Mover(mesh,vx,vz){
+    if(!mesh)return;
+    if(Math.abs(vx)+Math.abs(vz)>.0001)mesh.rotation.y=Math.atan2(vx,vz);
+}
+
+function startLevel4GullRoute(g,initialProgress=null){
+    const halfZ=LEVEL4_WORLD_D/2+12;
+    const fromNorth=Math.random()<.5;
+    g.startZ=fromNorth?-halfZ:halfZ;
+    g.endZ=-g.startZ;
+    g.startX=-154+Math.random()*33;
+    g.endX=-154+Math.random()*33;
+    g.bendX=-154+Math.random()*38;
+    g.progress=initialProgress===null?0:initialProgress;
+    g.duration=8.5+Math.random()*5;
+    g.alt=9+Math.random()*5;
+    g.phase=Math.random()*Math.PI*2;
+}
+
+function startLevel4BatRoute(b,initialProgress=null){
+    const edge=Math.floor(Math.random()*4);
+    const hx=LEVEL4_WORLD_W/2+10;
+    const hz=LEVEL4_WORLD_D/2+10;
+    let sx,sz,ex,ez;
+
+    if(edge===0){
+        sx=-hx;sz=(Math.random()*2-1)*LEVEL4_WORLD_D*.42;
+        ex=hx;ez=(Math.random()*2-1)*LEVEL4_WORLD_D*.42;
+    }else if(edge===1){
+        sx=hx;sz=(Math.random()*2-1)*LEVEL4_WORLD_D*.42;
+        ex=-hx;ez=(Math.random()*2-1)*LEVEL4_WORLD_D*.42;
+    }else if(edge===2){
+        sx=(Math.random()*2-1)*LEVEL4_WORLD_W*.42;sz=-hz;
+        ex=(Math.random()*2-1)*LEVEL4_WORLD_W*.42;ez=hz;
+    }else{
+        sx=(Math.random()*2-1)*LEVEL4_WORLD_W*.42;sz=hz;
+        ex=(Math.random()*2-1)*LEVEL4_WORLD_W*.42;ez=-hz;
+    }
+
+    b.sx=sx;b.sz=sz;b.ex=ex;b.ez=ez;
+    b.mx=(sx+ex)*.5+(Math.random()*2-1)*LEVEL4_WORLD_W*.18;
+    b.mz=(sz+ez)*.5+(Math.random()*2-1)*LEVEL4_WORLD_D*.18;
+    b.progress=initialProgress===null?0:initialProgress;
+    b.duration=7+Math.random()*5;
+    b.alt=7+Math.random()*5;
+    b.phase=Math.random()*Math.PI*2;
+}
+
+function chooseLevel4RobinHop(r){
+    const a=Math.random()*Math.PI*2;
+    const dist=.7+Math.random()*1.8;
+    let tx=r.mesh.position.x+Math.cos(a)*dist;
+    let tz=r.mesh.position.z+Math.sin(a)*dist;
+
+    const dx=tx-r.homeX,dz=tz-r.homeZ;
+    const d=Math.hypot(dx,dz);
+    if(d>r.radius){
+        tx=r.homeX+dx/d*r.radius;
+        tz=r.homeZ+dz/d*r.radius;
+    }
+
+    r.fromX=r.mesh.position.x;
+    r.fromZ=r.mesh.position.z;
+    r.toX=tx;
+    r.toZ=tz;
+    r.hop=0;
+    r.hopDuration=.24+Math.random()*.16;
+    r.wait=0;
+    faceLevel4Mover(r.mesh,tx-r.fromX,tz-r.fromZ);
+}
+
+function chooseLevel4WrenHop(w){
+    let tx,tz;
+    const mx=mowerGroup?mowerGroup.position.x:9999;
+    const mz=mowerGroup?mowerGroup.position.z:9999;
+    const dx=w.mesh.position.x-mx;
+    const dz=w.mesh.position.z-mz;
+    const mowerDist=Math.hypot(dx,dz);
+
+    if(mowerDist<9){
+        // Flee a few world units away from the mower.
+        const inv=1/(mowerDist||1);
+        tx=w.mesh.position.x+dx*inv*(3.8+Math.random()*2.3)+(Math.random()-.5)*1.2;
+        tz=w.mesh.position.z+dz*inv*(3.8+Math.random()*2.3)+(Math.random()-.5)*1.2;
+        w.returning=true;
+    }else{
+        // Calmly drift back toward the bush patch with a little randomness.
+        const homePull=w.returning?.68:.34;
+        tx=w.mesh.position.x+(w.homeX-w.mesh.position.x)*homePull+(Math.random()-.5)*3.0;
+        tz=w.mesh.position.z+(w.homeZ-w.mesh.position.z)*homePull+(Math.random()-.5)*2.4;
+        if(Math.hypot(tx-w.homeX,tz-w.homeZ)<2.5)w.returning=false;
+    }
+
+    const hdx=tx-w.homeX,hdz=tz-w.homeZ;
+    const hd=Math.hypot(hdx,hdz);
+    if(hd>w.radius){
+        tx=w.homeX+hdx/hd*w.radius;
+        tz=w.homeZ+hdz/hd*w.radius;
+    }
+
+    w.fromX=w.mesh.position.x;
+    w.fromZ=w.mesh.position.z;
+    w.toX=tx;
+    w.toZ=tz;
+    w.hop=0;
+    w.hopDuration=.20+Math.random()*.15;
+    w.wait=0;
+    faceLevel4Mover(w.mesh,tx-w.fromX,tz-w.fromZ);
+}
+
+function spawnLevel4Wildlife(){
+    resetLevel4Wildlife();
+
+    // 4 ducks drifting slowly inside the known left-hand water sheet.
+    const duckMapSites=[
+        [120,245],[185,360],[245,500],[155,625]
+    ];
+    duckMapSites.forEach(([px,py],i)=>{
+        const p=level4MapToWorld(px,py);
+        l4WildlifeAsset('duck',{
+            x:p.x,y:level4WaterSurfaceY(),z:p.z,
+            rotation:Math.random()*Math.PI*2,
+            scale:.95+Math.random()*.12,
+            castShadow:false
+        },mesh=>{
+            level4Ducks.push({
+                mesh,
+                cx:p.x,cz:p.z,
+                rx:3.0+Math.random()*3.0,
+                rz:5.0+Math.random()*4.0,
+                speed:.12+Math.random()*.07,
+                phase:i*1.7+Math.random()
+            });
+        });
+    });
+
+    // Three gulls continuously crossing the level above the water.
+    for(let i=0;i<3;i++){
+        l4WildlifeAsset('gull',{
+            x:-145,y:12,z:0,rotation:0,scale:.95+Math.random()*.12,castShadow:false
+        },mesh=>{
+            const g={mesh};
+            startLevel4GullRoute(g,i/3);
+            level4Gulls.push(g);
+        });
+    }
+
+    // One eagle circling high above Fanbyviken.
+    l4WildlifeAsset('eagle',{
+        x:0,y:35,z:0,rotation:0,scale:1,castShadow:false
+    },mesh=>{
+        level4Eagles.push({
+            mesh,
+            radiusX:72,
+            radiusZ:42,
+            speed:.10,
+            phase:Math.random()*Math.PI*2
+        });
+    });
+
+    // Three robins in the wooded ground immediately behind the fireplace area.
+    // The barbecue is at map (742,344); this patch is slightly north-west,
+    // inside the existing 545..975 / 10..410 forest mass.
+    const robinHomes=[[680,275],[716,258],[650,305]];
+    robinHomes.forEach(([px,py])=>{
+        const p=level4MapToWorld(px,py);
+        l4WildlifeAsset('robin',{
+            x:p.x,y:level4HeightAt(p.x,p.z)+.05,z:p.z,
+            rotation:Math.random()*Math.PI*2,scale:1,castShadow:true
+        },mesh=>{
+            level4Robins.push({
+                mesh,homeX:p.x,homeZ:p.z,radius:7,
+                fromX:p.x,fromZ:p.z,toX:p.x,toZ:p.z,
+                hop:1,hopDuration:.3,wait:.5+Math.random()*2.0
+            });
+        });
+    });
+
+    // Three squirrels perched halfway up selected visible tree sites.
+    const squirrelSites=[
+        [902,287,6.6],[1016,283,6.8],[1448,430,7.0]
+    ];
+    squirrelSites.forEach(([px,py,up],i)=>{
+        const p=level4MapToWorld(px,py);
+        l4WildlifeAsset('squirrel',{
+            x:p.x,y:level4HeightAt(p.x,p.z)+up,z:p.z,
+            rotation:i*1.7,scale:1,castShadow:true
+        },mesh=>{
+            level4Squirrels.push({
+                mesh,
+                baseRot:mesh.rotation.y,
+                targetRot:mesh.rotation.y,
+                lookTimer:1.2+Math.random()*4.5
+            });
+        });
+    });
+
+
+    // Eight small bees orbit and hover around the dense plant5 flower bed
+    // at map rectangle 598..864 / 346..418.
+    // Their routes stay inside/just above that planting strip.
+    {
+        const flowerCenter=level4MapToWorld((598+864)/2,(346+418)/2);
+        const flowerHalfX=((864-598)/LEVEL4_MAP_W*LEVEL4_WORLD_W)/2;
+        const flowerHalfZ=((418-346)/LEVEL4_MAP_H*LEVEL4_WORLD_D)/2;
+
+        for(let i=0;i<8;i++){
+            const phase=i/8*Math.PI*2+Math.random()*.5;
+            const sx=flowerCenter.x+Math.cos(phase)*flowerHalfX*.55;
+            const sz=flowerCenter.z+Math.sin(phase)*flowerHalfZ*.65;
+
+            l4WildlifeAsset('bee',{
+                x:sx,
+                y:level4HeightAt(sx,sz)+1.0,
+                z:sz,
+                rotation:Math.random()*Math.PI*2,
+                scale:1,
+                castShadow:false
+            },mesh=>{
+                level4Bees.push({
+                    mesh,
+                    cx:flowerCenter.x,
+                    cz:flowerCenter.z,
+                    rx:flowerHalfX*(.30+Math.random()*.58),
+                    rz:flowerHalfZ*(.35+Math.random()*.58),
+                    speed:.72+Math.random()*.52,
+                    phase,
+                    phase2:Math.random()*Math.PI*2,
+                    height:.65+Math.random()*.75
+                });
+            });
+        }
+    }
+
+    // Three wrens roaming around the established bush patch near map 895..1016.
+    const wrenHomes=[[910,340],[945,350],[985,320]];
+    wrenHomes.forEach(([px,py])=>{
+        const p=level4MapToWorld(px,py);
+        l4WildlifeAsset('wren',{
+            x:p.x,y:level4HeightAt(p.x,p.z)+.04,z:p.z,
+            rotation:Math.random()*Math.PI*2,scale:1,castShadow:true
+        },mesh=>{
+            level4Wrens.push({
+                mesh,homeX:p.x,homeZ:p.z,radius:9,
+                fromX:p.x,fromZ:p.z,toX:p.x,toZ:p.z,
+                hop:1,hopDuration:.25,wait:.4+Math.random()*1.7,returning:false
+            });
+        });
+    });
+
+    if(settings.nightMode){
+        // Four bats continuously traverse the whole level at low altitude.
+        for(let i=0;i<4;i++){
+            l4WildlifeAsset('bat',{
+                x:0,y:10,z:0,rotation:0,scale:.9+Math.random()*.18,castShadow:false
+            },mesh=>{
+                const b={mesh};
+                startLevel4BatRoute(b,i/4);
+                level4Bats.push(b);
+            });
+        }
+
+        // Four stationary owls on roofs / high tree crowns at different sites.
+        const owlSites=[
+            {type:'house',index:0,extraY:13.5,rot:.2},
+            {type:'house',index:4,extraY:13.0,rot:2.5},
+            {type:'tree',px:902,py:287,extraY:13.4,rot:4.0},
+            {type:'tree',px:1428,py:556,extraY:13.1,rot:5.2}
+        ];
+        owlSites.forEach(site=>{
+            let x,z,y;
+            if(site.type==='house'){
+                const hs=LEVEL4_HOUSE_SITES[site.index];
+                x=hs.x;z=hs.z;y=hs.flatY+site.extraY;
+            }else{
+                const p=level4MapToWorld(site.px,site.py);
+                x=p.x;z=p.z;y=level4HeightAt(x,z)+site.extraY;
+            }
+            l4WildlifeAsset('owl',{
+                x,y,z,rotation:site.rot,scale:1,castShadow:true
+            },mesh=>{
+                level4Owls.push({mesh,baseRot:site.rot,phase:Math.random()*Math.PI*2});
+            });
+        });
+    }
+}
+
+function updateLevel4Wildlife(dt,t){
+    if(currentLevel!==4)return;
+
+    const waterY=level4WaterSurfaceY();
+
+    level4Ducks.forEach(d=>{
+        const a=t*d.speed+d.phase;
+        const x=d.cx+Math.sin(a)*d.rx;
+        const z=d.cz+Math.sin(a*.73+1.2)*d.rz;
+        const vx=Math.cos(a)*d.rx*d.speed;
+        const vz=Math.cos(a*.73+1.2)*d.rz*d.speed*.73;
+        d.mesh.position.set(x,waterY+.12+Math.sin(a*1.7)*.04,z);
+        d.mesh.rotation.z=Math.sin(a*1.3)*.025;
+        faceLevel4Mover(d.mesh,vx,vz);
+    });
+
+    level4Gulls.forEach(g=>{
+        g.progress+=dt/g.duration;
+        if(g.progress>=1)startLevel4GullRoute(g,0);
+
+        const u=g.progress,inv=1-u;
+        const x=inv*inv*g.startX+2*inv*u*g.bendX+u*u*g.endX;
+        const z=THREE.MathUtils.lerp(g.startZ,g.endZ,u);
+        const dx=2*inv*(g.bendX-g.startX)+2*u*(g.endX-g.bendX);
+        const dz=g.endZ-g.startZ;
+        g.mesh.position.set(x,waterY+g.alt+Math.sin(t*1.8+g.phase)*.45,z);
+        g.mesh.rotation.z=Math.sin(t*1.35+g.phase)*.10;
+        faceLevel4Mover(g.mesh,dx,dz);
+    });
+
+    level4Eagles.forEach(e=>{
+        const a=t*e.speed+e.phase;
+        const x=Math.cos(a)*e.radiusX;
+        const z=Math.sin(a)*e.radiusZ;
+        const vx=-Math.sin(a)*e.radiusX*e.speed;
+        const vz=Math.cos(a)*e.radiusZ*e.speed;
+        e.mesh.position.set(x,34+Math.sin(a*2)*2.2,z);
+        e.mesh.rotation.z=Math.sin(a)*.18;
+        faceLevel4Mover(e.mesh,vx,vz);
+    });
+
+    level4Robins.forEach(r=>{
+        if(r.wait>0){
+            r.wait-=dt;
+            return;
+        }
+        if(r.hop>=1)chooseLevel4RobinHop(r);
+        r.hop=Math.min(1,r.hop+dt/r.hopDuration);
+        const p=r.hop;
+        const x=THREE.MathUtils.lerp(r.fromX,r.toX,p);
+        const z=THREE.MathUtils.lerp(r.fromZ,r.toZ,p);
+        const y=level4HeightAt(x,z)+.08+Math.sin(Math.PI*p)*.30;
+        r.mesh.position.set(x,y,z);
+        if(p>=1)r.wait=.55+Math.random()*2.7;
+    });
+
+    level4Squirrels.forEach(s=>{
+        s.lookTimer-=dt;
+        if(s.lookTimer<=0){
+            s.targetRot=s.baseRot+(Math.random()-.5)*1.65;
+            s.lookTimer=2.0+Math.random()*5.0;
+        }
+        s.mesh.rotation.y=THREE.MathUtils.lerp(s.mesh.rotation.y,s.targetRot,Math.min(1,dt*2.2));
+    });
+
+
+    level4Bees.forEach(b=>{
+        const a=t*b.speed+b.phase;
+        const x=b.cx+Math.sin(a)*b.rx;
+        const z=b.cz+Math.sin(a*1.37+b.phase2)*b.rz;
+        const vx=Math.cos(a)*b.rx*b.speed;
+        const vz=Math.cos(a*1.37+b.phase2)*b.rz*b.speed*1.37;
+        const ground=level4HeightAt(x,z);
+
+        b.mesh.position.set(
+            x,
+            ground+b.height+Math.sin(t*3.8+b.phase2)*.16,
+            z
+        );
+        b.mesh.rotation.z=Math.sin(t*5.5+b.phase)*.08;
+        faceLevel4Mover(b.mesh,vx,vz);
+    });
+
+    level4Wrens.forEach(w=>{
+        // Immediate evasive response can interrupt a long idle.
+        if(mowerGroup){
+            const d=Math.hypot(w.mesh.position.x-mowerGroup.position.x,w.mesh.position.z-mowerGroup.position.z);
+            if(d<8.5&&w.wait>.12)w.wait=.08;
+        }
+
+        if(w.wait>0){
+            w.wait-=dt;
+            return;
+        }
+        if(w.hop>=1)chooseLevel4WrenHop(w);
+        w.hop=Math.min(1,w.hop+dt/w.hopDuration);
+        const p=w.hop;
+        const x=THREE.MathUtils.lerp(w.fromX,w.toX,p);
+        const z=THREE.MathUtils.lerp(w.fromZ,w.toZ,p);
+        const y=level4HeightAt(x,z)+.07+Math.sin(Math.PI*p)*.25;
+        w.mesh.position.set(x,y,z);
+        if(p>=1)w.wait=.25+Math.random()*1.25;
+    });
+
+    level4Bats.forEach(b=>{
+        b.progress+=dt/b.duration;
+        if(b.progress>=1)startLevel4BatRoute(b,0);
+
+        const u=b.progress,inv=1-u;
+        const x=inv*inv*b.sx+2*inv*u*b.mx+u*u*b.ex;
+        const z=inv*inv*b.sz+2*inv*u*b.mz+u*u*b.ez;
+        const dx=2*inv*(b.mx-b.sx)+2*u*(b.ex-b.mx);
+        const dz=2*inv*(b.mz-b.sz)+2*u*(b.ez-b.mz);
+        const ground=level4HeightAt(
+            THREE.MathUtils.clamp(x,-LEVEL4_WORLD_W/2,LEVEL4_WORLD_W/2),
+            THREE.MathUtils.clamp(z,-LEVEL4_WORLD_D/2,LEVEL4_WORLD_D/2)
+        );
+        b.mesh.position.set(x,ground+b.alt+Math.sin(t*5.3+b.phase)*.75,z);
+        b.mesh.rotation.z=Math.sin(t*7+b.phase)*.22;
+        faceLevel4Mover(b.mesh,dx,dz);
+    });
+
+    // Owls remain perched; only tiny occasional head/body turns make them feel alive.
+    level4Owls.forEach(o=>{
+        o.mesh.rotation.y=o.baseRot+Math.sin(t*.32+o.phase)*.16;
+    });
+}
+
 function setupLakeLevel(){
     lawnWorldSize=LEVEL4_WORLD_W;
     animatedClouds=[];trampolineKids=[];
@@ -6405,6 +6884,8 @@ function setupLakeLevel(){
         [LEVEL4_HOUSE_SITES[0],LEVEL4_HOUSE_SITES[1],LEVEL4_HOUSE_SITES[4],LEVEL4_HOUSE_SITES[6]]
             .forEach(s=>addNightHouseGlow(s.x,s.z,s.flatY,.75,28));
     }
+
+    spawnLevel4Wildlife();
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
@@ -6560,6 +7041,7 @@ window.confirmStartLevel=function(){
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
     animatedAnimals=[];trampolineKids=[];animatedLevel4Fire=[];stadiumOverlayMesh=null;
+    resetLevel4Wildlife();
     resetNightGhostForLevel();
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
@@ -6737,6 +7219,7 @@ function animate(){
         updateLevel4TrampolineAudio();
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
+        updateLevel4Wildlife(dt,t);
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
