@@ -4371,16 +4371,16 @@ function buildGolfSurroundings(){const hillMat=new THREE.MeshStandardMaterial({c
 // room automatically upgrades as soon as the PNG files are uploaded.
 // ═══════════════════════════════════════════════════════════════════════════
 const GALLERY_ITEMS=[
-    {file:'./mow1.png',   title:'LEGENDARISK GRÄSKLIPPARE I', text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
-    {file:'./mow2.png',   title:'LEGENDARISK GRÄSKLIPPARE II',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
-    {file:'./mow3.png',   title:'LEGENDARISK GRÄSKLIPPARE III',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
-    {file:'./mow4.png',   title:'LEGENDARISK GRÄSKLIPPARE IV',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
-    {file:'./mow5.png',   title:'LEGENDARISK GRÄSKLIPPARE V',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
-    {file:'./legend1.png',title:'LEGENDAR I',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
-    {file:'./legend2.png',title:'LEGENDAR II',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
-    {file:'./legend3.png',title:'LEGENDAR III',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
-    {file:'./legend4.png',title:'LEGENDAR IV',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
-    {file:'./legend5.png',title:'LEGENDAR V',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'}
+    {file:'./mow1.jpg',title:'Budding’s Lawn Mower (1830)',text:'Världens första mekaniska cylinderklippare. Den var tung och gjuten i järn, men lade grunden för all framtida klippning.'},
+    {file:'./mow2.jpg',title:'Atco Standard (1921)',text:'Världens första serietillverkade bensindrivna cylinderklippare. Brittisk succé som motoriserade trädgårdsskötseln.'},
+    {file:'./mow3.jpg',title:'Victa Rotomo (1952)',text:'Australisk ikon byggd av skrot och en tvåtaktsmotor. Gjorde rotorklipparen folklig och populär världen över.'},
+    {file:'./mow4.jpg',title:'Dixon ZTR (1974)',text:'Första framgångsrika nollsvängaren. Med förmågan att rotera runt sin egen axel revolutionerade den stora ytor.'},
+    {file:'./mow5.jpg',title:'Husqvarna Solar Mower (1995)',text:'Världens första solcellsdrivna robotklippare. Banade vägen för dagens moderna Automower-serie.'},
+    {file:'./legend1.jpg',title:'Edwin Beard Budding (1796–1846)',text:'Brittisk ingenjör som patenterade den första cylinderklipparen 1830 och lade grunden för hela industrin.'},
+    {file:'./legend2.jpg',title:'Amariah Hills (1838–1912)',text:'Amerikansk uppfinnare som 1868 skapade den första lättviktiga handgräsklipparen med höjdjustering.'},
+    {file:'./legend3.jpg',title:'Mervyn Victor Richardson (1911–1991)',text:'Grundade Victa och gjorde rotorklipparen till en global succé för hemmabruk under 1950-talet.'},
+    {file:'./legend4.jpg',title:'(1912–2003)',text:'Pionjären bakom åkgräsklipparen som 1945 lanserade den trehjuliga och självordnande Ride-King.'},
+    {file:'./legend5.jpg',title:'(1804–1886)',text:'Grundare av det ikoniska varumärket som blev synonymt med åkgräsklippare och storskalig grönyteskötsel.'}
 ];
 
 function galleryPlaceholderTexture(label){
@@ -4482,8 +4482,48 @@ function buildGalleryChandelier(z){
         bulb.position.set(Math.cos(a)*2.15,.08,Math.sin(a)*2.15);g.add(bulb);
     }
     g.position.set(0,13.2,z);scene.add(g);
-    const light=new THREE.PointLight(0xffb55d,2.7,34,2);
+    const light=new THREE.PointLight(0xffb55d,3.45,38,2);
     light.position.set(0,12.4,z);light.castShadow=false;scene.add(light);
+}
+
+
+function loadGalleryStatue(){
+    gltfLoader.load(
+        './statue.glb',
+        gltf=>{
+            const statue=gltf.scene;
+            setupMeshProps(statue);
+
+            // Normalize the uploaded statue so it has a grand but plausible
+            // museum scale regardless of the source model's native units.
+            let box=new THREE.Box3().setFromObject(statue);
+            let size=box.getSize(new THREE.Vector3());
+            if(size.y>0)statue.scale.multiplyScalar(7.2/size.y);
+
+            box=new THREE.Box3().setFromObject(statue);
+            const center=box.getCenter(new THREE.Vector3());
+
+            // Center over the existing golden plinth and ground on its top.
+            statue.position.x-=center.x;
+            statue.position.z-=center.z;
+            box=new THREE.Box3().setFromObject(statue);
+            statue.position.y+=1.72-box.min.y;
+            statue.position.z+=-51;
+
+            statue.rotation.y=Math.PI;
+            scene.add(statue);
+
+            // Dedicated warm museum spotlight, shadow-free for mobile stability.
+            const spot=new THREE.SpotLight(0xffc77d,4.2,32,Math.PI/7,.55,1.5);
+            spot.position.set(0,13,-44);
+            spot.target.position.set(0,4.5,-51);
+            spot.castShadow=false;
+            scene.add(spot);
+            scene.add(spot.target);
+        },
+        undefined,
+        err=>console.warn('Gallery statue failed to load:',err)
+    );
 }
 
 function setupGalleryLevel(){
@@ -4493,8 +4533,9 @@ function setupGalleryLevel(){
     scene.fog=new THREE.Fog(0x1b0d08,60,125);
 
     // Moody ambient + warm directional edge light.
-    scene.add(new THREE.HemisphereLight(0x6f5741,0x160c08,.48));
-    const warm=new THREE.DirectionalLight(0xffc37a,.62);
+    scene.add(new THREE.HemisphereLight(0x80664d,0x1b0e09,.64));
+    scene.add(new THREE.AmbientLight(0xffd0a0,.20));
+    const warm=new THREE.DirectionalLight(0xffc37a,.88);
     warm.position.set(-18,22,28);scene.add(warm);
 
     const walnut=new THREE.MeshStandardMaterial({color:0x3b1d12,roughness:.77});
@@ -4537,11 +4578,7 @@ function setupGalleryLevel(){
     dais.position.set(0,.32,-50.8);scene.add(dais);
     const plinth=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.7,1.4,16),brass);
     plinth.position.set(0,1.0,-51);scene.add(plinth);
-    const mowerSilhouette=new THREE.Mesh(
-        new THREE.BoxGeometry(4.5,1.8,2.0),
-        new THREE.MeshStandardMaterial({color:0x8c4a20,metalness:.12,roughness:.6})
-    );
-    mowerSilhouette.position.set(0,2.4,-51);scene.add(mowerSilhouette);
+    loadGalleryStatue();
 
     // Architectural rhythm: pilasters, ceiling beams and brass capitals.
     for(let z=-48;z<=48;z+=12){
@@ -4561,7 +4598,7 @@ function setupGalleryLevel(){
     // Additional pools of warm wall lighting without costly shadows.
     [-40,-20,0,20,40].forEach(z=>{
         [-12.2,12.2].forEach(x=>{
-            const sconce=new THREE.PointLight(0xffa94f,.85,18,2);
+            const sconce=new THREE.PointLight(0xffa94f,1.08,21,2);
             sconce.position.set(x,8.2,z);scene.add(sconce);
             const fixture=new THREE.Mesh(
                 new THREE.SphereGeometry(.18,8,6),
@@ -4618,11 +4655,17 @@ function showGalleryInfo(frame){
 
 function onGalleryPointer(e){
     if(!galleryMode||currentLevel!==5||!mowerGroup)return;
-    const near=galleryNearestFrame();
-    if(!near){
-        if(galleryOpenItem!==null)showGalleryInfo(null);
+
+    // Once an exhibit card is open, a second click/tap anywhere in the 3D
+    // view dismisses it. No need to hit the picture again.
+    if(galleryOpenItem!==null){
+        showGalleryInfo(null);
         return;
     }
+
+    const near=galleryNearestFrame();
+    if(!near)return;
+
     const rect=renderer.domElement.getBoundingClientRect();
     const mouse=new THREE.Vector2(
         ((e.clientX-rect.left)/rect.width)*2-1,
