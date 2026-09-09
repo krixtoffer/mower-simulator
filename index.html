@@ -1805,6 +1805,17 @@
                 width:min(680px,70vw) !important;
             }
         }
+
+        /* v80: joystick visibility is tied to GAME STATE, not device heuristics.
+           This avoids iPad/tablet browsers that report pointer:fine or pointer:none.
+           Desktop still does not receive the joystick unless it is a touch-capable
+           device, while any touch tablet/phone does. */
+        body.touch-gameplay #joystick-zone {
+            display:block !important;
+            visibility:visible !important;
+            opacity:1 !important;
+            pointer-events:auto !important;
+        }
 </style>
 </head>
 <body>
@@ -5645,6 +5656,7 @@ window.leaveGallery=function(){
     mowerStats.speed=0;
     document.getElementById('gallery-ui').style.display='none';
     document.getElementById('gallery-info').style.display='none';
+    document.body.classList.remove('touch-gameplay');
     document.getElementById('joystick-zone').style.display='none';
     openLevelSelect();
 };
@@ -7366,10 +7378,18 @@ window.confirmStartLevel=function(){
         // normal level; CSS then shows it on coarse/mobile screens and keeps it
         // hidden on desktop exactly as before.
         const joystickZone=document.getElementById('joystick-zone');
-        const touchLike=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
-        // Phone/tablet touch devices always get the joystick. Fine-pointer
-        // desktop/laptop keeps the existing CSS behavior.
+        // Do not rely only on pointer:coarse: some iPads/tablets report a fine
+        // or absent primary pointer, especially with a keyboard/trackpad attached.
+        const touchLike=('ontouchstart' in window) ||
+            (navigator.maxTouchPoints && navigator.maxTouchPoints>0) ||
+            (window.matchMedia && window.matchMedia('(any-pointer:coarse)').matches);
+
+        document.body.classList.toggle('touch-gameplay',!!touchLike);
         joystickZone.style.display=touchLike?'block':'';
+        if(touchLike){
+            joystickZone.style.visibility='visible';
+            joystickZone.style.opacity='1';
+        }
     }
     tuneSceneMaterials();
     // Start directly in the same camera geometry that the active level will
