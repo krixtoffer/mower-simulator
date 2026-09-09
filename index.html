@@ -4273,7 +4273,7 @@ function updateFootballBallInteractions(){
 function buildPlayerMesh(team){const g=new THREE.Group();const sk=new THREE.MeshStandardMaterial({color:0xffcc99}),jm=new THREE.MeshStandardMaterial({color:team.jersey}),sm=new THREE.MeshStandardMaterial({color:team.shorts}),so=new THREE.MeshStandardMaterial({color:0xeeeeee}),bm=new THREE.MeshStandardMaterial({color:0x111111});const torso=new THREE.Mesh(new THREE.BoxGeometry(2.8,3.8,1.8),jm);torso.position.y=8.5;g.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,8),sk);head.position.y=12;g.add(head);[-1.9,1.9].forEach(ax=>{const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,3,8),jm);arm.position.set(ax,8.5,0);arm.rotation.z=ax>0?0.3:-0.3;g.add(arm);});const lL=new THREE.Group(),rL=new THREE.Group();[[-0.9,lL],[0.9,rL]].forEach(([lx,leg])=>{const t=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.65,2.8,8),sm);t.position.y=-1.4;leg.add(t);const s=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.5,2.6,8),so);s.position.y=-4.2;leg.add(s);const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.9,2),bm);b.position.set(0,-5.8,0.4);leg.add(b);leg.position.set(lx,7,0);g.add(leg);});g.userData.leftLeg=lL;g.userData.rightLeg=rL;return g;}
 
 function setupGolfLevel(){
-    lawnWorldSize=180;animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedClouds=[];
+    lawnWorldSize=360;animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];animatedClouds=[];
     addSunAndClouds();buildGolfSurroundings();
     buildGolfCourseLights();
 
@@ -4404,15 +4404,16 @@ function setupGolfLevel(){
         });
     }
 
-    // Clubhouse on the western side of the course. It is decorative and uses
-    // the same cache/delayed-load system, so a slow GLB cannot block gameplay.
+    // Large clubhouse on the western side of the expanded course. It is
+    // decorative and uses the same cache/delayed-load system, so a slow GLB
+    // cannot block gameplay.
     const spawnGolfClubhouse=()=>{
         const c=spawnSceneryGLB('clubhouse',{
-            x:-70,
+            x:-125,
             y:0,
-            z:-42,
+            z:-90,
             rotation:Math.PI/2,
-            scale:1
+            scale:8
         });
         return !!c;
     };
@@ -4999,6 +5000,11 @@ function l4TreeAllowed(x,z){
     if(level4IsLowestWater(x,z))return false;
     if(level4IsMowable(x,z))return false;
 
+    // Keep a clear social area around the barbecue ring and its two benches.
+    const mapX=(x/LEVEL4_WORLD_W+.5)*LEVEL4_MAP_W;
+    const mapY=(z/LEVEL4_WORLD_D+.5)*LEVEL4_MAP_H;
+    if(Math.abs(mapX-742)<72 && Math.abs(mapY-344)<58)return false;
+
     for(const s of LEVEL4_HOUSE_SITES){
         const padX=s.w*.85+10;
         const padZ=s.d*.90+12;
@@ -5337,77 +5343,169 @@ function l4SeededRandom(seed){
     };
 }
 
+function buildLevel4BarbecueArea(mapX,mapY){
+    const p=level4MapToWorld(mapX,mapY);
+    const groundY=level4HeightAt(p.x,p.z);
+
+    // Trampoline radius is 4 world units. The barbecue ring is deliberately
+    // about one third of that diameter/scale.
+    const ringRadius=1.33;
+    const ringHeight=.72;
+    const ringMat=new THREE.MeshStandardMaterial({
+        color:0x6e7275,roughness:.78,metalness:.18,side:THREE.DoubleSide
+    });
+
+    // Hollow grey cylinder: open-ended wall, no top/bottom caps.
+    const ring=new THREE.Mesh(
+        new THREE.CylinderGeometry(ringRadius,ringRadius,ringHeight,28,1,true),
+        ringMat
+    );
+    ring.position.set(p.x,groundY+ringHeight/2,p.z);
+    ring.castShadow=true;
+    ring.receiveShadow=true;
+    scene.add(ring);
+
+    const woodMat=new THREE.MeshStandardMaterial({
+        color:0x704522,roughness:.92,metalness:0
+    });
+
+    function addSimpleBench(px,py,rotation=0){
+        const b=level4MapToWorld(px,py);
+        const by=level4HeightAt(b.x,b.z);
+        const g=new THREE.Group();
+
+        // One horizontal brown seat resting on two vertical brown rectangles.
+        const seat=new THREE.Mesh(
+            new THREE.BoxGeometry(3.8,.34,1.0),
+            woodMat
+        );
+        seat.position.y=1.18;
+        g.add(seat);
+
+        [-1.25,1.25].forEach(x=>{
+            const leg=new THREE.Mesh(
+                new THREE.BoxGeometry(.40,1.05,.72),
+                woodMat
+            );
+            leg.position.set(x,.54,0);
+            g.add(leg);
+        });
+
+        g.position.set(b.x,by,b.z);
+        g.rotation.y=rotation;
+        g.traverse(o=>{
+            if(o.isMesh){
+                o.castShadow=true;
+                o.receiveShadow=true;
+            }
+        });
+        scene.add(g);
+    }
+
+    // Two benches beside/opposite the barbecue ring.
+    addSimpleBench(mapX-28,mapY+20,0);
+    addSimpleBench(mapX+28,mapY+20,0);
+
+    if(settings.nightMode){
+        // Compact stylised fire inside the ring.
+        const flameOuter=new THREE.MeshStandardMaterial({
+            color:0xff7a1a,
+            emissive:0xff5a00,
+            emissiveIntensity:3.4,
+            roughness:.45
+        });
+        const flameInner=new THREE.MeshStandardMaterial({
+            color:0xffe08a,
+            emissive:0xffa01a,
+            emissiveIntensity:4.2,
+            roughness:.35
+        });
+
+        const flames=[
+            {x:-.35,z:.12,h:1.25,r:.34,mat:flameOuter},
+            {x:.28,z:-.16,h:1.08,r:.30,mat:flameOuter},
+            {x:.02,z:.06,h:1.55,r:.32,mat:flameInner}
+        ];
+        flames.forEach(f=>{
+            const m=new THREE.Mesh(
+                new THREE.ConeGeometry(f.r,f.h,10),
+                f.mat
+            );
+            m.position.set(p.x+f.x,groundY+.38+f.h/2,p.z+f.z);
+            m.castShadow=false;
+            scene.add(m);
+        });
+
+        const glow=new THREE.PointLight(0xff7d32,5.2,24,1.55);
+        glow.position.set(p.x,groundY+2.0,p.z);
+        glow.castShadow=false;
+        scene.add(glow);
+
+        // Soft ground glow makes the fire read clearly without another shadow light.
+        const glowMat=new THREE.MeshBasicMaterial({
+            color:0xff7a2a,transparent:true,opacity:.18,
+            depthWrite:false,blending:THREE.AdditiveBlending
+        });
+        const pool=new THREE.Mesh(new THREE.CircleGeometry(5.5,28),glowMat);
+        pool.rotation.x=-Math.PI/2;
+        pool.position.set(p.x,groundY+.05,p.z);
+        scene.add(pool);
+    }
+}
+
+
 function buildLevel4ReadingLamp(mapX,mapY,rotation=0){
+    // User requested this prop only in night mode.
+    if(!settings.nightMode)return null;
+
     const x=(mapX/LEVEL4_MAP_W-.5)*LEVEL4_WORLD_W;
     const z=(mapY/LEVEL4_MAP_H-.5)*LEVEL4_WORLD_D;
     const y=level4HeightAt(x,z);
 
     const g=new THREE.Group();
 
-    const darkMetal=new THREE.MeshStandardMaterial({
-        color:0x2a2420,metalness:.72,roughness:.34
+    const metal=new THREE.MeshStandardMaterial({
+        color:0x25211e,metalness:.68,roughness:.38
     });
     const shadeMat=new THREE.MeshStandardMaterial({
-        color:0x5a3a22,metalness:.18,roughness:.58,
-        emissive:settings.nightMode?0x8a5a28:0x000000,
-        emissiveIntensity:settings.nightMode?.38:0
+        color:0x59401f,metalness:.12,roughness:.58,
+        emissive:0xffb45b,emissiveIntensity:.42
     });
     const bulbMat=new THREE.MeshStandardMaterial({
-        color:0xffe1a8,
-        emissive:settings.nightMode?0xffb85e:0x2b1a0d,
-        emissiveIntensity:settings.nightMode?2.8:.05,
-        roughness:.35
+        color:0xffe6b6,
+        emissive:0xffc16b,emissiveIntensity:3.2,
+        roughness:.28
     });
 
-    // Weighted circular foot.
+    // Weighted foot.
     const foot=new THREE.Mesh(
-        new THREE.CylinderGeometry(.48,.58,.16,16),
-        darkMetal
+        new THREE.CylinderGeometry(.52,.64,.18,16),
+        metal
     );
-    foot.position.y=.08;
+    foot.position.y=.09;
     g.add(foot);
 
-    // Main pole.
+    // Straight pole.
     const pole=new THREE.Mesh(
-        new THREE.CylinderGeometry(.055,.07,3.15,10),
-        darkMetal
+        new THREE.CylinderGeometry(.065,.075,3.65,10),
+        metal
     );
-    pole.position.y=1.66;
+    pole.position.y=1.91;
     g.add(pole);
 
-    // Curved neck built from a torus arc, opening toward the hammock.
-    const curve=new THREE.Mesh(
-        new THREE.TorusGeometry(.82,.055,8,18,Math.PI*.72),
-        darkMetal
-    );
-    curve.rotation.z=Math.PI*.12;
-    curve.rotation.y=Math.PI/2;
-    curve.position.set(.60,3.02,0);
-    g.add(curve);
-
-    // Short descending end piece.
-    const drop=new THREE.Mesh(
-        new THREE.CylinderGeometry(.05,.05,.46,8),
-        darkMetal
-    );
-    drop.position.set(1.13,3.43,0);
-    drop.rotation.z=Math.PI*.08;
-    g.add(drop);
-
-    // Lampshade and bulb.
+    // Downward lampshade at the top.
     const shade=new THREE.Mesh(
-        new THREE.CylinderGeometry(.26,.46,.42,14,1,true),
+        new THREE.CylinderGeometry(.30,.56,.48,16,1,true),
         shadeMat
     );
-    shade.position.set(1.18,3.16,0);
-    shade.rotation.z=-Math.PI*.10;
+    shade.position.y=3.70;
     g.add(shade);
 
     const bulb=new THREE.Mesh(
-        new THREE.SphereGeometry(.10,10,8),
+        new THREE.SphereGeometry(.12,10,8),
         bulbMat
     );
-    bulb.position.set(1.20,2.98,0);
+    bulb.position.y=3.48;
     g.add(bulb);
 
     g.position.set(x,y,z);
@@ -5420,25 +5518,24 @@ function buildLevel4ReadingLamp(mapX,mapY,rotation=0){
     });
     scene.add(g);
 
-    // At night, illuminate the hammock strongly with a warm reading pool.
-    if(settings.nightMode){
-        const light=new THREE.SpotLight(
-            0xffc979,5.4,18,Math.PI/5.2,.55,1.45
-        );
-        light.position.set(1.18,3.04,0);
-        g.add(light);
+    // Broad warm pool of light below the lamp. The spotlight covers roughly
+    // a 30x30 world-unit area at ground level, with a point fill to keep the
+    // hammock/person legible from different camera angles.
+    const spot=new THREE.SpotLight(
+        0xffcc82,9.0,34,Math.PI/2.7,.58,1.2
+    );
+    spot.position.set(0,3.45,0);
+    const target=new THREE.Object3D();
+    target.position.set(0,0,0);
+    g.add(target);
+    spot.target=target;
+    spot.castShadow=false;
+    g.add(spot);
 
-        const target=new THREE.Object3D();
-        target.position.set(3.0,1.0,0);
-        g.add(target);
-        light.target=target;
-        light.castShadow=false;
-
-        // Soft local fill so the person/hammock reads from more angles.
-        const fill=new THREE.PointLight(0xffb866,1.35,8.5,2);
-        fill.position.set(1.05,2.75,0);
-        g.add(fill);
-    }
+    const fill=new THREE.PointLight(0xffbd70,3.2,30,1.45);
+    fill.position.set(0,3.15,0);
+    fill.castShadow=false;
+    g.add(fill);
 
     return g;
 }
@@ -5648,6 +5745,9 @@ function setupLakeLevel(){
     l4Forest(825,515,1515,700,50);
     l4Forest(1280,200,1455,345,20);
 
+    // Barbecue/social area at requested map coordinate.
+    buildLevel4BarbecueArea(742,344);
+
     // Exact user-specified tree/bush placements.
     l4SpawnGroundedAsset('tree1',974,259,0,1);
     l4SpawnGroundedAsset('bush1',974,289,0,1);
@@ -5659,12 +5759,12 @@ function setupLakeLevel(){
     // User-specified swing placement.
     l4SpawnGroundedAsset('swing',1359,517,-Math.PI/2,1);
 
-    // User-specified hammock placement.
-    l4SpawnGroundedAsset('hammock2',1146,408,0,1);
+    // User-specified hammock placement: moved +30 in map X, +15 in map Y,
+    // and rotated 180 degrees.
+    l4SpawnGroundedAsset('hammock2',1176,423,Math.PI,1);
 
-    // Curved floor reading lamp beside the hammock. It is decorative by day
-    // and switches on automatically in NATT mode, aimed toward the hammock.
-    buildLevel4ReadingLamp(1127,423,-Math.PI*.18);
+    // Simple night-only reading lamp beside the hammock.
+    buildLevel4ReadingLamp(1155,438,0);
 
     // Plant5 bed: 40 plants inside the updated requested rectangle.
     l4PlantScatter(598,346,864,418,40,['plant5'],34003,.78,1.18);
