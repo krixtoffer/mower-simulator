@@ -11,7 +11,7 @@
         canvas { display:block; }
         #start-screen {
             position:absolute; top:0; left:0; width:100%; height:100%;
-            background-image:url('./startbild.png'); background-size:cover; background-position:center;
+            background-image:url('./startbild.jpg'); background-size:cover; background-position:center;
             display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
             z-index:200; padding-bottom:50px; box-sizing:border-box;
         }
@@ -1505,14 +1505,25 @@
             display:none;
             position:absolute;left:50%;bottom:24px;transform:translateX(-50%);
             width:min(680px,calc(100% - 34px));
-            padding:18px 20px;box-sizing:border-box;
-            background:rgba(255,250,240,.88);
-            border:4px solid rgba(102,57,24,.92);
-            box-shadow:7px 7px 0 rgba(35,15,7,.48);
+            padding:24px 28px;box-sizing:border-box;
+            background:linear-gradient(rgba(255,247,220,.90),rgba(244,226,182,.90));
+            border:2px solid rgba(108,67,28,.92);
+            border-radius:12px;
+            box-shadow:0 10px 26px rgba(25,10,4,.42),inset 0 0 0 3px rgba(178,130,66,.22);
             color:#24140c;text-align:left;
             pointer-events:none;
             backdrop-filter:blur(2px);
         }
+        #gallery-info::before,#gallery-info::after{
+            content:'';
+            position:absolute;left:-14px;right:-14px;height:18px;
+            border:2px solid rgba(102,57,24,.88);
+            background:linear-gradient(#c69a5b,#8d5f2f 48%,#d6aa67 52%,#9c6936);
+            border-radius:12px;
+            box-shadow:0 3px 8px rgba(0,0,0,.28);
+        }
+        #gallery-info::before{top:-11px;}
+        #gallery-info::after{bottom:-11px;}
         #gallery-info h2{
             margin:0 0 10px;color:#6a2c16;font-size:13px;
             line-height:1.35;text-shadow:none;
@@ -1530,7 +1541,7 @@
         @media(max-width:640px){
             #gallery-topbar{top:7px;left:7px;right:7px}
             #gallery-hint{font-size:6px;max-width:230px;padding:7px 8px}
-            #gallery-info{bottom:92px;padding:13px 14px}
+            #gallery-info{bottom:92px;padding:19px 18px}
             #gallery-info h2{font-size:10px}
             #gallery-info p{font-size:13px}
         }
@@ -3039,6 +3050,9 @@ let currentLevel=1;
 let galleryFrames=[];
 let galleryOpenItem=null;
 let galleryMode=false;
+let galleryPreviousMusicSrc=null;
+let galleryPreviousMusicTime=0;
+let galleryPreviousMusicWasPlaying=false;
 const GALLERY_HALF_W=15.5;
 const GALLERY_HALF_D=55;
 
@@ -4458,6 +4472,13 @@ function buildGalleryArtwork(item,index,side,z){
     group.rotation.y=side<0?Math.PI/2:-Math.PI/2;
     scene.add(group);
 
+    const picLight=new THREE.SpotLight(0xffd7a1,1.65,13,Math.PI/5.5,.7,1.5);
+    picLight.position.set(side*(GALLERY_HALF_W-4.1),10.2,z);
+    picLight.target.position.set(side*(GALLERY_HALF_W-.8),6.8,z);
+    picLight.castShadow=false;
+    scene.add(picLight);
+    scene.add(picLight.target);
+
     galleryFrames.push({group,picture,item,index});
 }
 
@@ -4510,16 +4531,21 @@ function loadGalleryStatue(){
             statue.position.y+=1.72-box.min.y;
             statue.position.z+=-51;
 
-            statue.rotation.y=Math.PI;
+            statue.rotation.y=-THREE.MathUtils.degToRad(150);
             scene.add(statue);
 
             // Dedicated warm museum spotlight, shadow-free for mobile stability.
-            const spot=new THREE.SpotLight(0xffc77d,4.2,32,Math.PI/7,.55,1.5);
-            spot.position.set(0,13,-44);
+            const spot=new THREE.SpotLight(0xffd29a,6.4,38,Math.PI/6.5,.48,1.35);
+            spot.position.set(0,14.8,-45.5);
             spot.target.position.set(0,4.5,-51);
             spot.castShadow=false;
             scene.add(spot);
             scene.add(spot.target);
+
+            const topLamp=new THREE.PointLight(0xffc77d,2.3,18,2);
+            topLamp.position.set(0,12.8,-51);
+            topLamp.castShadow=false;
+            scene.add(topLamp);
         },
         undefined,
         err=>console.warn('Gallery statue failed to load:',err)
@@ -4688,8 +4714,34 @@ function updateGalleryUI(){
     if(el)el.style.display=(near&&galleryOpenItem===null)?'block':'none';
 }
 
+
+function enterGalleryMusic(){
+    if(!bgMusic)return;
+    galleryPreviousMusicSrc=bgMusic.getAttribute('src')||bgMusic.src||'';
+    galleryPreviousMusicTime=Number.isFinite(bgMusic.currentTime)?bgMusic.currentTime:0;
+    galleryPreviousMusicWasPlaying=!bgMusic.paused;
+    bgMusic.pause();
+    bgMusic.setAttribute('src','./velvet.mp3');
+    bgMusic.load();
+    bgMusic.currentTime=0;
+    if(settings.music)bgMusic.play().catch(()=>{});
+}
+
+function restoreGalleryMusic(){
+    if(!bgMusic||!galleryPreviousMusicSrc)return;
+    bgMusic.pause();
+    bgMusic.setAttribute('src',galleryPreviousMusicSrc);
+    bgMusic.load();
+    try{bgMusic.currentTime=galleryPreviousMusicTime||0;}catch(e){}
+    if(settings.music&&galleryPreviousMusicWasPlaying)bgMusic.play().catch(()=>{});
+    galleryPreviousMusicSrc=null;
+    galleryPreviousMusicTime=0;
+    galleryPreviousMusicWasPlaying=false;
+}
+
 window.leaveGallery=function(){
     stopLevelSfx();
+    restoreGalleryMusic();
     galleryMode=false;galleryOpenItem=null;
     gameActive=false;gameStarted=false;
     mowerStats.speed=0;
@@ -5561,6 +5613,7 @@ window.actionShowroomMower=function(){if(!inspectingMowerId)return;const price=m
 window.openMainMenu=function(){['start-screen','level-select-screen','minigames-screen','level-intro-screen','shop-screen','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('main-menu-screen').style.display='flex';if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});};
 
 window.openLevelSelect=function(){
+    if(galleryMode)restoreGalleryMusic();
     galleryMode=false;
     const gui=document.getElementById('gallery-ui');if(gui)gui.style.display='none';
     const gi=document.getElementById('gallery-info');if(gi)gi.style.display='none';
@@ -5688,6 +5741,7 @@ window.confirmStartLevel=function(){
         document.getElementById('hud-buttons').style.display='none';
         document.getElementById('gallery-ui').style.display='block';
         document.getElementById('joystick-zone').style.display='block';
+        enterGalleryMusic();
     }else{
         document.getElementById('gallery-ui').style.display='none';
     }
