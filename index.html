@@ -3836,6 +3836,8 @@ startCoverPrime.src='./startbild.jpg';
 // Shared loader timing. These constants must be initialized before startup begins.
 const LOADER_MIN_MS=3000;
 const LOADER_SLOW_MS=20000;
+// Visual progress may advance at most one full bar per 3 seconds.
+const LOADER_MAX_PROGRESS_PER_MS=1/LOADER_MIN_MS;
 
 // Startup audio only needs an initial progressive buffer, not the whole MP3.
 const STARTUP_AUDIO_BUFFER_SECONDS=15;
@@ -3854,57 +3856,81 @@ let startupAudioPoll=0;
 let startupLoadStartedAt=0;
 let startupSlowTimer=0;
 let startupMinFinishRaf=0;
-let startupVisualFloor=0;
-let startupVisualFloorRaf=0;
+let startupDisplayedProgress=0;
+let startupProgressTarget=0;
+let startupProgressRaf=0;
+let startupProgressLastTs=0;
 let startupCanPlaySeenAt=0;
 
-function setStartupProgress(){
+function renderStartupDisplayedProgress(){
     const fill=document.getElementById('startup-loader-fill');
     const mower=document.getElementById('startup-loader-mower');
     const tech=document.getElementById('startup-loader-tech');
     const pctEl=document.getElementById('startup-loader-pct');
     if(!fill||!mower||!tech||!pctEl)return;
 
-    const realP=Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2));
-    const p=Math.max(realP,startupVisualFloor);
-    const pct=p*100;
-    fill.style.width=pct.toFixed(1)+'%';
-    mower.style.left=pct.toFixed(1)+'%';
+    const p=Math.max(0,Math.min(1,startupDisplayedProgress));
+    fill.style.width=(p*100).toFixed(1)+'%';
+    mower.style.left=(p*100).toFixed(1)+'%';
     tech.textContent='('+loaderTechWord(p)+')';
-    pctEl.textContent=Math.floor(pct)+'%';
+    pctEl.textContent=Math.floor(p*100)+'%';
+}
 
-    if(startupImageReady&&startupAudioReady){
-        const elapsed=performance.now()-startupLoadStartedAt;
-        const remain=Math.max(0,LOADER_MIN_MS-elapsed);
+function runStartupProgressFollower(){
+    if(startupProgressRaf)return;
+    startupProgressLastTs=performance.now();
 
-        const reveal=()=>{
+    const step=(now)=>{
+        const dt=Math.max(0,Math.min(100,now-startupProgressLastTs));
+        startupProgressLastTs=now;
+
+        const maxAdvance=dt*LOADER_MAX_PROGRESS_PER_MS;
+        if(startupDisplayedProgress<startupProgressTarget){
+            startupDisplayedProgress=Math.min(
+                startupProgressTarget,
+                startupDisplayedProgress+maxAdvance
+            );
+        }
+        renderStartupDisplayedProgress();
+
+        if(startupDisplayedProgress>=.9999 && startupImageReady && startupAudioReady){
+            startupDisplayedProgress=1;
+            renderStartupDisplayedProgress();
             startupGateReady=true;
-            startupVisualFloor=1;
-            fill.style.width='100%';
-            mower.style.left='100%';
-            tech.textContent='(REDO)';
-            pctEl.textContent='100%';
+            const tech=document.getElementById('startup-loader-tech');
+            const pctEl=document.getElementById('startup-loader-pct');
+            if(tech)tech.textContent='(REDO)';
+            if(pctEl)pctEl.textContent='100%';
             const btn=document.getElementById('startup-ready-btn');
             if(btn)btn.style.display='block';
             if(startupSlowTimer){clearTimeout(startupSlowTimer);startupSlowTimer=0;}
-        };
-
-        if(remain<=0) reveal();
-        else if(!startupMinFinishRaf){
-            const startP=performance.now(), baseP=pct;
-            const step=(now)=>{
-                const q=Math.max(0,Math.min(1,(now-startP)/remain));
-                const visual=Math.min(99,baseP+(99-baseP)*q);
-                fill.style.width=visual.toFixed(1)+'%';
-                mower.style.left=visual.toFixed(1)+'%';
-                tech.textContent='('+loaderTechWord(visual/100)+')';
-                pctEl.textContent=Math.floor(visual)+'%';
-                if(q<1)startupMinFinishRaf=requestAnimationFrame(step);
-                else{startupMinFinishRaf=0;reveal();}
-            };
-            startupMinFinishRaf=requestAnimationFrame(step);
+            startupProgressRaf=0;
+            return;
         }
-    }
+
+        if(startupDisplayedProgress<startupProgressTarget || !startupGateReady){
+            startupProgressRaf=requestAnimationFrame(step);
+        }else{
+            startupProgressRaf=0;
+        }
+    };
+    startupProgressRaf=requestAnimationFrame(step);
+}
+
+function setStartupProgress(){
+    // Real progress is the ceiling. The visible mower/bar may only chase it
+    // at one screen-width per 3 seconds, so fast network events cannot jump.
+    startupProgressTarget=Math.max(
+        startupProgressTarget,
+        Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2))
+    );
+
+    // Once both startup requirements are genuinely ready, the visual target
+    // becomes 100%; it still reaches there only at the capped speed.
+    if(startupImageReady&&startupAudioReady)startupProgressTarget=1;
+
+    renderStartupDisplayedProgress();
+    runStartupProgressFollower();
 }
 
 function trackStartupFile(url,key,onComplete){
@@ -3981,24 +4007,11 @@ function updateStartupAudioBuffer(){
 
 function beginStartupCountdown(){
     startupLoadStartedAt=performance.now();
-    startupVisualFloor=0;
+    startupDisplayedProgress=0;
+    startupProgressTarget=0;
+    startupProgressLastTs=0;
     startupCanPlaySeenAt=0;
-
-    // Never leave the first screen visually frozen at 0% while the browser is
-    // waiting for network/media progress events. This only affects presentation;
-    // actual readiness still controls when START becomes available.
-    const visualStart=performance.now();
-    const animateVisualFloor=(now)=>{
-        const q=Math.max(0,Math.min(1,(now-visualStart)/LOADER_MIN_MS));
-        startupVisualFloor=Math.max(startupVisualFloor,q*.35);
-        setStartupProgress();
-        if(!startupGateReady && q<1){
-            startupVisualFloorRaf=requestAnimationFrame(animateVisualFloor);
-        }else{
-            startupVisualFloorRaf=0;
-        }
-    };
-    startupVisualFloorRaf=requestAnimationFrame(animateVisualFloor);
+    renderStartupDisplayedProgress();
 
     const slow=document.getElementById('startup-loader-slow');
     if(slow)slow.style.display='none';
@@ -8070,17 +8083,24 @@ const GALLERY_AUDIO_BUFFER_SECONDS=15;
 const galleryMusicPrime=document.getElementById('gallery-music-prime');
 
 function setLevelLoadingProgress(progress,statusText){
-    const p=Math.max(0,Math.min(1,progress||0));
+    // Levels and gallery use actual/immediate progress. The 3-second visual
+    // speed cap is intentionally startup-only.
+    const p=Math.max(0,Math.min(1,Number(progress)||0));
     const fill=document.getElementById('level-loading-fill');
     const mower=document.getElementById('level-loading-mower');
     const tech=document.getElementById('level-loading-tech');
     const pct=document.getElementById('level-loading-pct');
     const status=document.getElementById('level-loading-status');
+
     if(fill)fill.style.width=(p*100).toFixed(1)+'%';
     if(mower)mower.style.left=(p*100).toFixed(1)+'%';
     if(tech)tech.textContent='('+loaderTechWord(p)+')';
     if(pct)pct.textContent=Math.floor(p*100)+'%';
     if(status&&statusText)status.textContent=statusText;
+}
+
+function resetLevelLoadingProgress(){
+    setLevelLoadingProgress(0,' ');
 }
 
 function waitForGalleryMusicBuffer(onReady){
@@ -8124,60 +8144,29 @@ function runLoaderWithMinimumDuration({
     onBuild,
     onDone
 }){
-    const started=performance.now();
-    let ready=false;
     let built=false;
-    let slowShown=false;
-
     const slowTimer=setTimeout(()=>{
-        slowShown=true;
         const status=document.getElementById('level-loading-status');
         if(status)status.textContent='URSÄKTA, LADDNING LÅNGSAMMARE ÄN VANLIGT!';
     },LOADER_SLOW_MS);
 
-    const finishIfPossible=()=>{
-        if(!ready||built)return;
-        const elapsed=performance.now()-started;
-        const remain=Math.max(0,LOADER_MIN_MS-elapsed);
-
-        const finishBuild=()=>{
-            if(built)return;
-            built=true;
-            clearTimeout(slowTimer);
-            onBuild(()=>{
-                if(typeof onDone==='function')onDone();
-            });
-        };
-
-        if(remain<=0)finishBuild();
-        else{
-            // Smoothly advance the mower during the artificial minimum time,
-            // rather than leaving it parked at 100%.
-            const startP=performance.now();
-            const status=document.getElementById('level-loading-status');
-            if(status&&!slowShown)status.textContent=' ';
-            const tick=(now)=>{
-                const q=Math.max(0,Math.min(1,(now-startP)/remain));
-                // Hold back the final 8% for actual scene construction.
-                setLevelLoadingProgress(.82+q*.10,status?.textContent);
-                if(q<1)requestAnimationFrame(tick);
-                else finishBuild();
-            };
-            requestAnimationFrame(tick);
-        }
-    };
-
     if(typeof onStart==='function')onStart();
 
     waitForReady(()=>{
-        ready=true;
-        finishIfPossible();
+        if(built)return;
+        built=true;
+        onBuild(()=>{
+            clearTimeout(slowTimer);
+            setLevelLoadingProgress(1,' ');
+            if(typeof onDone==='function')onDone();
+        });
     });
 }
 
 window.confirmStartLevel=function(){
     const overlay=document.getElementById('level-loading-overlay');
     if(overlay)overlay.style.display='flex';
+    resetLevelLoadingProgress();
     setLevelLoadingProgress(.04,' ');
 
     runLoaderWithMinimumDuration({
@@ -8186,7 +8175,7 @@ window.confirmStartLevel=function(){
                 waitForGalleryMusicBuffer(ready);
             }else{
                 // Levels 1–4 have no additional blocking network gate here.
-                // The 3 s minimum still gives the loader a deliberate presence.
+                // Their loader is allowed to advance immediately.
                 setLevelLoadingProgress(.82,' ');
                 ready();
             }
@@ -8198,12 +8187,12 @@ window.confirmStartLevel=function(){
                     buildConfirmedLevel();
                     setLevelLoadingProgress(1,' ');
                 }finally{
-                    requestAnimationFrame(()=>{
-                        if(overlay)overlay.style.display='none';
-                        done();
-                    });
+                    done();
                 }
             }));
+        },
+        onDone:()=>{
+            if(overlay)overlay.style.display='none';
         }
     });
 };
