@@ -3232,15 +3232,15 @@ const sceneryAssets={
     // Scale is based on the actual uploaded model bounds. In particular, the
     // eagle and bat have very wide wings relative to their Y-height, so they
     // are normalized by horizontal span instead of body height.
-    duck:{path:'./duck.glb',height:1.05,castShadow:true,receiveShadow:false,lazy:true},
-    gull:{path:'./gull.glb',length:3.0,castShadow:false,receiveShadow:false,lazy:true},
-    eagle:{path:'./eagle.glb',length:5.8,castShadow:false,receiveShadow:false,lazy:true},
-    robin:{path:'./robin.glb',height:.42,castShadow:true,receiveShadow:false,lazy:true},
-    squirrel:{path:'./squirrel.glb',height:.78,castShadow:true,receiveShadow:false,lazy:true},
-    wren:{path:'./wren.glb',height:.32,castShadow:true,receiveShadow:false,lazy:true},
-    bat:{path:'./bat.glb',length:2.2,castShadow:false,receiveShadow:false,lazy:true},
-    owl:{path:'./owl.glb',height:1.05,castShadow:true,receiveShadow:false,lazy:true},
-    bee:{path:'./bee.glb',length:.11,castShadow:false,receiveShadow:false,lazy:true}
+    duck:{path:'./duck.glb',height:3.15,castShadow:true,receiveShadow:false,lazy:true},
+    gull:{path:'./gull.glb',length:6.0,castShadow:false,receiveShadow:false,lazy:true},
+    eagle:{path:'./eagle.glb',length:8.7,castShadow:false,receiveShadow:false,lazy:true},
+    robin:{path:'./robin.glb',height:.84,castShadow:true,receiveShadow:false,lazy:true},
+    squirrel:{path:'./squirrel.glb',height:1.56,castShadow:true,receiveShadow:false,lazy:true},
+    wren:{path:'./wren.glb',height:.64,castShadow:true,receiveShadow:false,lazy:true},
+    bat:{path:'./bat.glb',length:4.4,castShadow:false,receiveShadow:false,lazy:true},
+    owl:{path:'./owl.glb',height:2.10,castShadow:true,receiveShadow:false,lazy:true},
+    bee:{path:'./bee.glb',length:.44,castShadow:false,receiveShadow:false,lazy:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -3688,7 +3688,7 @@ function applyNightGhostLook(holder){
             if(!mat)return mat;
             const m=mat.clone();
             m.transparent=true;
-            m.opacity=.50;
+            m.opacity=.25;
             m.depthWrite=false;
             m.side=THREE.DoubleSide;
             if('emissive' in m){
@@ -3767,7 +3767,7 @@ function updateNightGhost(dt,t){
 
     // Material is intrinsically 50% transparent; fade only at entry/exit edges.
     const edgeFade=Math.min(1,u/.10,(1-u)/.10);
-    const opacity=.50*Math.max(0,edgeFade);
+    const opacity=.25*Math.max(0,edgeFade);
     const mats=nightGhost.userData.ghostMaterials||[];
     mats.forEach(mat=>{mat.opacity=opacity;});
 
@@ -6437,7 +6437,7 @@ function spawnLevel4Wildlife(){
             mesh,
             radiusX:72,
             radiusZ:42,
-            speed:.10,
+            speed:.17,
             phase:Math.random()*Math.PI*2
         });
     });
@@ -6460,15 +6460,23 @@ function spawnLevel4Wildlife(){
         });
     });
 
-    // Three squirrels perched halfway up selected visible tree sites.
+    // Squirrels are attached to the exact same coordinates as three explicit
+    // GLB trees already placed by setupLakeLevel(), rather than guessed points.
+    // Small trunk offsets put them against the upper trunk / lower crown.
     const squirrelSites=[
-        [902,287,6.6],[1016,283,6.8],[1448,430,7.0]
+        {px:902, py:287, up:5.1, ox:.22, oz:.08, rot:1.1},   // tree2 trunk
+        {px:1016,py:283, up:5.0, ox:-.20,oz:.12, rot:4.0},   // tree1 trunk
+        {px:1428,py:556, up:5.2, ox:.14, oz:-.20,rot:2.6}    // tree2 trunk
     ];
-    squirrelSites.forEach(([px,py,up],i)=>{
-        const p=level4MapToWorld(px,py);
+    squirrelSites.forEach(site=>{
+        const p=level4MapToWorld(site.px,site.py);
         l4WildlifeAsset('squirrel',{
-            x:p.x,y:level4HeightAt(p.x,p.z)+up,z:p.z,
-            rotation:i*1.7,scale:1,castShadow:true
+            x:p.x+site.ox,
+            y:level4HeightAt(p.x,p.z)+site.up,
+            z:p.z+site.oz,
+            rotation:site.rot,
+            scale:1,
+            castShadow:true
         },mesh=>{
             level4Squirrels.push({
                 mesh,
@@ -6544,22 +6552,20 @@ function spawnLevel4Wildlife(){
             });
         }
 
-        // Four stationary owls on roofs / high tree crowns at different sites.
+        // Four stationary owls are deliberately perched on known, explicit
+        // Level 4 tree sites. Conservative crown heights keep their feet/body
+        // in visible contact with the tree instead of hovering above it.
         const owlSites=[
-            {type:'house',index:0,extraY:13.5,rot:.2},
-            {type:'house',index:4,extraY:13.0,rot:2.5},
-            {type:'tree',px:902,py:287,extraY:13.4,rot:4.0},
-            {type:'tree',px:1428,py:556,extraY:13.1,rot:5.2}
+            {px:902, py:287,extraY:10.0,ox:.10, oz:.04, rot:.2},   // tree2
+            {px:1016,py:283,extraY:9.8, ox:-.10,oz:.06, rot:2.5}, // tree1
+            {px:1428,py:556,extraY:10.0,ox:.08, oz:-.10,rot:4.0}, // tree2
+            {px:1448,py:430,extraY:9.8, ox:-.08,oz:.08, rot:5.2}  // explicit tree site
         ];
         owlSites.forEach(site=>{
-            let x,z,y;
-            if(site.type==='house'){
-                const hs=LEVEL4_HOUSE_SITES[site.index];
-                x=hs.x;z=hs.z;y=hs.flatY+site.extraY;
-            }else{
-                const p=level4MapToWorld(site.px,site.py);
-                x=p.x;z=p.z;y=level4HeightAt(x,z)+site.extraY;
-            }
+            const p=level4MapToWorld(site.px,site.py);
+            const x=p.x+site.ox;
+            const z=p.z+site.oz;
+            const y=level4HeightAt(p.x,p.z)+site.extraY;
             l4WildlifeAsset('owl',{
                 x,y,z,rotation:site.rot,scale:1,castShadow:true
             },mesh=>{
@@ -6605,9 +6611,11 @@ function updateLevel4Wildlife(dt,t){
         const z=Math.sin(a)*e.radiusZ;
         const vx=-Math.sin(a)*e.radiusX*e.speed;
         const vz=Math.cos(a)*e.radiusZ*e.speed;
-        e.mesh.position.set(x,34+Math.sin(a*2)*2.2,z);
+        e.mesh.position.set(x,25+Math.sin(a*2)*1.7,z);
         e.mesh.rotation.z=Math.sin(a)*.18;
         faceLevel4Mover(e.mesh,vx,vz);
+        // This GLB's authored forward axis is opposite the other flying fauna.
+        e.mesh.rotation.y+=Math.PI;
     });
 
     level4Robins.forEach(r=>{
