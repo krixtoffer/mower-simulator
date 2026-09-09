@@ -3735,6 +3735,9 @@ const STARTUP_AUDIO_BUFFER_SECONDS=15;
 let startupAssetProgress={image:0,audio:0};
 let startupImageReady=false,startupAudioReady=false,startupGateReady=false;
 let startupAudioPoll=0;
+let startupLoadStartedAt=0;
+let startupSlowTimer=0;
+let startupMinFinishRaf=0;
 
 function setStartupProgress(){
     const fill=document.getElementById('startup-loader-fill');
@@ -3747,12 +3750,37 @@ function setStartupProgress(){
     mower.style.left=pct.toFixed(1)+'%';
 
     if(startupImageReady&&startupAudioReady){
-        startupGateReady=true;
-        fill.style.width='100%';
-        mower.style.left='100%';
-        label.textContent='REDO!';
-        const btn=document.getElementById('startup-ready-btn');
-        if(btn)btn.style.display='block';
+        const elapsed=performance.now()-startupLoadStartedAt;
+        const remain=Math.max(0,LOADER_MIN_MS-elapsed);
+
+        const reveal=()=>{
+            startupGateReady=true;
+            fill.style.width='100%';
+            mower.style.left='100%';
+            label.textContent='REDO!';
+            const btn=document.getElementById('startup-ready-btn');
+            if(btn)btn.style.display='block';
+            if(startupSlowTimer){clearTimeout(startupSlowTimer);startupSlowTimer=0;}
+        };
+
+        if(remain<=0){
+            reveal();
+        }else if(!startupMinFinishRaf){
+            const startP=performance.now();
+            const baseP=pct;
+            const step=(now)=>{
+                const q=Math.max(0,Math.min(1,(now-startP)/remain));
+                const visual=Math.min(99,baseP+(99-baseP)*q);
+                fill.style.width=visual.toFixed(1)+'%';
+                mower.style.left=visual.toFixed(1)+'%';
+                if(q<1)startupMinFinishRaf=requestAnimationFrame(step);
+                else{
+                    startupMinFinishRaf=0;
+                    reveal();
+                }
+            };
+            startupMinFinishRaf=requestAnimationFrame(step);
+        }
     }else{
         const names=[];
         if(!startupImageReady)names.push('STARTBILD');
@@ -3809,8 +3837,14 @@ function updateStartupAudioBuffer(){
 }
 
 function beginStartupCountdown(){
+    startupLoadStartedAt=performance.now();
     const label=document.getElementById('startup-loader-text');
     if(label)label.textContent='LADDAR STARTBILD + MUSIK... 0%';
+    startupSlowTimer=setTimeout(()=>{
+        if(startupGateReady)return;
+        const l=document.getElementById('startup-loader-text');
+        if(l)l.textContent='URSÄKTA, LADDNING LÅNGSAMMARE ÄN VANLIGT!';
+    },LOADER_SLOW_MS);
 
     // The cover must be fully transferred and decoded.
     trackStartupFile('./startbild.jpg','image',blob=>{
@@ -7857,6 +7891,67 @@ function waitForGalleryMusicBuffer(onReady){
     check();
 }
 
+
+const LOADER_MIN_MS=3000;
+const LOADER_SLOW_MS=20000;
+
+function runLoaderWithMinimumDuration({
+    onStart,
+    waitForReady,
+    onBuild,
+    onDone
+}){
+    const started=performance.now();
+    let ready=false;
+    let built=false;
+    let slowShown=false;
+
+    const slowTimer=setTimeout(()=>{
+        slowShown=true;
+        const status=document.getElementById('level-loading-status');
+        if(status)status.textContent='URSÄKTA, LADDNING LÅNGSAMMARE ÄN VANLIGT!';
+    },LOADER_SLOW_MS);
+
+    const finishIfPossible=()=>{
+        if(!ready||built)return;
+        const elapsed=performance.now()-started;
+        const remain=Math.max(0,LOADER_MIN_MS-elapsed);
+
+        const finishBuild=()=>{
+            if(built)return;
+            built=true;
+            clearTimeout(slowTimer);
+            onBuild(()=>{
+                if(typeof onDone==='function')onDone();
+            });
+        };
+
+        if(remain<=0)finishBuild();
+        else{
+            // Smoothly advance the mower during the artificial minimum time,
+            // rather than leaving it parked at 100%.
+            const startP=performance.now();
+            const status=document.getElementById('level-loading-status');
+            if(status&&!slowShown)status.textContent='FÖRBEREDER...';
+            const tick=(now)=>{
+                const q=Math.max(0,Math.min(1,(now-startP)/remain));
+                // Hold back the final 8% for actual scene construction.
+                setLevelLoadingProgress(.82+q*.10,status?.textContent);
+                if(q<1)requestAnimationFrame(tick);
+                else finishBuild();
+            };
+            requestAnimationFrame(tick);
+        }
+    };
+
+    if(typeof onStart==='function')onStart();
+
+    waitForReady(()=>{
+        ready=true;
+        finishIfPossible();
+    });
+}
+
 window.confirmStartLevel=function(){
     const overlay=document.getElementById('level-loading-overlay');
     const title=document.getElementById('level-loading-title');
@@ -7865,30 +7960,32 @@ window.confirmStartLevel=function(){
     if(overlay)overlay.style.display='flex';
     setLevelLoadingProgress(.04,currentLevel===5?'FÖRBEREDER GALLERIMUSIK...':'FÖRBEREDER BANA...');
 
-    const buildNow=()=>{
-        // Give the mower/grass loader a painted frame before synchronous
-        // Three.js construction begins.
-        setLevelLoadingProgress(.92,'BYGGER BANA...');
-        requestAnimationFrame(()=>requestAnimationFrame(()=>{
-            try{
-                buildConfirmedLevel();
-                setLevelLoadingProgress(1,'REDO!');
-            }finally{
-                requestAnimationFrame(()=>{
-                    if(overlay)overlay.style.display='none';
-                });
+    runLoaderWithMinimumDuration({
+        waitForReady:(ready)=>{
+            if(currentLevel===5){
+                waitForGalleryMusicBuffer(ready);
+            }else{
+                // Levels 1–4 have no additional blocking network gate here.
+                // The 3 s minimum still gives the loader a deliberate presence.
+                setLevelLoadingProgress(.82,'LADDAR BANA...');
+                ready();
             }
-        }));
-    };
-
-    if(currentLevel===5)waitForGalleryMusicBuffer(buildNow);
-    else{
-        // Normal levels already use the progressively-buffered jukebox music.
-        // Their loader therefore represents scene construction rather than
-        // re-downloading the currently playing song.
-        setLevelLoadingProgress(.82,'LADDAR BANA...');
-        buildNow();
-    }
+        },
+        onBuild:(done)=>{
+            setLevelLoadingProgress(.92,'BYGGER BANA...');
+            requestAnimationFrame(()=>requestAnimationFrame(()=>{
+                try{
+                    buildConfirmedLevel();
+                    setLevelLoadingProgress(1,'REDO!');
+                }finally{
+                    requestAnimationFrame(()=>{
+                        if(overlay)overlay.style.display='none';
+                        done();
+                    });
+                }
+            }));
+        }
+    });
 };
 
 window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
