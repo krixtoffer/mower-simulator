@@ -3472,6 +3472,98 @@ let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[
 let footballGoalConfetti=[];
 let animatedCrowdPeople=[];
 let footballCrowdCelebration={side:0,time:0};
+
+// v82: Level 2 is almost entirely procedurally generated. Previously those
+// objects were removed from scene on level changes, but their GPU resources
+// were never disposed. Keep explicit ownership of Level 2 roots so repeated
+// visits can release its geometries/materials/textures safely.
+let footballOwnedRoots=[];
+let footballBuildCount=0;
+
+function footballResourceSnapshot(label){
+    const info=renderer?.info;
+    if(!info)return;
+    console.log(
+        `[Football resources] ${label}`,
+        `build=${footballBuildCount}`,
+        `geometries=${info.memory.geometries}`,
+        `textures=${info.memory.textures}`,
+        `calls=${info.render.calls}`,
+        `triangles=${info.render.triangles}`,
+        `crowdPeople=${animatedCrowdPeople.length}`,
+        `crowdArms=${animatedCrowdArms.length}`,
+        `sceneChildren=${scene.children.length}`
+    );
+}
+
+function disposeFootballResources(){
+    if(!footballOwnedRoots.length){
+        animatedCrowdPeople=[];
+        animatedCrowdArms=[];
+        footballGoalConfetti=[];
+        footballCrowdCelebration={side:0,time:0};
+        stadiumOverlayMesh=null;
+        return;
+    }
+
+    footballResourceSnapshot('before cleanup');
+
+    // A WeakSet prevents repeatedly disposing resources shared by many meshes
+    // within the stadium. Level 2 does not use scenery-cache GLBs, so these
+    // resources belong exclusively to this generated level.
+    const disposedGeometries=new WeakSet();
+    const disposedMaterials=new WeakSet();
+    const disposedTextures=new WeakSet();
+
+    const disposeTexture=(tex)=>{
+        if(!tex||!tex.isTexture||disposedTextures.has(tex))return;
+        disposedTextures.add(tex);
+        tex.dispose();
+    };
+    const disposeMaterial=(mat)=>{
+        if(!mat||disposedMaterials.has(mat))return;
+        disposedMaterials.add(mat);
+        // Dispose every texture referenced by the material, not only .map.
+        for(const key in mat){
+            const value=mat[key];
+            if(value&&value.isTexture)disposeTexture(value);
+        }
+        mat.dispose?.();
+    };
+
+    for(const root of footballOwnedRoots){
+        root.traverse?.(obj=>{
+            if(obj.geometry&&!disposedGeometries.has(obj.geometry)){
+                disposedGeometries.add(obj.geometry);
+                obj.geometry.dispose?.();
+            }
+            if(obj.material){
+                const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+                mats.forEach(disposeMaterial);
+            }
+        });
+        if(root.parent)root.parent.remove(root);
+    }
+
+    // Explicit canvas texture references are cleared as well. disposeTexture()
+    // is idempotent here because of the WeakSet above.
+    disposeTexture(stadiumCutTexture);
+    disposeTexture(lawnTexture);
+    stadiumCutTexture=null;
+    stadiumCutCanvas=null;
+    stadiumCutCtx=null;
+    stadiumOverlayMesh=null;
+
+    footballOwnedRoots=[];
+    animatedCrowdPeople=[];
+    animatedCrowdArms=[];
+    footballGoalConfetti=[];
+    footballCrowdCelebration={side:0,time:0};
+
+    // renderer.info.memory updates after subsequent renders; this delayed
+    // snapshot makes repeated-load diagnostics much easier in DevTools.
+    setTimeout(()=>footballResourceSnapshot('after cleanup / next render'),0);
+}
 let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 
@@ -3626,6 +3718,14 @@ function initThree(){
     renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    // v82 diagnostics for the reported white-screen-after-reloads symptom.
+    renderer.domElement.addEventListener('webglcontextlost',(e)=>{
+        console.error('[WebGL] CONTEXT LOST — rendering can appear white while audio/physics continue.',e);
+    });
+    renderer.domElement.addEventListener('webglcontextrestored',()=>{
+        console.warn('[WebGL] context restored.');
+        footballResourceSnapshot('context restored');
+    });
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure=1.12;
@@ -4746,6 +4846,8 @@ function setupVillaLevel(){
 function drawPitchLines(ctx){ctx.strokeStyle='#ffffff';ctx.lineWidth=5;ctx.strokeRect(30,20,lawnTexResolution-60,lawnTexResolution-40);ctx.beginPath();ctx.moveTo(30,lawnTexResolution/2);ctx.lineTo(lawnTexResolution-30,lawnTexResolution/2);ctx.stroke();ctx.beginPath();ctx.arc(256,256,55,0,Math.PI*2);ctx.stroke();ctx.strokeRect(lawnTexResolution/2-90,20,180,80);ctx.strokeRect(lawnTexResolution/2-90,lawnTexResolution-100,180,80);ctx.strokeRect(lawnTexResolution/2-45,20,90,35);ctx.strokeRect(lawnTexResolution/2-45,lawnTexResolution-55,90,35);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(256,80,4,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(256,432,4,0,Math.PI*2);ctx.fill();}
 
 function setupStadiumLevel(){
+    const footballChildrenBefore=new Set(scene.children);
+    footballBuildCount++;
     lawnWorldSize=120;animatedPlayers=[];animatedCrowdArms=[];animatedClouds=[];footballGoalConfetti=[];animatedCrowdPeople=[];footballCrowdCelebration={side:0,time:0};stadiumOverlayMesh=null;
     addSunAndClouds();
     const world=new THREE.Mesh(new THREE.PlaneGeometry(1000,1000),new THREE.MeshStandardMaterial({color:0x113311}));world.rotation.x=-Math.PI/2;world.position.y=-0.1;scene.add(world);
@@ -4769,6 +4871,11 @@ function setupStadiumLevel(){
     buildGoal(0,-lawnWorldSize/2+2,0);buildGoal(0,lawnWorldSize/2-2,Math.PI);
     spawnFootballPlayers(lawnWorldSize);
     startStadiumSfx();
+
+    // Own only roots created by this function. Outdoor lighting existed before
+    // this snapshot; mower/ghost are created later and are therefore excluded.
+    footballOwnedRoots=scene.children.filter(obj=>!footballChildrenBefore.has(obj));
+    footballResourceSnapshot('after build');
 }
 
 function buildAllBleachers(size){
@@ -7306,6 +7413,12 @@ window.confirmStartLevel=function(){
     document.getElementById('level-intro-screen').style.display='none';
     document.getElementById('hud').style.display='flex';
     document.getElementById('hud-buttons').style.display='flex';
+
+    // Fully release the previous procedurally-generated football stadium
+    // before dropping its JS references. scene.remove() alone does NOT free
+    // Three.js GPU geometry/material/texture allocations.
+    stopLevelSfx();
+    disposeFootballResources();
 
     // Fully reset transient level state.
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
