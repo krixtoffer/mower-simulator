@@ -3479,6 +3479,7 @@ let footballCrowdCelebration={side:0,time:0};
 // visits can release its geometries/materials/textures safely.
 let footballOwnedRoots=[];
 let footballBuildCount=0;
+let footballCrowdShared=null;
 
 function footballResourceSnapshot(label){
     const info=renderer?.info;
@@ -3492,7 +3493,8 @@ function footballResourceSnapshot(label){
         `triangles=${info.render.triangles}`,
         `crowdPeople=${animatedCrowdPeople.length}`,
         `crowdArms=${animatedCrowdArms.length}`,
-        `sceneChildren=${scene.children.length}`
+        `sceneChildren=${scene.children.length}`,
+        `touch=${('ontouchstart' in window)||(navigator.maxTouchPoints>0)}`
     );
 }
 
@@ -3555,6 +3557,7 @@ function disposeFootballResources(){
     stadiumOverlayMesh=null;
 
     footballOwnedRoots=[];
+    footballCrowdShared=null;
     animatedCrowdPeople=[];
     animatedCrowdArms=[];
     footballGoalConfetti=[];
@@ -4879,41 +4882,143 @@ function setupStadiumLevel(){
 }
 
 function buildAllBleachers(size){
-    const cMat=new THREE.MeshStandardMaterial({color:0x888880});const numRows=8,rowDepth=4,rowH=1.2;const sCols=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xeeeeee];
+    const cMat=new THREE.MeshStandardMaterial({color:0x888880});
+    const roofMat=new THREE.MeshStandardMaterial({color:0x555566,transparent:true,opacity:0.85});
+    const numRows=8,rowDepth=4,rowH=1.2;
+    const sCols=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xeeeeee];
+
+    // v83: Build one reusable geometry/material palette for the whole stadium.
+    // Previously every seat/person created fresh geometries and materials.
+    footballCrowdShared={
+        seatGeom:new THREE.BoxGeometry(2.7,0.6,rowDepth-0.5),
+        seatMats:sCols.map(c=>new THREE.MeshStandardMaterial({color:c})),
+        bodyGeom:new THREE.BoxGeometry(1.8,2.2,1),
+        headGeom:new THREE.SphereGeometry(0.7,6,6),
+        armGeom:new THREE.BoxGeometry(0.5,1.6,0.5),
+        skinMats:[0xffcc99,0xcc9966,0x885533,0xffddbb].map(c=>new THREE.MeshStandardMaterial({color:c})),
+        jerseyMats:[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff].map(c=>new THREE.MeshStandardMaterial({color:c}))
+    };
+
+    const touchLike=('ontouchstart' in window) ||
+        (navigator.maxTouchPoints&&navigator.maxTouchPoints>0) ||
+        (window.matchMedia&&window.matchMedia('(any-pointer:coarse)').matches);
+
+    // Desktop keeps a dense stand. Touch devices use slightly fewer animated
+    // spectators; static coloured seats still fill every place.
+    const crowdOccupancy=touchLike?0.62:0.78;
+    const armChance=touchLike?0.22:0.35;
+
     function buildStand(cx,cz,length,rotY){
         const g=new THREE.Group();
         g.userData.goalSide=(cz<-size/2)?-1:((cz>size/2)?1:0);
-        for(let row=0;row<numRows;row++){const rH=(row+1)*rowH;const step=new THREE.Mesh(new THREE.BoxGeometry(length,rH,rowDepth),cMat);step.position.set(0,rH/2,-(row*rowDepth+rowDepth/2));step.castShadow=true;g.add(step);const sW=3,nS=Math.floor(length/sW);for(let s=0;s<nS;s++){const sc=sCols[Math.floor(Math.random()*sCols.length)];const seat=new THREE.Mesh(new THREE.BoxGeometry(sW-0.3,0.6,rowDepth-0.5),new THREE.MeshStandardMaterial({color:sc}));seat.position.set(-length/2+s*sW+sW/2,rH+0.3,-(row*rowDepth+rowDepth/2));g.add(seat);if(Math.random()>0.12)buildCrowdPerson(g,-length/2+s*sW+sW/2,rH+1.1,-(row*rowDepth+rowDepth/2));}}
-        const roof=new THREE.Mesh(new THREE.BoxGeometry(length+4,1,numRows*rowDepth*0.6),new THREE.MeshStandardMaterial({color:0x555566,transparent:true,opacity:0.85}));roof.position.set(0,numRows*rowH+4,-(numRows*rowDepth*0.7));g.add(roof);
-        for(let ci=0;ci<=3;ci++){const col=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,numRows*rowH+4,8),cMat);col.position.set(-length/2+ci*(length/3),(numRows*rowH+4)/2,-numRows*rowDepth+1);g.add(col);}
-        g.position.set(cx,0,cz);g.rotation.y=rotY;scene.add(g);
+
+        const sW=3,nS=Math.floor(length/sW);
+        const maxSeats=numRows*nS;
+        const seatMatrices=sCols.map(()=>[]);
+        const dummy=new THREE.Object3D();
+
+        for(let row=0;row<numRows;row++){
+            const rH=(row+1)*rowH;
+
+            const step=new THREE.Mesh(new THREE.BoxGeometry(length,rH,rowDepth),cMat);
+            step.position.set(0,rH/2,-(row*rowDepth+rowDepth/2));
+            // Bleachers are visually large, but making every row cast a shadow
+            // is expensive and adds little on mobile.
+            step.castShadow=false;
+            step.receiveShadow=true;
+            g.add(step);
+
+            for(let s=0;s<nS;s++){
+                const sx=-length/2+s*sW+sW/2;
+                const sz=-(row*rowDepth+rowDepth/2);
+                const colorIndex=Math.floor(Math.random()*sCols.length);
+
+                dummy.position.set(sx,rH+0.3,sz);
+                dummy.rotation.set(0,0,0);
+                dummy.scale.set(1,1,1);
+                dummy.updateMatrix();
+                seatMatrices[colorIndex].push(dummy.matrix.clone());
+
+                if(Math.random()<crowdOccupancy){
+                    buildCrowdPerson(g,sx,rH+1.1,sz,armChance);
+                }
+            }
+        }
+
+        // Static seats are the ideal safe use of InstancedMesh:
+        // ~1,440 separate seat meshes become at most 20 instanced draw groups
+        // across all four stands (five colours per stand).
+        seatMatrices.forEach((mats,mi)=>{
+            if(!mats.length)return;
+            const inst=new THREE.InstancedMesh(
+                footballCrowdShared.seatGeom,
+                footballCrowdShared.seatMats[mi],
+                mats.length
+            );
+            mats.forEach((mat,i)=>inst.setMatrixAt(i,mat));
+            inst.instanceMatrix.needsUpdate=true;
+            inst.castShadow=false;
+            inst.receiveShadow=true;
+            g.add(inst);
+        });
+
+        const roof=new THREE.Mesh(
+            new THREE.BoxGeometry(length+4,1,numRows*rowDepth*0.6),
+            roofMat
+        );
+        roof.position.set(0,numRows*rowH+4,-(numRows*rowDepth*0.7));
+        roof.castShadow=false;
+        roof.receiveShadow=true;
+        g.add(roof);
+
+        const colGeom=new THREE.CylinderGeometry(0.5,0.5,numRows*rowH+4,8);
+        for(let ci=0;ci<=3;ci++){
+            const col=new THREE.Mesh(colGeom,cMat);
+            col.position.set(-length/2+ci*(length/3),(numRows*rowH+4)/2,-numRows*rowDepth+1);
+            col.castShadow=false;
+            col.receiveShadow=true;
+            g.add(col);
+        }
+
+        g.position.set(cx,0,cz);
+        g.rotation.y=rotY;
+        scene.add(g);
     }
-    buildStand(size/2+2,0,size+16,-Math.PI/2);buildStand(-size/2-2,0,size+16,Math.PI/2);
-    buildStand(0,-size/2-2,size+16,0);buildStand(0,size/2+2,size+16,Math.PI);
+
+    buildStand(size/2+2,0,size+16,-Math.PI/2);
+    buildStand(-size/2-2,0,size+16,Math.PI/2);
+    buildStand(0,-size/2-2,size+16,0);
+    buildStand(0,size/2+2,size+16,Math.PI);
 }
-function buildCrowdPerson(pg,x,y,z){
-    const skins=[0xffcc99,0xcc9966,0x885533,0xffddbb];
-    const jerseys=[0xcc2222,0x2255cc,0xcc8822,0x22cc22,0xffffff,0xcccccc,0xff00ff];
-    const sm=new THREE.MeshStandardMaterial({color:skins[Math.floor(Math.random()*skins.length)]});
-    const jm=new THREE.MeshStandardMaterial({color:jerseys[Math.floor(Math.random()*jerseys.length)]});
+
+function buildCrowdPerson(pg,x,y,z,armChance=0.35){
+    const sh=footballCrowdShared;
+    const sm=sh.skinMats[Math.floor(Math.random()*sh.skinMats.length)];
+    const jm=sh.jerseyMats[Math.floor(Math.random()*sh.jerseyMats.length)];
 
     const person=new THREE.Group();
     person.position.set(x,y,z);
 
-    const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,2.2,1),jm);
+    const body=new THREE.Mesh(sh.bodyGeom,jm);
     body.position.set(0,0,0);
+    body.castShadow=false;
+    body.receiveShadow=false;
     person.add(body);
 
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.7,6,6),sm);
+    const head=new THREE.Mesh(sh.headGeom,sm);
     head.position.set(0,1.6,0);
+    head.castShadow=false;
+    head.receiveShadow=false;
     person.add(head);
 
-    if(Math.random()>0.5){
+    if(Math.random()<armChance){
         const ai={left:null,right:null,phase:Math.random()*Math.PI*2};
         [-1.2,1.2].forEach((ax,idx)=>{
-            const arm=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.6,0.5),jm);
+            const arm=new THREE.Mesh(sh.armGeom,jm);
             arm.position.set(ax,0.8,0);
             arm.rotation.z=ax>0?-0.8:0.8;
+            arm.castShadow=false;
+            arm.receiveShadow=false;
             person.add(arm);
             if(idx===0)ai.left=arm;else ai.right=arm;
         });
