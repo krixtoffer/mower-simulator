@@ -2949,7 +2949,6 @@ bgMusic.volume = 0.35;
 // be blocked by mobile browsers, so STARTA SPELET also performs an explicit
 // user-gesture play attempt below.
 try{bgMusic.load();}catch(e){}
-bgMusic.play().catch(()=>{});
 document.addEventListener('click',()=>{if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});},{once:true});
 
 window.startGameFromCover=function(){
@@ -3209,7 +3208,19 @@ function beginStartupCountdown(){
             fill.style.width='100%';
             mower.style.left='100%';
             label.textContent='SPELET STARTAR OM 1';
-            requestAnimationFrame(()=>{loader.style.display='none';});
+            requestAnimationFrame(()=>{
+                loader.style.display='none';
+
+                // Start the first song exactly when startbild.jpg is revealed.
+                // Browsers may still block unprompted audio; the existing first
+                // user interaction fallback remains in place for those cases.
+                if(settings.music){
+                    try{
+                        bgMusic.currentTime=0;
+                        bgMusic.play().catch(()=>{});
+                    }catch(e){}
+                }
+            });
         }
     }
     requestAnimationFrame(tick);
