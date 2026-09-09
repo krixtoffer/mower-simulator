@@ -306,14 +306,31 @@
         }
         .arcade-btn:hover { filter:brightness(1.1); }
         .arcade-btn:active { transform:translate(3px,3px); box-shadow:1px 1px 0 var(--line) !important; }
+        .arcade-btn:not(#main-level-btn):not(#main-shop-btn):not(#main-settings-btn){
+            background-image:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,0) 42%,rgba(0,0,0,.10)) !important;
+            background-blend-mode:screen,multiply;
+        }
         .arcade-btn:disabled { background:#8b9484 !important; color:#e5e5d5 !important; opacity:.72; }
         #main-menu-screen .arcade-btn,#level-select-screen .arcade-btn,#shop-screen .arcade-btn { width:100%; margin:7px 0 !important; }
 
         /* Three clearly distinct main-menu choices. These override the shared
            theme button color intentionally. */
-        #main-level-btn { background:#2f6b32 !important; }      /* green */
-        #main-shop-btn { background:#3f6fa3 !important; }       /* blue */
-        #main-settings-btn { background:#b56a2d !important; }   /* orange */
+        #main-level-btn {
+            background:linear-gradient(180deg,#4f8f48 0%,#2f6b32 58%,#244f29 100%) !important;
+        }
+        #main-shop-btn {
+            background:linear-gradient(180deg,#5f8fc2 0%,#3f6fa3 58%,#31557c 100%) !important;
+        }
+        #main-settings-btn {
+            background:#22aeb8 !important;
+            background-image:linear-gradient(180deg,#67e6ed 0%,#22aeb8 58%,#137781 100%) !important;
+            color:#ffffff !important;
+        }
+        #main-menu-screen #main-settings-btn.arcade-btn {
+            background:#22aeb8 !important;
+            background-image:linear-gradient(180deg,#67e6ed 0%,#22aeb8 58%,#137781 100%) !important;
+            color:#ffffff !important;
+        }
 
         #level-list { display:grid; grid-template-columns:1fr; gap:10px; }
         .level-btn {
@@ -357,6 +374,73 @@
             box-shadow:inset 0 0 0 5px rgba(255,255,255,.12),0 5px 18px rgba(0,0,0,.12);
         }
         #joystick-knob { width:52px; height:52px; background:rgba(242,237,207,.92); border:3px solid rgba(20,32,19,.72); box-sizing:border-box; }
+
+        #settings-panel{
+            text-align:left !important;
+        }
+        .settings-basic-group{
+            border:2px solid rgba(23,32,23,.32);
+            background:rgba(255,248,220,.38);
+            padding:4px 14px;
+            margin-bottom:18px;
+        }
+        .settings-basic-group .setting-row{
+            margin:12px 0;
+        }
+        .settings-feature-group{
+            border:2px solid rgba(23,32,23,.32);
+            background:rgba(255,248,220,.38);
+            padding:10px 14px 12px;
+            margin-top:14px;
+            color:#00ffff;
+        }
+        .settings-feature-title{
+            font-size:8px;
+            letter-spacing:2px;
+            color:#00ffff;
+            margin-bottom:10px;
+        }
+        .setting-feature-card{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:14px;
+            padding:14px;
+            margin:10px 0;
+            border:1px dashed rgba(23,32,23,.28);
+            background:transparent;
+            box-shadow:none;
+        }
+        .setting-feature-name{
+            font-size:10px;
+            color:#00ffff;
+            margin-bottom:5px;
+        }
+        .setting-feature-desc{
+            font-family:Arial,sans-serif;
+            font-size:12px;
+            font-weight:700;
+            color:#00ffff;
+            line-height:1.3;
+        }
+        .feature-toggle{
+            min-width:88px;
+            font-size:9px;
+            padding:10px 12px;
+        }
+        .feature-jukebox-btn{
+            width:auto !important;
+            min-width:110px;
+            margin:0 !important;
+            padding:11px 13px !important;
+            background:linear-gradient(180deg,#4f8f48 0%,#2f6b32 58%,#244f29 100%) !important;
+            color:var(--cream) !important;
+        }
+        .settings-close-btn{
+            width:100%;
+            margin-top:18px !important;
+            background:linear-gradient(180deg,#d76a61 0%,#b94b43 58%,#8f3833 100%) !important;
+        }
 
         #game-over { background:rgba(10,22,14,.78); backdrop-filter:blur(3px); padding:18px; box-sizing:border-box; }
         #go-panel {
@@ -1600,16 +1684,34 @@
 <div id="settings-overlay">
     <div id="settings-panel">
         <h2>⚙ INSTÄLLNINGAR</h2>
-        <div class="setting-row"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
-        <div class="setting-row"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
-        <div class="setting-row"><span>TIDSBEGRÄNSNING</span><button class="toggle-btn" id="toggle-timer" onclick="toggleSetting('timer')">PÅ</button></div>
-        <div class="setting-row"><span>DYGN</span><button class="toggle-btn" id="toggle-night" onclick="toggleSetting('night')">DAG</button></div>
-        <div class="setting-row">
-            <span>JUKEBOX</span>
-            <button class="arcade-btn" style="font-size:9px;padding:8px 14px;background:#8b008b;" onclick="openJukebox()">🎵 JUKEBOX</button>
+
+        <div class="settings-basic-group">
+            <div class="setting-row"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
+            <div class="setting-row"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
+            <div class="setting-row"><span>TIDSBEGRÄNSNING</span><button class="toggle-btn" id="toggle-timer" onclick="toggleSetting('timer')">PÅ</button></div>
         </div>
-        <br>
-        <button class="arcade-btn" style="background:#e74c3c;width:100%;" onclick="closeSettings()">STÄNG</button>
+
+        <div class="settings-feature-group">
+            <div class="settings-feature-title">EXTRA</div>
+
+            <div class="setting-feature-card">
+                <div>
+                    <div class="setting-feature-name">NATT/DAG-LÄGE</div>
+                    <div class="setting-feature-desc">Byt mellan dag och natt</div>
+                </div>
+                <button class="toggle-btn feature-toggle" id="toggle-night" onclick="toggleSetting('night')">DAG</button>
+            </div>
+
+            <div class="setting-feature-card">
+                <div>
+                    <div class="setting-feature-name">VÄLJ KLIPPARMUSIK</div>
+                    <div class="setting-feature-desc">Välj vilken låt som spelar</div>
+                </div>
+                <button class="arcade-btn feature-jukebox-btn" onclick="openJukebox()">🎵 ÖPPNA</button>
+            </div>
+        </div>
+
+        <button class="arcade-btn settings-close-btn" onclick="closeSettings()">STÄNG</button>
     </div>
 </div>
 
@@ -3703,6 +3805,22 @@ function buildFanbyvikenStreetLights(){
         const y=level4HeightAt(p.x,p.z);
         const post=buildOutdoorLampPost(p.x,p.z,y,9.5,55,3.2);
         post.rotation.y=(i<4)?Math.PI/2:0;
+    });
+
+    // Extra house-front lights for houses 1 and 8. The fixtures reuse the
+    // established street-light geometry; only their bulbs/light pools switch
+    // on in night mode through buildOutdoorLampPost().
+    const houseLights=[
+        // House 1 at (1213,515): lamp on the -X side, facing toward the house.
+        {px:1163,py:515,rotation:0},
+        // House 8 at (1112,100): lamp on the +X side, facing toward the house.
+        {px:1162,py:100,rotation:Math.PI}
+    ];
+    houseLights.forEach(s=>{
+        const p=level4MapToWorld(s.px,s.py);
+        const y=level4HeightAt(p.x,p.z);
+        const post=buildOutdoorLampPost(p.x,p.z,y,8.5,48,3.0);
+        post.rotation.y=s.rotation;
     });
 }
 
