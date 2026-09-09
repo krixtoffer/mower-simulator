@@ -1681,7 +1681,7 @@
 <audio id="sfx-fore"  src="./fore.mp3"    preload="auto"></audio>
 <audio id="sfx-goal2" src="./goal2.mp3" preload="auto"></audio>
 <audio id="sfx-goal" src="./goal.mp3" preload="auto"></audio>
-<audio id="sfx-ghost" src="./ghost.mp3" preload="auto" loop></audio>
+<audio id="sfx-ghost" src="./ghost.mp3" preload="auto"></audio>
 <audio id="sfx-mower" src="./handjag.mp3" loop preload="auto"></audio>
 
 <div id="settings-overlay">
@@ -3275,6 +3275,7 @@ let nightGhostMotion=null;
 let nightGhostRespawnTimer=0;
 let nightGhostLoadRequested=false;
 let nightGhostSoundActive=false;
+let nightGhostSoundCooldown=0;
 const sfxGhost=document.getElementById('sfx-ghost');
 
 // Fanbyviken wildlife. All are visual-only and never enter mower collision.
@@ -3753,8 +3754,12 @@ function resetNightGhostForLevel(){
     nightGhostLoadRequested=false;
 }
 
-function updateNightGhostProximitySound(){
+function updateNightGhostProximitySound(dt){
     if(!sfxGhost)return;
+
+    if(nightGhostSoundCooldown>0){
+        nightGhostSoundCooldown=Math.max(0,nightGhostSoundCooldown-dt);
+    }
 
     const canHear=
         settings.sfx &&
@@ -3771,16 +3776,24 @@ function updateNightGhostProximitySound(){
         close=Math.hypot(dx,dz)<=40;
     }
 
-    if(close){
-        if(!nightGhostSoundActive){
-            nightGhostSoundActive=true;
-            sfxGhost.volume=.42;
-            try{sfxGhost.play().catch(()=>{});}catch(e){}
-        }
-    }else if(nightGhostSoundActive){
-        nightGhostSoundActive=false;
+    // Fire the sound once, then enforce a 12 second lockout. If the ghost is
+    // still nearby after the cooldown expires, it may trigger once again.
+    if(close&&nightGhostSoundCooldown<=0){
+        nightGhostSoundCooldown=12;
+        nightGhostSoundActive=true;
         sfxGhost.pause();
         sfxGhost.currentTime=0;
+        sfxGhost.volume=.42;
+        try{
+            const p=sfxGhost.play();
+            if(p&&p.catch)p.catch(()=>{});
+        }catch(e){}
+    }
+
+    if(!close){
+        nightGhostSoundActive=false;
+    }else if(sfxGhost.ended){
+        nightGhostSoundActive=false;
     }
 }
 
@@ -7292,7 +7305,7 @@ function animate(){
         updateLevel4TrampolineAudio();
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
-        updateNightGhostProximitySound();
+        updateNightGhostProximitySound(dt);
         updateLevel4Wildlife(dt,t);
         updateAmbientNightBats(dt,t);
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
