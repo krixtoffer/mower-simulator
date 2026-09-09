@@ -39,10 +39,25 @@
             transform:translateX(-50%);image-rendering:pixelated;
             pointer-events:none;will-change:left;
         }
+        #startup-ready-btn{
+            display:none;
+            margin-top:26px;
+            min-width:190px;
+            font-size:12px;
+            padding:14px 28px;
+            background:linear-gradient(#79d94d,#2f9d35);
+            border:4px solid #fff;
+            color:#fff;
+            font-family:'Press Start 2P',monospace;
+            text-shadow:2px 2px #000;
+            box-shadow:5px 5px 0 #000;
+            cursor:pointer;
+            touch-action:manipulation;
+        }
         #start-screen {
             position:absolute; top:0; left:0; width:100%; height:100%;
             background:#07142a url('./startbild.jpg') center/cover no-repeat;
-            display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+            display:none; flex-direction:column; justify-content:flex-end; align-items:center;
             z-index:200; padding-bottom:50px; box-sizing:border-box;
         }
         #start-cover-img{
@@ -1786,6 +1801,7 @@
         <div id="startup-loader-fill"></div>
         <img id="startup-loader-mower" src="./2dmower2.png" alt="" decoding="sync">
     </div>
+    <button id="startup-ready-btn" type="button" onclick="enterStartScreen()">START</button>
 </div>
 
 <div id="start-screen">
@@ -3054,20 +3070,71 @@ bgMusic.volume = 0.35;
 // be blocked by mobile browsers, so STARTA SPELET also performs an explicit
 // user-gesture play attempt below.
 try{bgMusic.load();}catch(e){}
-document.addEventListener('click',()=>{if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});},{once:true});
+window.enterStartScreen=function(){
+    const loader=document.getElementById('startup-loader');
+    const startScreen=document.getElementById('start-screen');
+
+    // This function is called directly by the post-countdown START button.
+    // Use that single mobile-safe gesture to unlock menu music and the two
+    // football goal sounds before revealing startbild.jpg.
+    unlockFootballGoalAudio();
+    if(settings.music){
+        try{
+            bgMusic.currentTime=0;
+            bgMusic.play().catch(()=>{});
+        }catch(e){}
+    }
+
+    if(loader)loader.style.display='none';
+    if(startScreen)startScreen.style.display='flex';
+};
 
 window.startGameFromCover=function(){
-    if(settings.music){
-        // This runs directly inside the user's click gesture, which is the most
-        // reliable way to unlock audio on iOS/Android browsers.
-        bgMusic.play().catch(()=>{});
-    }
+    // Desktop/mobile fallback if audio was disabled at the startup gate and
+    // later enabled, plus another harmless opportunity to prime goal SFX.
+    unlockFootballGoalAudio();
+    if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});
     openMainMenu();
 };
 
 const sfxEls = { fan1:document.getElementById('sfx-fan1'), fan2:document.getElementById('sfx-fan2'), fan3:document.getElementById('sfx-fan3'), swing:document.getElementById('sfx-swing'), fore:document.getElementById('sfx-fore') };
 const goal2Sfx=document.getElementById('sfx-goal2');
 const goalSfx=document.getElementById('sfx-goal');
+let footballGoalAudioUnlocked=false;
+
+// iOS/Safari can keep rarely-used HTMLAudio elements locked even after other
+// game audio is playing. Prime both goal elements inside a real user gesture.
+function unlockFootballGoalAudio(){
+    if(footballGoalAudioUnlocked)return;
+    footballGoalAudioUnlocked=true;
+    [goal2Sfx,goalSfx].forEach(a=>{
+        if(!a)return;
+        const oldMuted=a.muted;
+        a.muted=true;
+        try{
+            const p=a.play();
+            if(p&&p.then){
+                p.then(()=>{
+                    a.pause();
+                    a.currentTime=0;
+                    a.muted=oldMuted;
+                }).catch(()=>{
+                    a.pause();
+                    a.currentTime=0;
+                    a.muted=oldMuted;
+                    footballGoalAudioUnlocked=false;
+                });
+            }else{
+                a.pause();a.currentTime=0;a.muted=oldMuted;
+            }
+        }catch(e){
+            a.muted=oldMuted;
+            footballGoalAudioUnlocked=false;
+        }
+    });
+}
+
+document.addEventListener('pointerdown',unlockFootballGoalAudio,{once:true,passive:true});
 
 function playFootballGoalSfx(){
     if(!settings.sfx)return;
@@ -3404,20 +3471,9 @@ function beginStartupCountdown(){
         }else{
             fill.style.width='100%';
             mower.style.left='100%';
-            label.textContent='SPELET STARTAR OM 1';
-            requestAnimationFrame(()=>{
-                loader.style.display='none';
-
-                // Start the first song exactly when startbild.jpg is revealed.
-                // Browsers may still block unprompted audio; the existing first
-                // user interaction fallback remains in place for those cases.
-                if(settings.music){
-                    try{
-                        bgMusic.currentTime=0;
-                        bgMusic.play().catch(()=>{});
-                    }catch(e){}
-                }
-            });
+            label.textContent='REDO!';
+            const readyBtn=document.getElementById('startup-ready-btn');
+            if(readyBtn)readyBtn.style.display='block';
         }
     }
     requestAnimationFrame(tick);
