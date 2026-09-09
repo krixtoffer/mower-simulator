@@ -3026,7 +3026,8 @@ const sceneryAssets={
     plant3:{path:'./plant3.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant4:{path:'./plant4.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true},
-    swing:{path:'./swing.glb',height:5.0,castShadow:true,receiveShadow:true}
+    swing:{path:'./swing.glb',height:5.0,castShadow:true,receiveShadow:true},
+    hammock2:{path:'./hammock2.glb',length:5.2,castShadow:true,receiveShadow:true}
 };
 const sceneryCache=new Map();
 const sceneryWaiters=new Map();
@@ -4555,7 +4556,7 @@ function loadGalleryStatue(){
             // museum scale regardless of the source model's native units.
             let box=new THREE.Box3().setFromObject(statue);
             let size=box.getSize(new THREE.Vector3());
-            if(size.y>0)statue.scale.multiplyScalar(9.36/size.y);
+            if(size.y>0)statue.scale.multiplyScalar(11.232/size.y);
 
             box=new THREE.Box3().setFromObject(statue);
             const center=box.getCenter(new THREE.Vector3());
@@ -4567,7 +4568,7 @@ function loadGalleryStatue(){
             statue.position.y+=1.72-box.min.y;
             statue.position.z+=-51;
 
-            statue.rotation.y=-THREE.MathUtils.degToRad(240);
+            statue.rotation.y=-THREE.MathUtils.degToRad(420);
             scene.add(statue);
 
             // Dedicated warm museum spotlight, shadow-free for mobile stability.
@@ -5307,6 +5308,113 @@ function l4SeededRandom(seed){
         return s/4294967296;
     };
 }
+
+function buildLevel4ReadingLamp(mapX,mapY,rotation=0){
+    const x=(mapX/LEVEL4_MAP_W-.5)*LEVEL4_WORLD_W;
+    const z=(mapY/LEVEL4_MAP_H-.5)*LEVEL4_WORLD_D;
+    const y=level4TerrainYAt(x,z);
+
+    const g=new THREE.Group();
+
+    const darkMetal=new THREE.MeshStandardMaterial({
+        color:0x2a2420,metalness:.72,roughness:.34
+    });
+    const shadeMat=new THREE.MeshStandardMaterial({
+        color:0x5a3a22,metalness:.18,roughness:.58,
+        emissive:settings.nightMode?0x8a5a28:0x000000,
+        emissiveIntensity:settings.nightMode?.38:0
+    });
+    const bulbMat=new THREE.MeshStandardMaterial({
+        color:0xffe1a8,
+        emissive:settings.nightMode?0xffb85e:0x2b1a0d,
+        emissiveIntensity:settings.nightMode?2.8:.05,
+        roughness:.35
+    });
+
+    // Weighted circular foot.
+    const foot=new THREE.Mesh(
+        new THREE.CylinderGeometry(.48,.58,.16,16),
+        darkMetal
+    );
+    foot.position.y=.08;
+    g.add(foot);
+
+    // Main pole.
+    const pole=new THREE.Mesh(
+        new THREE.CylinderGeometry(.055,.07,3.15,10),
+        darkMetal
+    );
+    pole.position.y=1.66;
+    g.add(pole);
+
+    // Curved neck built from a torus arc, opening toward the hammock.
+    const curve=new THREE.Mesh(
+        new THREE.TorusGeometry(.82,.055,8,18,Math.PI*.72),
+        darkMetal
+    );
+    curve.rotation.z=Math.PI*.12;
+    curve.rotation.y=Math.PI/2;
+    curve.position.set(.60,3.02,0);
+    g.add(curve);
+
+    // Short descending end piece.
+    const drop=new THREE.Mesh(
+        new THREE.CylinderGeometry(.05,.05,.46,8),
+        darkMetal
+    );
+    drop.position.set(1.13,3.43,0);
+    drop.rotation.z=Math.PI*.08;
+    g.add(drop);
+
+    // Lampshade and bulb.
+    const shade=new THREE.Mesh(
+        new THREE.CylinderGeometry(.26,.46,.42,14,1,true),
+        shadeMat
+    );
+    shade.position.set(1.18,3.16,0);
+    shade.rotation.z=-Math.PI*.10;
+    g.add(shade);
+
+    const bulb=new THREE.Mesh(
+        new THREE.SphereGeometry(.10,10,8),
+        bulbMat
+    );
+    bulb.position.set(1.20,2.98,0);
+    g.add(bulb);
+
+    g.position.set(x,y,z);
+    g.rotation.y=rotation;
+    g.traverse(o=>{
+        if(o.isMesh){
+            o.castShadow=true;
+            o.receiveShadow=true;
+        }
+    });
+    scene.add(g);
+
+    // At night, illuminate the hammock strongly with a warm reading pool.
+    if(settings.nightMode){
+        const light=new THREE.SpotLight(
+            0xffc979,5.4,18,Math.PI/5.2,.55,1.45
+        );
+        light.position.set(1.18,3.04,0);
+        g.add(light);
+
+        const target=new THREE.Object3D();
+        target.position.set(3.0,1.0,0);
+        g.add(target);
+        light.target=target;
+        light.castShadow=false;
+
+        // Soft local fill so the person/hammock reads from more angles.
+        const fill=new THREE.PointLight(0xffb866,1.35,8.5,2);
+        fill.position.set(1.05,2.75,0);
+        g.add(fill);
+    }
+
+    return g;
+}
+
 function l4SpawnGroundedAsset(id,px,py,rotation=0,scale=1){
     const p=level4MapToWorld(px,py);
     const opts={x:p.x,y:level4HeightAt(p.x,p.z),z:p.z,rotation,scale};
@@ -5522,6 +5630,13 @@ function setupLakeLevel(){
 
     // User-specified swing placement.
     l4SpawnGroundedAsset('swing',1359,517,-Math.PI/2,1);
+
+    // User-specified hammock placement.
+    l4SpawnGroundedAsset('hammock2',1146,408,0,1);
+
+    // Curved floor reading lamp beside the hammock. It is decorative by day
+    // and switches on automatically in NATT mode, aimed toward the hammock.
+    buildLevel4ReadingLamp(1127,423,-Math.PI*.18);
 
     // Plant5 bed: 40 plants inside the updated requested rectangle.
     l4PlantScatter(598,346,864,418,40,['plant5'],34003,.78,1.18);
@@ -5793,15 +5908,20 @@ window.confirmStartLevel=function(){
         document.getElementById('gallery-ui').style.display='none';
     }
     tuneSceneMaterials();
-    // Start in the same chase-camera geometry used by the proven gras13 build.
+    // Start directly in the same camera geometry that the active level will
+    // use. Galleri needs its shorter/lower indoor chase camera immediately;
+    // otherwise the first frame can begin behind the end wall and show brown.
+    const initialCameraDistance=(currentLevel===5)?10.5:20;
+    const initialCameraHeight=(currentLevel===5)?8.2:16;
+    const initialLookHeight=(currentLevel===5)?2.6:2;
     camera.position.set(
-        mowerGroup.position.x-Math.sin(mowerStats.rotation)*20,
-        mowerGroup.position.y+16,
-        mowerGroup.position.z-Math.cos(mowerStats.rotation)*20
+        mowerGroup.position.x-Math.sin(mowerStats.rotation)*initialCameraDistance,
+        mowerGroup.position.y+initialCameraHeight,
+        mowerGroup.position.z-Math.cos(mowerStats.rotation)*initialCameraDistance
     );
     camera.lookAt(
         mowerGroup.position.x,
-        mowerGroup.position.y+2,
+        mowerGroup.position.y+initialLookHeight,
         mowerGroup.position.z
     );
     camera.updateProjectionMatrix();
