@@ -11,6 +11,27 @@
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&family=Russo+One&display=swap');
         body { margin:0; padding:0; overflow:hidden; background:#000; font-family:'Press Start 2P',monospace; }
         canvas { display:block; }
+        #startup-loader{
+            position:fixed;inset:0;z-index:260;
+            display:flex;flex-direction:column;justify-content:center;align-items:center;
+            background:#05070d;color:#fff;text-align:center;
+            padding:24px;box-sizing:border-box;
+        }
+        #startup-loader-text{
+            font-size:16px;line-height:1.7;color:#ffff00;
+            text-shadow:3px 3px #ff0055,5px 5px #000;
+            margin-bottom:22px;
+        }
+        #startup-loader-bar{
+            width:min(78vw,420px);height:18px;
+            border:3px solid #00ffff;background:#111;
+            box-shadow:4px 4px 0 #ff00ff;
+            padding:3px;box-sizing:border-box;
+        }
+        #startup-loader-fill{
+            width:0%;height:100%;background:#ffff00;
+            transition:width .18s linear;
+        }
         #start-screen {
             position:absolute; top:0; left:0; width:100%; height:100%;
             background:#07142a url('./startbild.jpg') center/cover no-repeat;
@@ -280,6 +301,12 @@
         .arcade-btn:active { transform:translate(3px,3px); box-shadow:1px 1px 0 var(--line) !important; }
         .arcade-btn:disabled { background:#8b9484 !important; color:#e5e5d5 !important; opacity:.72; }
         #main-menu-screen .arcade-btn,#level-select-screen .arcade-btn,#shop-screen .arcade-btn { width:100%; margin:7px 0 !important; }
+
+        /* Three clearly distinct main-menu choices. These override the shared
+           theme button color intentionally. */
+        #main-level-btn { background:#2f6b32 !important; }      /* green */
+        #main-shop-btn { background:#3f6fa3 !important; }       /* blue */
+        #main-settings-btn { background:#b56a2d !important; }   /* orange */
 
         #level-list { display:grid; grid-template-columns:1fr; gap:10px; }
         .level-btn {
@@ -1640,6 +1667,11 @@
 </div>
 </div>
 
+<div id="startup-loader">
+    <div id="startup-loader-text">SPELET STARTAR OM 5</div>
+    <div id="startup-loader-bar"><div id="startup-loader-fill"></div></div>
+</div>
+
 <div id="start-screen">
     <img id="start-cover-img" src="./startbild.jpg" alt="" fetchpriority="high" decoding="async">
     <div id="start-btn-row">
@@ -1653,11 +1685,11 @@
         <div class="menu-kicker">MOWER SIMULATOR</div>
         <h1 class="menu-title">GARAGET</h1>
         <p class="menu-subtitle">Välj bana, byt maskin och ge dig ut på gräset.</p>
-        <button class="arcade-btn" style="width:100%;margin:15px 0;background:#27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
-        <button class="arcade-btn" style="width:100%;margin:15px 0;background:#3498db;" onclick="openShop()">SHOPPEN</button>
+        <button id="main-level-btn" class="arcade-btn" style="width:100%;margin:15px 0;" onclick="openLevelSelect()">VÄLJ BANA</button>
+        <button id="main-shop-btn" class="arcade-btn" style="width:100%;margin:15px 0;" onclick="openShop()">SHOPPEN</button>
 
-        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-            <button class="arcade-btn" style="background:#3498db;font-size:9px;padding:10px 16px;" onclick="openSettings()">⚙ INSTÄLLNINGAR</button>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px;width:100%;">
+            <button id="main-settings-btn" class="arcade-btn" style="font-size:9px;padding:10px 16px;" onclick="openSettings()">⚙ INSTÄLLNINGAR</button>
         </div>
     </div>
 </div>
@@ -1723,7 +1755,6 @@
 
 <div id="hud-buttons">
     <button class="arcade-btn" style="font-size:9px;padding:10px 14px;background:#27ae60;" onclick="finishLevel()">✓ KLAR</button>
-    <button class="arcade-btn" style="font-size:9px;padding:10px 14px;background:#e74c3c;" onclick="leaveLevel()">✕ LÄMNA</button>
 </div>
 
 <div id="game-over">
@@ -1735,8 +1766,7 @@
         <div id="go-stars">★★★★★</div>
         <p id="go-msg" style="color:#ff0055;font-size:9px;line-height:1.6;margin:15px 0;"></p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-            <button class="arcade-btn" onclick="openShop()">SHOPPEN</button>
-            <button class="arcade-btn" style="background:#27ae60;" onclick="openLevelSelect()">VÄLJ BANA</button>
+            <button class="arcade-btn" onclick="returnToMainMenuAfterLevel()">← TILLBAKA</button>
         </div>
     </div>
 </div>
@@ -3050,6 +3080,7 @@ let totalCuttablePixels=0;
 const VILLA1_HOUSE_BLOCK={xMin:-32,xMax:32,zMin:-50,zMax:-5};
 
 let animatedCars=[], animatedAnimals=[], animatedPlayers=[], animatedCrowdArms=[], animatedClouds=[];
+let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, bunkerZones=[], trampolineKids=[];
 
 let charLeftLeg=null, charRightLeg=null, charLeftArm=null, charRightArm=null;
@@ -3125,7 +3156,46 @@ const startCoverPrime=new Image();
 startCoverPrime.decoding='async';
 startCoverPrime.src='./startbild.jpg';
 
-initThree(); initShowroomThree(); preloadAssets(); animate();
+// Five-second startup buffer. Heavy assets begin loading immediately underneath
+// this overlay; the cover image is explicitly decoded while menu audio buffers.
+const STARTUP_DELAY_MS=5000;
+function beginStartupCountdown(){
+    const loader=document.getElementById('startup-loader');
+    const label=document.getElementById('startup-loader-text');
+    const fill=document.getElementById('startup-loader-fill');
+    if(!loader||!label||!fill)return;
+
+    const started=performance.now();
+    let lastShown=5;
+
+    // Ask the cover to finish decoding during the countdown where supported.
+    if(startCoverPrime.decode)startCoverPrime.decode().catch(()=>{});
+    try{bgMusic.load();}catch(e){}
+
+    function tick(now){
+        const elapsed=Math.min(STARTUP_DELAY_MS,now-started);
+        const progress=elapsed/STARTUP_DELAY_MS;
+        fill.style.width=(progress*100).toFixed(1)+'%';
+
+        const remaining=Math.max(1,Math.ceil((STARTUP_DELAY_MS-elapsed)/1000));
+        if(remaining!==lastShown){
+            lastShown=remaining;
+            label.textContent='SPELET STARTAR OM '+remaining;
+        }
+
+        if(elapsed<STARTUP_DELAY_MS){
+            requestAnimationFrame(tick);
+        }else{
+            fill.style.width='100%';
+            label.textContent='SPELET STARTAR OM 1';
+            // Let the final painted frame land, then reveal startbild.jpg.
+            requestAnimationFrame(()=>{loader.style.display='none';});
+        }
+    }
+    requestAnimationFrame(tick);
+}
+
+initThree(); initShowroomThree(); preloadAssets(); animate(); beginStartupCountdown();
 
 function initThree(){
     scene=new THREE.Scene(); scene.background=new THREE.Color(0x87CEEB); scene.fog=new THREE.Fog(0x87CEEB,80,250);
@@ -5402,9 +5472,12 @@ function buildLevel4BarbecueArea(mapX,mapY){
         scene.add(g);
     }
 
-    // Two benches beside/opposite the barbecue ring.
-    addSimpleBench(mapX-28,mapY+20,0);
-    addSimpleBench(mapX+28,mapY+20,0);
+    // Tight V formation around the ring. Three world units corresponds to
+    // roughly 13.6 map units in either map direction here.
+    const dx3=3/LEVEL4_WORLD_W*LEVEL4_MAP_W;
+    const dy3=3/LEVEL4_WORLD_D*LEVEL4_MAP_H;
+    addSimpleBench(mapX,mapY-dy3,Math.PI*.22);
+    addSimpleBench(mapX+dx3,mapY,-Math.PI*.28);
 
     if(settings.nightMode){
         // Compact stylised fire inside the ring.
@@ -5422,24 +5495,54 @@ function buildLevel4BarbecueArea(mapX,mapY){
         });
 
         const flames=[
-            {x:-.35,z:.12,h:1.25,r:.34,mat:flameOuter},
-            {x:.28,z:-.16,h:1.08,r:.30,mat:flameOuter},
-            {x:.02,z:.06,h:1.55,r:.32,mat:flameInner}
+            {x:-.35,z:.12,h:1.25,r:.34,mat:flameOuter,phase:.2},
+            {x:.28,z:-.16,h:1.08,r:.30,mat:flameOuter,phase:2.0},
+            {x:.02,z:.06,h:1.55,r:.32,mat:flameInner,phase:4.1}
         ];
         flames.forEach(f=>{
             const m=new THREE.Mesh(
                 new THREE.ConeGeometry(f.r,f.h,10),
                 f.mat
             );
-            m.position.set(p.x+f.x,groundY+.38+f.h/2,p.z+f.z);
+            const baseY=groundY+.38+f.h/2;
+            m.position.set(p.x+f.x,baseY,p.z+f.z);
             m.castShadow=false;
             scene.add(m);
+            animatedLevel4Fire.push({
+                type:'flame',mesh:m,baseY,phase:f.phase,
+                baseScaleY:1
+            });
         });
 
         const glow=new THREE.PointLight(0xff7d32,5.2,24,1.55);
         glow.position.set(p.x,groundY+2.0,p.z);
         glow.castShadow=false;
         scene.add(glow);
+        animatedLevel4Fire.push({type:'glow',light:glow,phase:1.3});
+
+        // Small transparent smoke puffs that rise, spread and disappear.
+        for(let i=0;i<6;i++){
+            const smokeMat=new THREE.MeshBasicMaterial({
+                color:0x777777,transparent:true,opacity:.22,
+                depthWrite:false
+            });
+            const smoke=new THREE.Mesh(
+                new THREE.SphereGeometry(.28+i*.025,8,6),
+                smokeMat
+            );
+            const phase=i/6;
+            smoke.position.set(
+                p.x+(i%2?-.16:.14),
+                groundY+1.15+phase*3.2,
+                p.z+(i%3-1)*.10
+            );
+            scene.add(smoke);
+            animatedLevel4Fire.push({
+                type:'smoke',mesh:smoke,material:smokeMat,
+                originX:smoke.position.x,originY:groundY+1.05,
+                originZ:smoke.position.z,phase
+            });
+        }
 
         // Soft ground glow makes the fire read clearly without another shadow light.
         const glowMat=new THREE.MeshBasicMaterial({
@@ -5764,7 +5867,7 @@ function setupLakeLevel(){
     l4SpawnGroundedAsset('hammock2',1176,423,Math.PI,1);
 
     // Simple night-only reading lamp beside the hammock.
-    buildLevel4ReadingLamp(1155,438,0);
+    buildLevel4ReadingLamp(1167,430,0);
 
     // Plant5 bed: 40 plants inside the updated requested rectangle.
     l4PlantScatter(598,346,864,418,40,['plant5'],34003,.78,1.18);
@@ -5975,7 +6078,7 @@ window.confirmStartLevel=function(){
     // Fully reset transient level state.
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
-    animatedAnimals=[];trampolineKids=[];stadiumOverlayMesh=null;
+    animatedAnimals=[];trampolineKids=[];animatedLevel4Fire=[];stadiumOverlayMesh=null;
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
@@ -6070,6 +6173,18 @@ window.confirmStartLevel=function(){
 };
 
 window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
+
+window.returnToMainMenuAfterLevel=function(){
+    stopLevelSfx();
+    gameActive=false;
+    gameStarted=false;
+    if(timerInterval)clearInterval(timerInterval);
+    document.getElementById('hud').style.display='none';
+    document.getElementById('hud-buttons').style.display='none';
+    document.getElementById('game-over').style.display='none';
+    openMainMenu();
+};
+
 window.leaveLevel=function(){
     if(currentLevel===5){leaveGallery();return;}
     stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);
@@ -6147,6 +6262,26 @@ function animate(){
         if(animatedFlag)animatedFlag.rotation.z=Math.sin(t*2.5)*0.25;
         if(animatedPond)animatedPond.rotation.y+=0.005;
         trampolineKids.forEach(k=>{k.mesh.position.y=k.baseY+Math.max(0,Math.sin(t*3+k.phase))*k.amplitude;});
+        animatedLevel4Fire.forEach(f=>{
+            if(f.type==='flame'){
+                const flicker=1+Math.sin(t*8.5+f.phase)*.13+Math.sin(t*13.2+f.phase*.7)*.06;
+                f.mesh.scale.y=flicker;
+                f.mesh.scale.x=1+(flicker-1)*.35;
+                f.mesh.scale.z=1+(flicker-1)*.35;
+                f.mesh.position.y=f.baseY+Math.sin(t*7+f.phase)*.07;
+                f.mesh.rotation.y+=dt*.9;
+            }else if(f.type==='glow'){
+                f.light.intensity=4.7+Math.sin(t*8+f.phase)*.65+Math.sin(t*12.5)*.25;
+            }else if(f.type==='smoke'){
+                const cycle=(t*.18+f.phase)%1;
+                f.mesh.position.y=f.originY+cycle*4.4;
+                f.mesh.position.x=f.originX+Math.sin(t*1.7+f.phase*8)*.28*cycle;
+                f.mesh.position.z=f.originZ+Math.cos(t*1.4+f.phase*7)*.22*cycle;
+                const s=.75+cycle*1.8;
+                f.mesh.scale.setScalar(s);
+                f.material.opacity=.24*(1-cycle);
+            }
+        });
         if(Math.abs(mowerStats.speed)>0.01)startMowerSfx();else stopMowerSfx();
         if(currentLevel!==5&&Date.now()-lastCheckTime>500){calculateProgress();lastCheckTime=Date.now();}
     }
