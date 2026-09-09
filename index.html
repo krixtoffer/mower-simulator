@@ -1216,6 +1216,17 @@
             color:#ffe676; font-size:8px; line-height:1.35; margin:4px 0;
         }
         #arcade-mg-buttons { display:flex; justify-content:center; gap:8px; }
+        #arcade-mg-buttons.hill-menu-buttons {
+            position:absolute;
+            left:50%;
+            bottom:98px;
+            transform:translateX(-50%);
+            z-index:370;
+            padding:4px 6px;
+            background:rgba(5,0,20,.68);
+            border-radius:4px;
+            white-space:nowrap;
+        }
         #arcade-mg-dpad {
             display:none; position:relative; width:128px; height:128px; margin:4px auto 0;
         }
@@ -1463,6 +1474,65 @@
             .hill-control-cluster{grid-template-columns:repeat(2,56px);gap:8px}
             .hill-control-btn{width:56px;height:56px;font-size:18px}
             #hill-controls{padding:0 10px;bottom:6px}
+            #arcade-mg-buttons.hill-menu-buttons{bottom:78px}
+        }
+
+
+        /* ── GALLERI ─────────────────────────────────────────────────── */
+        .gallery-level-btn{
+            background:linear-gradient(135deg,#5b2416,#8b5a2b) !important;
+            border-color:#d7b55b !important;
+            box-shadow:4px 4px 0 #6a441b !important;
+        }
+        .gallery-level-btn > span:last-child{color:#ffe49a !important;}
+        #gallery-ui{
+            position:absolute;inset:0;display:none;z-index:205;
+            pointer-events:none;font-family:'Press Start 2P',monospace;
+        }
+        #gallery-topbar{
+            position:absolute;left:12px;top:12px;right:12px;
+            display:flex;justify-content:space-between;align-items:flex-start;
+            gap:10px;pointer-events:none;
+        }
+        #gallery-topbar .arcade-btn{pointer-events:auto;}
+        #gallery-hint{
+            max-width:420px;padding:10px 12px;
+            background:rgba(28,12,7,.78);border:2px solid #d8b56a;
+            color:#ffe9b8;font-size:7px;line-height:1.5;
+            text-shadow:1px 1px #000;
+        }
+        #gallery-info{
+            display:none;
+            position:absolute;left:50%;bottom:24px;transform:translateX(-50%);
+            width:min(680px,calc(100% - 34px));
+            padding:18px 20px;box-sizing:border-box;
+            background:rgba(255,250,240,.88);
+            border:4px solid rgba(102,57,24,.92);
+            box-shadow:7px 7px 0 rgba(35,15,7,.48);
+            color:#24140c;text-align:left;
+            pointer-events:none;
+            backdrop-filter:blur(2px);
+        }
+        #gallery-info h2{
+            margin:0 0 10px;color:#6a2c16;font-size:13px;
+            line-height:1.35;text-shadow:none;
+        }
+        #gallery-info p{
+            margin:0;font-family:Arial,sans-serif;font-size:15px;
+            line-height:1.42;font-weight:600;
+        }
+        #gallery-near{
+            position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+            padding:7px 10px;background:rgba(20,9,4,.72);
+            color:#ffe6a3;border:2px solid #bb8a42;font-size:7px;
+            display:none;white-space:nowrap;
+        }
+        @media(max-width:640px){
+            #gallery-topbar{top:7px;left:7px;right:7px}
+            #gallery-hint{font-size:6px;max-width:230px;padding:7px 8px}
+            #gallery-info{bottom:92px;padding:13px 14px}
+            #gallery-info h2{font-size:10px}
+            #gallery-info p{font-size:13px}
         }
 
 </style>
@@ -1677,6 +1747,18 @@
             <button class="arcade-btn" style="background:#e74c3c;flex:1;" onclick="closeShowroom()">← TILLBAKA</button>
             <button class="arcade-btn" id="showroom-action-btn" style="background:#27ae60;flex:1;" onclick="actionShowroomMower()">VÄLJ</button>
         </div>
+    </div>
+</div>
+
+<div id="gallery-ui">
+    <div id="gallery-topbar">
+        <button class="arcade-btn" style="background:#6b2f1d;border-color:#e4c16c;" onclick="leaveGallery()">← LÄMNA GALLERIET</button>
+        <div id="gallery-hint">GALLERI • KÖR LÅNGSAMT GENOM HALLEN. NÄR DU ÄR NÄRA EN TAVLA: KLICKA/TAPPA PÅ DEN FÖR ATT LÄSA.</div>
+    </div>
+    <div id="gallery-near">KLICKA PÅ TAVLAN</div>
+    <div id="gallery-info">
+        <h2 id="gallery-info-title">RUBRIK</h2>
+        <p id="gallery-info-text">Text kommer här.</p>
     </div>
 </div>
 
@@ -2081,13 +2163,92 @@
         ctx.globalAlpha=1;
     }
 
+    function startCelebration(label){
+        if(!state)return;
+        const colors=['#ffff55','#ff4fa3','#55e8ff','#8cff63','#ffffff','#ff9933'];
+        state.celebration={
+            t:3.0,
+            label,
+            bits:Array.from({length:110},()=>({
+                x:rnd(20,canvas.width-20),
+                y:rnd(-80,20),
+                vx:rnd(-55,55),
+                vy:rnd(45,165),
+                rot:rnd(0,Math.PI*2),
+                vr:rnd(-7,7),
+                s:rnd(4,9),
+                c:colors[Math.floor(Math.random()*colors.length)]
+            }))
+        };
+    }
+    function updateCelebration(dt){
+        const c=state&&state.celebration;
+        if(!c)return;
+        c.t-=dt;
+        c.bits.forEach(q=>{
+            q.x+=q.vx*dt;
+            q.y+=q.vy*dt;
+            q.vy+=60*dt;
+            q.rot+=q.vr*dt;
+        });
+        if(c.t<=0)state.celebration=null;
+    }
+    function drawCelebration(){
+        const c=state&&state.celebration;
+        if(!c)return;
+        c.bits.forEach(q=>{
+            if(q.y>canvas.height+15)return;
+            ctx.save();
+            ctx.translate(q.x,q.y);
+            ctx.rotate(q.rot);
+            ctx.fillStyle=q.c;
+            ctx.fillRect(-q.s/2,-q.s/3,q.s,q.s*.66);
+            ctx.restore();
+        });
+        ctx.save();
+        ctx.textAlign='center';
+        ctx.font='bold 28px monospace';
+        ctx.lineWidth=7;
+        ctx.strokeStyle='rgba(0,0,0,.75)';
+        ctx.strokeText(c.label,canvas.width/2,72);
+        ctx.fillStyle='#fff36b';
+        ctx.fillText(c.label,canvas.width/2,72);
+        ctx.restore();
+    }
+
+    function addRockBang(x,y){
+        if(!state.rockFx)state.rockFx=[];
+        state.rockFx.push({x,y,t:.62,max:.62});
+    }
+    function updateRockFx(dt){
+        if(!state||!state.rockFx)return;
+        state.rockFx.forEach(f=>f.t-=dt);
+        state.rockFx=state.rockFx.filter(f=>f.t>0);
+    }
+    function drawRockFx(){
+        if(!state||!state.rockFx)return;
+        state.rockFx.forEach(f=>{
+            const k=1-f.t/f.max;
+            const r=8+k*22;
+            ctx.save();
+            ctx.globalAlpha=clamp(f.t/f.max*1.5,0,1);
+            ctx.fillStyle='#ff4b16';
+            ctx.beginPath();ctx.arc(f.x,f.y,r,0,Math.PI*2);ctx.fill();
+            ctx.fillStyle='#ffd84d';
+            ctx.beginPath();ctx.arc(f.x,f.y,r*.58,0,Math.PI*2);ctx.fill();
+            ctx.fillStyle='#fff3b0';
+            ctx.beginPath();ctx.arc(f.x,f.y,r*.24,0,Math.PI*2);ctx.fill();
+            ctx.restore();
+        });
+    }
+
     // ── KLIPPKAOS ───────────────────────────────────────────────────────
     function resetChaos(){
         setCanvas(480,420);
         const weeds=[];
         for(let i=0;i<18;i++)weeds.push({x:rnd(35,445),y:rnd(45,385),r:rnd(10,17),dead:false,w:rnd(0,6)});
         const rocks=Array.from({length:7},()=>({x:rnd(45,435),y:rnd(55,375),r:rnd(13,20)}));
-        state={p:{x:240,y:210,vx:0,vy:0,ang:0},weeds,rocks,power:[],time:35,score:0,combo:0,comboT:0,spawnT:3,particles:[],trail:[],strikes:0,rockCooldown:0};
+        state={p:{x:240,y:210,vx:0,vy:0,ang:0},weeds,rocks,power:[],time:35,score:0,combo:0,comboT:0,spawnT:3,particles:[],trail:[],strikes:0,rockCooldown:0,rockFx:[],bigFail:false};
         titleEl.textContent='KLIPPKAOS';msgEl.textContent='OGRÄS + COMBO + 3 STENSMÄLLAR';
     }
     function updateChaos(dt){
@@ -2119,9 +2280,11 @@
                 if(state.rockCooldown<=0){
                     state.strikes++;
                     state.rockCooldown=.85;
+                    addRockBang(r.x,r.y);
                     spark(p.x,p.y,'#cccccc',7);
                     if(state.strikes>=3){
-                        finish('3 STENSMÄLLAR — GAME OVER');
+                        state.bigFail=true;
+                        finish('MISSLYCKAT! 3 STENSMÄLLAR');
                         return;
                     }
                     msgEl.textContent=`KLONK! ${state.strikes}/3 STENSMÄLLAR`;
@@ -2144,8 +2307,20 @@
         state.trail.forEach(q=>{ctx.globalAlpha=q.life*.16;ctx.fillStyle='#b4d96d';ctx.beginPath();ctx.arc(q.x,q.y,16,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1;
         state.weeds.forEach(q=>{if(q.dead)return;const pulse=1+Math.sin(q.w)*.08;ctx.fillStyle='#8bcf45';ctx.beginPath();ctx.arc(q.x,q.y,q.r*pulse,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#d8ff91';ctx.lineWidth=2;ctx.stroke();});
         state.rocks.forEach(r=>{ctx.fillStyle='#5f625d';ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#868983';ctx.beginPath();ctx.arc(r.x-r.r*.25,r.y-r.r*.28,r.r*.36,0,Math.PI*2);ctx.fill();});
+        drawRockFx();
         state.power.forEach(q=>{const a=1+Math.sin(performance.now()*.01)*.15;ctx.fillStyle='#53d9ff';ctx.fillRect(q.x-9*a,q.y-13*a,18*a,26*a);ctx.fillStyle='#fff';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.fillText('+5',q.x,q.y+5);});
         drawParticles();drawMower(state.p.x,state.p.y,42,state.p.ang);
+        if(state.bigFail){
+            ctx.save();
+            ctx.fillStyle='rgba(0,0,0,.68)';ctx.fillRect(24,145,432,118);
+            ctx.textAlign='center';
+            ctx.font='bold 38px monospace';
+            ctx.lineWidth=9;ctx.strokeStyle='#000';ctx.strokeText('MISSLYCKAT!',240,195);
+            ctx.fillStyle='#ff4a3d';ctx.fillText('MISSLYCKAT!',240,195);
+            ctx.font='bold 18px monospace';
+            ctx.fillStyle='#fff';ctx.fillText('3 STENSMÄLLAR',240,231);
+            ctx.restore();
+        }
     }
 
     // ── TRÄDGÅRDSRALLY ──────────────────────────────────────────────────
@@ -2155,7 +2330,7 @@
         for(let i=0;i<14;i++)gates.push({y:440-i*115,x:rnd(90,330),w:rnd(90,135),passed:false});
         const beds=[];
         for(let i=0;i<20;i++)beds.push({x:rnd(35,385),y:rnd(-1250,420),w:rnd(35,70),h:rnd(24,45)});
-        state={p:{x:210,y:400,vx:0,ang:0},gates,beds,scroll:0,speed:110,time:52,gate:0,particles:[],finished:false};
+        state={p:{x:210,y:400,vx:0,ang:0},gates,beds,scroll:0,speed:110,time:52,gate:0,particles:[],finished:false,goalY:440-14*115-190,goalCrossed:false};
         titleEl.textContent='TRÄDGÅRDSRALLY';msgEl.textContent='PASSERA ALLA 14 GRINDAR';
     }
     function updateRally(dt){
@@ -2177,8 +2352,12 @@
             }
         }
         updateParticles(dt);
-        if(state.gate>=14)finish('MÅL! '+Math.max(0,state.time).toFixed(1)+'s KVAR');
-        else if(state.time<=0)finish('TIDEN ÄR UTE');
+        const goalScreenY=state.goalY+state.scroll;
+        if(state.gate>=14&&!state.goalCrossed&&goalScreenY>=395){
+            state.goalCrossed=true;
+            startCelebration('MÅL!');
+            finish('MÅL! '+Math.max(0,state.time).toFixed(1)+'s KVAR');
+        } else if(state.time<=0)finish('TIDEN ÄR UTE');
         scoreEl.textContent=`GRIND ${state.gate}/14   ${Math.max(0,state.time).toFixed(1)}s`;
     }
     function drawRally(ts){
@@ -2188,6 +2367,17 @@
         for(let y=((state.scroll*.6)%70)-70;y<500;y+=70)ctx.fillRect(0,y,420,25);
         state.beds.forEach(b=>{const y=b.y+state.scroll;if(y<-60||y>550)return;ctx.fillStyle='#6f4b31';ctx.fillRect(b.x-b.w/2,y-b.h/2,b.w,b.h);ctx.fillStyle='#ffcf55';for(let x=b.x-b.w/2+8;x<b.x+b.w/2;x+=15){ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();}});
         state.gates.forEach((g,i)=>{const y=g.y+state.scroll;if(y<-30||y>530)return;ctx.fillStyle=g.passed?'#5c8458':'#f4f0d2';ctx.fillRect(g.x-g.w/2-5,y-5,10,28);ctx.fillRect(g.x+g.w/2-5,y-5,10,28);ctx.strokeStyle=g.passed?'#6c9b66':'#ffe85f';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(g.x-g.w/2,y);ctx.lineTo(g.x+g.w/2,y);ctx.stroke();ctx.setLineDash([]);});
+        const gy=state.goalY+state.scroll;
+        if(gy>-25&&gy<525){
+            const cell=20;
+            for(let x=0;x<420;x+=cell){
+                ctx.fillStyle=(Math.floor(x/cell)%2===0)?'#ffffff':'#111111';
+                ctx.fillRect(x,gy-7,cell,7);
+                ctx.fillStyle=(Math.floor(x/cell)%2===0)?'#111111':'#ffffff';
+                ctx.fillRect(x,gy,cell,7);
+            }
+            ctx.fillStyle='#ffff55';ctx.font='bold 13px monospace';ctx.textAlign='center';ctx.fillText('MÅL',210,gy-13);
+        }
         drawParticles();drawMower(state.p.x,400,44,0);
         ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(0,455,420,45);
     }
@@ -2216,7 +2406,10 @@
         if(target&&dist(p.x,p.y,target.x,target.y)<22){
             state.index++;state.combo++;state.score+=100+state.combo*20;
             spark(target.x,target.y,'#fff36b',12);
-            if(state.index>=state.pts.length)finish('MÖNSTER KLART! '+state.score+' POÄNG');
+            if(state.index>=state.pts.length){
+                startCelebration('MÖNSTER KLART!');
+                finish('MÖNSTER KLART! '+state.score+' POÄNG');
+            }
         } else if(target){
             // lose combo only when clearly far away from the active path
             const prev=state.pts[Math.max(0,state.index-1)];
@@ -2531,10 +2724,13 @@
             else if(active==='pattern')updatePattern(dt);
             else if(active==='hill')updateHill(dt);
         }
+        updateRockFx(dt);
+        updateCelebration(dt);
         if(active==='chaos')drawChaos(ts);
         else if(active==='rally')drawRally(ts);
         else if(active==='pattern')drawPattern(ts);
         else if(active==='hill')drawHill(ts);
+        drawCelebration();
     }
     function keyDown(e){keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();}
     function keyUp(e){keys[e.key]=false;}
@@ -2595,6 +2791,8 @@
         const joy=document.getElementById('arcade-mg-joystick');
         if(wrap)wrap.classList.toggle('show',!!show);
         if(joy)joy.style.display=show?'none':'block';
+        const menuButtons=document.getElementById('arcade-mg-buttons');
+        if(menuButtons)menuButtons.classList.toggle('hill-menu-buttons',!!show);
         if(!show){
             hillInput.gas=hillInput.brake=hillInput.rotL=hillInput.rotR=false;
             wrap?.querySelectorAll('.hill-control-btn.active').forEach(b=>b.classList.remove('active'));
@@ -2835,6 +3033,15 @@ let ownedMowers=JSON.parse(localStorage.getItem('mower_owned'))||['standard','co
 let selectedMower=localStorage.getItem('mower_selected')||'standard';
 let currentLevel=1;
 
+// Gallery is deliberately isolated from mowing/scoring. Images may be absent:
+// placeholder canvases are shown until mow1.png...mow5.png and
+// legend1.png...legend5.png are uploaded beside this HTML file.
+let galleryFrames=[];
+let galleryOpenItem=null;
+let galleryMode=false;
+const GALLERY_HALF_W=15.5;
+const GALLERY_HALF_D=55;
+
 // Persistent per-level records. Kept intentionally small and independent
 // from gameplay state so a bad/missing record can never stop a level loading.
 let levelRecords={};
@@ -2878,6 +3085,7 @@ function initThree(){
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure=1.12;
     document.body.appendChild(renderer.domElement);
+    renderer.domElement.addEventListener('pointerup',onGalleryPointer);
     window.addEventListener('keydown',handleKeyDown); window.addEventListener('keyup',handleKeyUp);
     setupJoystick(); window.addEventListener('resize',onWindowResize);
 }
@@ -3068,7 +3276,7 @@ function preloadAssets(){
      ['./hand_shaded.glb',3.5,m=>{loadedHandMesh=m;if(inspectingMowerId==='standard')updateShowroomModel();refreshGameplayMowerIfReady('standard');}],
      ['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();refreshGameplayMowerIfReady('klippo');}],
      ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();refreshGameplayMowerIfReady('ts112');}],
-     ['./combine_shaded.glb',8.0,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();refreshGameplayMowerIfReady('combine');}]
+     ['./combine_shaded.glb',6.4,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();refreshGameplayMowerIfReady('combine');}]
     ].forEach(([path,h,cb])=>{
         gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,err=>{console.warn('Mower GLB failed to load:',path,err);});
     });
@@ -3282,11 +3490,33 @@ function buildOutdoorLampPost(x,z,groundY=0,height=9,range=50,intensity=3.0){
 
     if(settings.nightMode){
         const light=new THREE.PointLight(0xffd98b,intensity,range,2);
-        light.position.set(x+1.65,groundY+height-.65,z);
+        light.position.set(x,groundY+height-.65,z);
         light.castShadow=false;
         scene.add(light);
+
+        // Cheap visual light pool: gives roads/grass a warmer local hotspot
+        // without adding another shadow-casting light.
+        const pool=new THREE.Mesh(
+            new THREE.CircleGeometry(Math.min(15,range*.25),24),
+            new THREE.MeshBasicMaterial({
+                color:0xffd98b,transparent:true,opacity:.12,
+                depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide
+            })
+        );
+        pool.rotation.x=-Math.PI/2;
+        pool.position.set(x,groundY+.055,z);
+        pool.renderOrder=2;
+        scene.add(pool);
     }
     return g;
+}
+
+function addNightHouseGlow(x,z,groundY=0,intensity=.7,range=27){
+    if(!settings.nightMode)return;
+    const glow=new THREE.PointLight(0xffb65c,intensity,range,2);
+    glow.position.set(x,groundY+4.2,z);
+    glow.castShadow=false;
+    scene.add(glow);
 }
 
 function buildVillaStreetLights(){
@@ -3624,6 +3854,10 @@ function setupVillaLevel(){
 
     southHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
     northHouses.forEach(h=>spawnVillaHouse(h.id,h.x,h.z,h.r,h.s,h.c));
+    if(settings.nightMode){
+        [southHouses[0],southHouses[2],southHouses[4],northHouses[0],northHouses[2],northHouses[4]]
+            .forEach(h=>addNightHouseGlow(h.x,h.z,0,.62,25));
+    }
 
     // Fence runs use fence.glb in repeated ~10-unit modules. If the GLB is
     // unavailable or still loading, a simple procedural segment is used for
@@ -4130,6 +4364,299 @@ function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMa
 function buildGolfSurroundings(){const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1}),snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2,dist=110+Math.random()*30,hx=Math.sin(a)*dist,hz=Math.cos(a)*dist,hillH=25+Math.random()*40,hillR=20+Math.random()*25;const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR,hillH,8),hillMat);hill.position.set(hx,hillH/2-2,hz);scene.add(hill);if(hillH>40){const cap=new THREE.Mesh(new THREE.ConeGeometry(hillR*0.3,hillH*0.25,8),snowMat);cap.position.set(hx,hillH-hillH*0.12-2,hz);scene.add(cap);}}const groundOut=new THREE.Mesh(new THREE.PlaneGeometry(600,600),new THREE.MeshStandardMaterial({color:0x3a6a2a}));groundOut.rotation.x=-Math.PI/2;groundOut.position.y=-0.5;scene.add(groundOut);}
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GALLERI — procedural regal mower-history hall
+// No GLB dependencies. The ten image paths are intentionally live now so the
+// room automatically upgrades as soon as the PNG files are uploaded.
+// ═══════════════════════════════════════════════════════════════════════════
+const GALLERY_ITEMS=[
+    {file:'./mow1.png',   title:'LEGENDARISK GRÄSKLIPPARE I', text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
+    {file:'./mow2.png',   title:'LEGENDARISK GRÄSKLIPPARE II',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
+    {file:'./mow3.png',   title:'LEGENDARISK GRÄSKLIPPARE III',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
+    {file:'./mow4.png',   title:'LEGENDARISK GRÄSKLIPPARE IV',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
+    {file:'./mow5.png',   title:'LEGENDARISK GRÄSKLIPPARE V',text:'Prototyptext. Här kommer den korta berättelsen om denna legendariska gräsklippare.'},
+    {file:'./legend1.png',title:'LEGENDAR I',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
+    {file:'./legend2.png',title:'LEGENDAR II',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
+    {file:'./legend3.png',title:'LEGENDAR III',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
+    {file:'./legend4.png',title:'LEGENDAR IV',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'},
+    {file:'./legend5.png',title:'LEGENDAR V',text:'Prototyptext. Här kommer berättelsen om personen och dennes bidrag till klippningens historia.'}
+];
+
+function galleryPlaceholderTexture(label){
+    const c=document.createElement('canvas');c.width=512;c.height=384;
+    const x=c.getContext('2d');
+    const g=x.createLinearGradient(0,0,512,384);
+    g.addColorStop(0,'#493126');g.addColorStop(1,'#21120d');
+    x.fillStyle=g;x.fillRect(0,0,512,384);
+    x.strokeStyle='#d5b56c';x.lineWidth=12;x.strokeRect(18,18,476,348);
+    x.fillStyle='#e3cca0';x.textAlign='center';x.font='bold 34px Georgia';
+    x.fillText('BILD KOMMER',256,178);
+    x.font='bold 28px monospace';x.fillStyle='#c39251';
+    x.fillText(label.replace('./','').toUpperCase(),256,225);
+    const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+    return tex;
+}
+
+function buildGalleryArtwork(item,index,side,z){
+    const group=new THREE.Group();
+    const wood=new THREE.MeshStandardMaterial({color:0x5b2d18,roughness:.62,metalness:.04});
+    const gold=new THREE.MeshStandardMaterial({color:0xc39a45,roughness:.42,metalness:.55});
+    const dark=new THREE.MeshStandardMaterial({color:0x26130c,roughness:.8});
+    const w=6.2,h=4.7,bar=.42;
+
+    // Deep wooden outer frame plus slim brass inner trim.
+    const pieces=[
+        [w+bar*2,bar,.36,0,h/2+bar/2,0],
+        [w+bar*2,bar,.36,0,-h/2-bar/2,0],
+        [bar,h,.36,-w/2-bar/2,0,0],
+        [bar,h,.36,w/2+bar/2,0,0]
+    ];
+    pieces.forEach(([sx,sy,sz,x,y,zz])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),wood);
+        m.position.set(x,y,zz);m.castShadow=true;group.add(m);
+    });
+    [
+        [w+.18,.12,.16,0,h/2+.06,.22],
+        [w+.18,.12,.16,0,-h/2-.06,.22],
+        [.12,h,.16,-w/2-.06,0,.22],
+        [.12,h,.16,w/2+.06,0,.22]
+    ].forEach(([sx,sy,sz,x,y,zz])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),gold);
+        m.position.set(x,y,zz);group.add(m);
+    });
+
+    const mat=new THREE.MeshStandardMaterial({
+        map:galleryPlaceholderTexture(item.file),
+        color:0xffffff,roughness:.72,metalness:0,side:THREE.DoubleSide
+    });
+    const picture=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat);
+    picture.position.z=.26;
+    picture.userData.galleryIndex=index;
+    group.add(picture);
+
+    // Load the real image if it exists; placeholder remains on 404/error.
+    new THREE.TextureLoader().load(
+        item.file,
+        tex=>{
+            tex.colorSpace=THREE.SRGBColorSpace;
+            tex.minFilter=THREE.LinearFilter;
+            picture.material.map=tex;
+            picture.material.needsUpdate=true;
+        },
+        undefined,
+        ()=>{}
+    );
+
+    // Small brass museum plaque.
+    const plaque=new THREE.Mesh(new THREE.BoxGeometry(3.2,.48,.18),gold);
+    plaque.position.set(0,-h/2-.92,.18);group.add(plaque);
+    const plaqueInset=new THREE.Mesh(new THREE.BoxGeometry(2.75,.25,.19),dark);
+    plaqueInset.position.set(0,-h/2-.92,.29);group.add(plaqueInset);
+
+    group.position.set(side*(GALLERY_HALF_W-.62),6.9,z);
+    group.rotation.y=side<0?Math.PI/2:-Math.PI/2;
+    scene.add(group);
+
+    galleryFrames.push({group,picture,item,index});
+}
+
+function buildGalleryChandelier(z){
+    const brass=new THREE.MeshStandardMaterial({color:0xa8792a,metalness:.72,roughness:.35});
+    const candle=new THREE.MeshStandardMaterial({
+        color:0xffe0a0,emissive:0xffa63d,emissiveIntensity:2.2,roughness:.3
+    });
+    const g=new THREE.Group();
+    const chain=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,4.5,7),brass);
+    chain.position.y=2.25;g.add(chain);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(2.25,.12,8,24),brass);
+    ring.rotation.x=Math.PI/2;g.add(ring);
+    for(let i=0;i<8;i++){
+        const a=i/8*Math.PI*2;
+        const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,2.0,6),brass);
+        arm.position.set(Math.cos(a)*1.15,0,Math.sin(a)*1.15);
+        arm.rotation.z=Math.PI/2;
+        arm.rotation.y=-a;
+        g.add(arm);
+        const bulb=new THREE.Mesh(new THREE.SphereGeometry(.19,8,6),candle);
+        bulb.position.set(Math.cos(a)*2.15,.08,Math.sin(a)*2.15);g.add(bulb);
+    }
+    g.position.set(0,13.2,z);scene.add(g);
+    const light=new THREE.PointLight(0xffb55d,2.7,34,2);
+    light.position.set(0,12.4,z);light.castShadow=false;scene.add(light);
+}
+
+function setupGalleryLevel(){
+    galleryMode=true;galleryFrames=[];galleryOpenItem=null;
+    lawnWorldSize=120; // only prevents inherited lawn dimensions; gallery has no lawn.
+    scene.background=new THREE.Color(0x120907);
+    scene.fog=new THREE.Fog(0x1b0d08,60,125);
+
+    // Moody ambient + warm directional edge light.
+    scene.add(new THREE.HemisphereLight(0x6f5741,0x160c08,.48));
+    const warm=new THREE.DirectionalLight(0xffc37a,.62);
+    warm.position.set(-18,22,28);scene.add(warm);
+
+    const walnut=new THREE.MeshStandardMaterial({color:0x3b1d12,roughness:.77});
+    const walnut2=new THREE.MeshStandardMaterial({color:0x24110b,roughness:.82});
+    const plaster=new THREE.MeshStandardMaterial({color:0x6b4330,roughness:.94});
+    const carpet=new THREE.MeshStandardMaterial({color:0x681823,roughness:.92});
+    const brass=new THREE.MeshStandardMaterial({color:0xb78c3c,metalness:.55,roughness:.38});
+
+    // Floor, carpet runner and ceiling.
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(32,112),walnut);
+    floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+    const runner=new THREE.Mesh(new THREE.PlaneGeometry(8.5,108),carpet);
+    runner.rotation.x=-Math.PI/2;runner.position.y=.035;runner.receiveShadow=true;scene.add(runner);
+    const runnerEdgeMat=new THREE.MeshStandardMaterial({color:0xc19b4e,roughness:.72});
+    [-4.4,4.4].forEach(x=>{
+        const trim=new THREE.Mesh(new THREE.BoxGeometry(.22,.06,108),runnerEdgeMat);
+        trim.position.set(x,.07,0);scene.add(trim);
+    });
+    const ceiling=new THREE.Mesh(new THREE.PlaneGeometry(32,112),walnut2);
+    ceiling.rotation.x=Math.PI/2;ceiling.position.y=16;scene.add(ceiling);
+
+    // Side walls: warm plaster above, dark wood wainscot below.
+    [-GALLERY_HALF_W,GALLERY_HALF_W].forEach(x=>{
+        const wall=new THREE.Mesh(new THREE.BoxGeometry(.55,16,112),plaster);
+        wall.position.set(x,8,0);wall.receiveShadow=true;scene.add(wall);
+        const panel=new THREE.Mesh(new THREE.BoxGeometry(.68,4.8,110),walnut);
+        panel.position.set(x,2.4,0);scene.add(panel);
+        const rail=new THREE.Mesh(new THREE.BoxGeometry(.82,.26,110),brass);
+        rail.position.set(x,4.92,0);scene.add(rail);
+    });
+
+    // End walls and a ceremonial far-end alcove.
+    [-GALLERY_HALF_D,GALLERY_HALF_D].forEach(z=>{
+        const wall=new THREE.Mesh(new THREE.BoxGeometry(32,16,.55),plaster);
+        wall.position.set(0,8,z);scene.add(wall);
+        const panel=new THREE.Mesh(new THREE.BoxGeometry(30,4.8,.68),walnut);
+        panel.position.set(0,2.4,z);scene.add(panel);
+    });
+    const dais=new THREE.Mesh(new THREE.BoxGeometry(10,.65,5),walnut);
+    dais.position.set(0,.32,-50.8);scene.add(dais);
+    const plinth=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.7,1.4,16),brass);
+    plinth.position.set(0,1.0,-51);scene.add(plinth);
+    const mowerSilhouette=new THREE.Mesh(
+        new THREE.BoxGeometry(4.5,1.8,2.0),
+        new THREE.MeshStandardMaterial({color:0x8c4a20,metalness:.12,roughness:.6})
+    );
+    mowerSilhouette.position.set(0,2.4,-51);scene.add(mowerSilhouette);
+
+    // Architectural rhythm: pilasters, ceiling beams and brass capitals.
+    for(let z=-48;z<=48;z+=12){
+        [-14.9,14.9].forEach(x=>{
+            const col=new THREE.Mesh(new THREE.BoxGeometry(.9,11,.9),walnut2);
+            col.position.set(x,7,z);scene.add(col);
+            const cap=new THREE.Mesh(new THREE.BoxGeometry(1.35,.38,1.35),brass);
+            cap.position.set(x,12.55,z);scene.add(cap);
+        });
+        const beam=new THREE.Mesh(new THREE.BoxGeometry(30,.42,.75),walnut2);
+        beam.position.set(0,15.55,z);scene.add(beam);
+    }
+
+    // Three chandeliers down the centre.
+    [-32,0,32].forEach(buildGalleryChandelier);
+
+    // Additional pools of warm wall lighting without costly shadows.
+    [-40,-20,0,20,40].forEach(z=>{
+        [-12.2,12.2].forEach(x=>{
+            const sconce=new THREE.PointLight(0xffa94f,.85,18,2);
+            sconce.position.set(x,8.2,z);scene.add(sconce);
+            const fixture=new THREE.Mesh(
+                new THREE.SphereGeometry(.18,8,6),
+                new THREE.MeshStandardMaterial({color:0xffd18a,emissive:0xff9d32,emissiveIntensity:2})
+            );
+            fixture.position.copy(sconce.position);scene.add(fixture);
+        });
+    });
+
+    // Five mower portraits on one wall, five people on the opposite wall.
+    const zs=[-40,-20,0,20,40];
+    zs.forEach((z,i)=>buildGalleryArtwork(GALLERY_ITEMS[i],i,-1,z));
+    zs.forEach((z,i)=>buildGalleryArtwork(GALLERY_ITEMS[5+i],5+i,1,z));
+
+    // Benches placed along centre but offset enough to leave a broad driving aisle.
+    const leather=new THREE.MeshStandardMaterial({color:0x3b1b18,roughness:.82});
+    [-27,0,27].forEach((z,i)=>{
+        const bench=new THREE.Mesh(new THREE.BoxGeometry(5.5,.7,1.5),leather);
+        bench.position.set(i%2?3.8:-3.8,1.05,z);bench.castShadow=true;scene.add(bench);
+        const base=new THREE.Mesh(new THREE.BoxGeometry(4.8,.7,1.0),walnut2);
+        base.position.set(bench.position.x,.35,z);scene.add(base);
+    });
+}
+
+function galleryNearestFrame(){
+    if(!galleryMode||!mowerGroup||!galleryFrames.length)return null;
+    let best=null,bestD=Infinity;
+    for(const f of galleryFrames){
+        const wp=new THREE.Vector3();
+        f.group.getWorldPosition(wp);
+        const d=Math.hypot(mowerGroup.position.x-wp.x,mowerGroup.position.z-wp.z);
+        if(d<bestD){bestD=d;best=f;}
+    }
+    return bestD<=10.5?best:null;
+}
+
+function showGalleryInfo(frame){
+    const box=document.getElementById('gallery-info');
+    if(!frame){
+        galleryOpenItem=null;
+        box.style.display='none';
+        return;
+    }
+    if(galleryOpenItem===frame.index){
+        galleryOpenItem=null;
+        box.style.display='none';
+        return;
+    }
+    galleryOpenItem=frame.index;
+    document.getElementById('gallery-info-title').textContent=frame.item.title;
+    document.getElementById('gallery-info-text').textContent=frame.item.text;
+    box.style.display='block';
+}
+
+function onGalleryPointer(e){
+    if(!galleryMode||currentLevel!==5||!mowerGroup)return;
+    const near=galleryNearestFrame();
+    if(!near){
+        if(galleryOpenItem!==null)showGalleryInfo(null);
+        return;
+    }
+    const rect=renderer.domElement.getBoundingClientRect();
+    const mouse=new THREE.Vector2(
+        ((e.clientX-rect.left)/rect.width)*2-1,
+        -((e.clientY-rect.top)/rect.height)*2+1
+    );
+    const ray=new THREE.Raycaster();
+    ray.setFromCamera(mouse,camera);
+    const hits=ray.intersectObjects(galleryFrames.map(f=>f.picture),false);
+    if(hits.length){
+        const idx=hits[0].object.userData.galleryIndex;
+        const frame=galleryFrames.find(f=>f.index===idx);
+        if(frame===near)showGalleryInfo(frame);
+    }
+}
+
+function updateGalleryUI(){
+    if(!galleryMode)return;
+    const near=galleryNearestFrame();
+    const el=document.getElementById('gallery-near');
+    if(el)el.style.display=(near&&galleryOpenItem===null)?'block':'none';
+}
+
+window.leaveGallery=function(){
+    stopLevelSfx();
+    galleryMode=false;galleryOpenItem=null;
+    gameActive=false;gameStarted=false;
+    mowerStats.speed=0;
+    document.getElementById('gallery-ui').style.display='none';
+    document.getElementById('gallery-info').style.display='none';
+    document.getElementById('joystick-zone').style.display='none';
+    openLevelSelect();
+};
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LEVEL 4 — HARDCODED MAP DATA
 // Derived once from the user's 1629x786 design maps. No PNG is loaded at runtime.
@@ -4159,13 +4686,15 @@ function level4MapToWorld(px,py){
     };
 }
 
-// v36: Fanbyviken trampoline proximity sound.
-// The requested 10-point radius is measured in the original Level 4 map
-// coordinate system (1629 x 786), not in Three.js world units.
+// Fanbyviken trampoline proximity sound.
+// Radius is measured in the original 1629 x 786 map coordinate system.
 const LEVEL4_TRAMPOLINE_MAP_POS={x:585,y:310};
+const LEVEL4_TRAMPOLINE_AUDIO_RADIUS=40;
+const LEVEL4_TRAMPOLINE_AUDIO_COOLDOWN_MS=2000;
 const level4TrampolineAudio=new Audio('./hejmorfar.mp3');
 level4TrampolineAudio.preload='auto';
 let level4TrampolineAudioInside=false;
+let level4TrampolineAudioLastPlay=-Infinity;
 
 function updateLevel4TrampolineAudio(){
     if(currentLevel!==4||!mowerGroup){
@@ -4174,14 +4703,15 @@ function updateLevel4TrampolineAudio(){
     }
     const mx=(mowerGroup.position.x/LEVEL4_WORLD_W+.5)*LEVEL4_MAP_W;
     const my=(mowerGroup.position.z/LEVEL4_WORLD_D+.5)*LEVEL4_MAP_H;
-    const inside=Math.hypot(mx-LEVEL4_TRAMPOLINE_MAP_POS.x,my-LEVEL4_TRAMPOLINE_MAP_POS.y)<=10;
+    const inside=Math.hypot(mx-LEVEL4_TRAMPOLINE_MAP_POS.x,my-LEVEL4_TRAMPOLINE_MAP_POS.y)<=LEVEL4_TRAMPOLINE_AUDIO_RADIUS;
+    const now=performance.now();
 
-    // Trigger only when crossing into the 10-map-point radius, rather than
-    // restarting the MP3 every animation frame while the mower remains there.
-    if(inside&&!level4TrampolineAudioInside){
+    // Trigger on entry, but never restart more often than once every 2 seconds.
+    if(inside&&!level4TrampolineAudioInside&&now-level4TrampolineAudioLastPlay>=LEVEL4_TRAMPOLINE_AUDIO_COOLDOWN_MS){
         try{
             level4TrampolineAudio.currentTime=0;
             const p=level4TrampolineAudio.play();
+            level4TrampolineAudioLastPlay=now;
             if(p&&typeof p.catch==='function')p.catch(()=>{});
         }catch(e){}
     }
@@ -4897,6 +5427,11 @@ function setupLakeLevel(){
     l4CustomHouse6(348,270,49,44,0);         // 6 custom black vertical-board house
     l4HouseGLB('house7',315,618,66,49,Math.PI/2,0x22d6d6);      // 7
     l4HouseGLB('house9',1112,100,126,61,0,0xff74b8);    // 8
+
+    if(settings.nightMode){
+        [LEVEL4_HOUSE_SITES[0],LEVEL4_HOUSE_SITES[1],LEVEL4_HOUSE_SITES[4],LEVEL4_HOUSE_SITES[6]]
+            .forEach(s=>addNightHouseGlow(s.x,s.z,s.flatY,.75,28));
+    }
 }
 function spawnTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5),new THREE.MeshStandardMaterial({color:0x4a2e15}));tr.position.y=2.5+h;g.add(tr);const lv=new THREE.Mesh(new THREE.ConeGeometry(4,9,8),new THREE.MeshStandardMaterial({color:0x0f380f}));lv.position.y=7+h;g.add(lv);g.position.set(x,h,z);scene.add(g);}
 function spawnFruitTree(x,z,h){const g=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,3),new THREE.MeshStandardMaterial({color:0x5c4033}));tr.position.y=1.5;g.add(tr);const lv=new THREE.Mesh(new THREE.SphereGeometry(2.5,8,8),new THREE.MeshStandardMaterial({color:0x388e3c}));lv.position.y=3.5;g.add(lv);const am=new THREE.MeshStandardMaterial({color:0xffd700});for(let i=0;i<6;i++){const a=new THREE.Mesh(new THREE.SphereGeometry(0.25,4,4),am);a.position.set((Math.random()-0.5)*3,2.5+Math.random()*1.5,(Math.random()-0.5)*3);g.add(a);}g.position.set(x,h,z);scene.add(g);}
@@ -4983,6 +5518,9 @@ window.actionShowroomMower=function(){if(!inspectingMowerId)return;const price=m
 window.openMainMenu=function(){['start-screen','level-select-screen','minigames-screen','level-intro-screen','shop-screen','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('main-menu-screen').style.display='flex';if(settings.music&&bgMusic.paused)bgMusic.play().catch(()=>{});};
 
 window.openLevelSelect=function(){
+    galleryMode=false;
+    const gui=document.getElementById('gallery-ui');if(gui)gui.style.display='none';
+    const gi=document.getElementById('gallery-info');if(gi)gi.style.display='none';
     ['main-menu-screen','minigames-screen','level-intro-screen','game-over'].forEach(id=>document.getElementById(id).style.display='none');
     document.getElementById('level-select-screen').style.display='flex';
     const listEl=document.getElementById('level-list');
@@ -5012,9 +5550,35 @@ window.openLevelSelect=function(){
     mgBtn.onclick=()=>openMinigames();
     listEl.appendChild(mgBtn);
 
+    // Museum/gallery is a non-scoring exploratory bonus level.
+    const galleryBtn=document.createElement('button');
+    galleryBtn.className='level-btn gallery-level-btn';
+    galleryBtn.innerHTML='<span>🏛️ GALLERI</span><span>▶</span>';
+    galleryBtn.onclick=()=>showLevelIntro(5);
+    listEl.appendChild(galleryBtn);
+
 };
 
-function showLevelIntro(id){currentLevel=id;document.getElementById('level-select-screen').style.display='none';const is=document.getElementById('level-intro-screen'),it=document.getElementById('intro-title');const map={1:['./villa.jpg','Level 1: Villakvarteret'],2:['./fotboll.jpg','Level 2: Fotbollsplanen'],3:['./golf.jpg','Level 3: Golfbanan'],4:['./bana_intro.jpg','Level 4: Fanbyviken']};const[img,title]=map[id]||['','?'];is.style.backgroundImage=`url('${img}')`;it.innerText=title;is.style.display='flex';}
+function showLevelIntro(id){
+    currentLevel=id;
+    document.getElementById('level-select-screen').style.display='none';
+    const is=document.getElementById('level-intro-screen'),it=document.getElementById('intro-title');
+    const map={
+        1:['./villa.jpg','Level 1: Villakvarteret'],
+        2:['./fotboll.jpg','Level 2: Fotbollsplanen'],
+        3:['./golf.jpg','Level 3: Golfbanan'],
+        4:['./bana_intro.jpg','Level 4: Fanbyviken']
+    };
+    if(id===5){
+        is.style.backgroundImage='radial-gradient(circle at 50% 35%,rgba(220,168,82,.34),rgba(35,12,7,.96) 65%),linear-gradient(#32160d,#100807)';
+        it.innerText='GALLERI';
+    }else{
+        const[img,title]=map[id]||['','?'];
+        is.style.backgroundImage=`url('${img}')`;
+        it.innerText=title;
+    }
+    is.style.display='flex';
+}
 
 window.confirmStartLevel=function(){
     levelBuildSerial++;
@@ -5030,7 +5594,13 @@ window.confirmStartLevel=function(){
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
     while(scene.children.length>0)scene.remove(scene.children[0]);
-    applyOutdoorLighting();
+    galleryMode=false;galleryFrames=[];galleryOpenItem=null;
+    document.getElementById('gallery-ui').style.display='none';
+    document.getElementById('gallery-info').style.display='none';
+
+    // Outdoor levels use the shared daylight/night preset. Gallery has its
+    // own enclosed warm-light rig and therefore must not inherit sky/moon fog.
+    if(currentLevel!==5)applyOutdoorLighting();
 
     // Build the level first so lawnWorldSize and all terrain are final
     // before the mower and camera are positioned.
@@ -5038,6 +5608,7 @@ window.confirmStartLevel=function(){
     else if(currentLevel===2) setupStadiumLevel();
     else if(currentLevel===3) setupGolfLevel();
     else if(currentLevel===4) setupLakeLevel();
+    else if(currentLevel===5) setupGalleryLevel();
 
     // Levels 2 and 4 contain substantially more procedural meshes. On mobile,
     // cap internal render resolution slightly lower to stabilize frame pacing
@@ -5058,11 +5629,25 @@ window.confirmStartLevel=function(){
         1:{x:0,z:25},
         2:{x:0,z:0},
         3:{x:0,z:50},
-        4:level4MapToWorld(650,520)
+        4:level4MapToWorld(650,520),
+        5:{x:0,z:48}
     };
     const spawn=spawnMap[currentLevel]||{x:0,z:0};
     mowerGroup.position.set(spawn.x,getTerrainHeight(spawn.x,spawn.z),spawn.z);
     mowerGroup.rotation.y=mowerStats.rotation;
+
+    // Museum pace: whichever mower is selected, it moves slowly and calmly.
+    if(currentLevel===5){
+        mowerStats.maxSpeed=.16;
+        mowerStats.acceleration=.010;
+        mowerStats.turnSpeed=.025;
+        document.getElementById('hud').style.display='none';
+        document.getElementById('hud-buttons').style.display='none';
+        document.getElementById('gallery-ui').style.display='block';
+        document.getElementById('joystick-zone').style.display='block';
+    }else{
+        document.getElementById('gallery-ui').style.display='none';
+    }
     tuneSceneMaterials();
     // Start in the same chase-camera geometry used by the proven gras13 build.
     camera.position.set(
@@ -5084,15 +5669,19 @@ window.confirmStartLevel=function(){
 
     gameStarted=true;gameActive=true;
     if(timerInterval)clearInterval(timerInterval);
-    if(settings.timedMode)timerInterval=setInterval(updateTimer,1000);
+    if(settings.timedMode&&currentLevel!==5)timerInterval=setInterval(updateTimer,1000);
 
     mowerSfx.src=mowerSfxFiles[selectedMower]||'./handjag.mp3';
     mowerSfxPlaying=false;
     clock.start();
 };
 
-window.finishLevel=function(){if(!gameActive)return;endGame('BANAN AVSLUTAD!');};
-window.leaveLevel=function(){stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';openLevelSelect();};
+window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
+window.leaveLevel=function(){
+    if(currentLevel===5){leaveGallery();return;}
+    stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);
+    document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';openLevelSelect();
+};
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
 function calculateProgress(){
     if(!lawnContext)return;
@@ -5148,7 +5737,10 @@ function animate(){
     const dt=Math.min(clock.getDelta(),0.05),t=clock.getElapsedTime();
     if(showroomModelGroup&&inspectingMowerId){showroomModelGroup.rotation.y+=0.015;showroomRenderer.render(showroomScene,showroomCamera);}
     if(gameStarted&&gameActive){
-        updateMowerPhysics(dt);paintCutTrail();updateCameraFollow();
+        updateMowerPhysics(dt);
+        if(currentLevel!==5)paintCutTrail();
+        updateCameraFollow();
+        if(currentLevel===5)updateGalleryUI();
         updateLevel4TrampolineAudio();
         updateFootballBallInteractions();
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
@@ -5163,7 +5755,7 @@ function animate(){
         if(animatedPond)animatedPond.rotation.y+=0.005;
         trampolineKids.forEach(k=>{k.mesh.position.y=k.baseY+Math.max(0,Math.sin(t*3+k.phase))*k.amplitude;});
         if(Math.abs(mowerStats.speed)>0.01)startMowerSfx();else stopMowerSfx();
-        if(Date.now()-lastCheckTime>500){calculateProgress();lastCheckTime=Date.now();}
+        if(currentLevel!==5&&Date.now()-lastCheckTime>500){calculateProgress();lastCheckTime=Date.now();}
     }
     renderer.render(scene,camera);
 }
@@ -5203,6 +5795,12 @@ function level4HouseClusterDriveOverride(x,z){
 }
 
 function canMoveTo(nx,nz){
+    if(currentLevel===5){
+        const bx=GALLERY_HALF_W-mowerStats.radius-1.0;
+        const bz=GALLERY_HALF_D-mowerStats.radius-1.3;
+        return nx>-bx&&nx<bx&&nz>-bz&&nz<bz;
+    }
+
     const b=(lawnWorldSize/2)-mowerStats.radius;
     if(nx<-b||nx>b||nz<-b||nz>b)return false;
 
@@ -5343,13 +5941,20 @@ function paintCutTrail(){
 }
 function updateCameraFollow(){
     if(!mowerGroup)return;
+    const gallery=currentLevel===5;
+    const distance=gallery?10.5:20;
+    const height=gallery?8.2:16;
     const offset=new THREE.Vector3(
-        -Math.sin(mowerStats.rotation)*20,
-        16,
-        -Math.cos(mowerStats.rotation)*20
+        -Math.sin(mowerStats.rotation)*distance,
+        height,
+        -Math.cos(mowerStats.rotation)*distance
     );
-    camera.position.lerp(mowerGroup.position.clone().add(offset),0.1);
-    camera.lookAt(mowerGroup.position.x,mowerGroup.position.y+2,mowerGroup.position.z);
+    camera.position.lerp(mowerGroup.position.clone().add(offset),gallery?.14:.1);
+    camera.lookAt(
+        mowerGroup.position.x,
+        mowerGroup.position.y+(gallery?2.6:2),
+        mowerGroup.position.z
+    );
 }
 
 function setupJoystick(){const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');let active=false,cx2,cy2,mr;zone.addEventListener('touchstart',e=>{e.preventDefault();active=true;const r=zone.getBoundingClientRect();cx2=r.left+r.width/2;cy2=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;upd(e.touches[0]);},{passive:false});zone.addEventListener('touchmove',e=>{e.preventDefault();if(active)upd(e.touches[0]);},{passive:false});const rst=()=>{active=false;knob.style.transform='translate(-50%,-50%)';inputs.joyX=inputs.joyY=0;};zone.addEventListener('touchend',rst);zone.addEventListener('touchcancel',rst);function upd(t){let dx=t.clientX-cx2,dy=t.clientY-cy2,d=Math.sqrt(dx*dx+dy*dy);if(d>mr){const a=Math.atan2(dy,dx);dx=Math.cos(a)*mr;dy=Math.sin(a)*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;inputs.joyX=dx/mr;inputs.joyY=dy/mr;}}
