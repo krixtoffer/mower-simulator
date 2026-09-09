@@ -3777,6 +3777,9 @@ let startupAudioPoll=0;
 let startupLoadStartedAt=0;
 let startupSlowTimer=0;
 let startupMinFinishRaf=0;
+let startupVisualFloor=0;
+let startupVisualFloorRaf=0;
+let startupCanPlaySeenAt=0;
 
 function setStartupProgress(){
     const fill=document.getElementById('startup-loader-fill');
@@ -3785,7 +3788,8 @@ function setStartupProgress(){
     const pctEl=document.getElementById('startup-loader-pct');
     if(!fill||!mower||!tech||!pctEl)return;
 
-    const p=Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2));
+    const realP=Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2));
+    const p=Math.max(realP,startupVisualFloor);
     const pct=p*100;
     fill.style.width=pct.toFixed(1)+'%';
     mower.style.left=pct.toFixed(1)+'%';
@@ -3798,6 +3802,7 @@ function setStartupProgress(){
 
         const reveal=()=>{
             startupGateReady=true;
+            startupVisualFloor=1;
             fill.style.width='100%';
             mower.style.left='100%';
             tech.textContent='(REDO)';
@@ -3859,12 +3864,37 @@ function bufferedSecondsFromStart(audio){
 
 function updateStartupAudioBuffer(){
     if(startupAudioReady)return;
-    const duration=Number.isFinite(bgMusic.duration)&&bgMusic.duration>0?bgMusic.duration:STARTUP_AUDIO_BUFFER_SECONDS;
+
+    const duration=Number.isFinite(bgMusic.duration)&&bgMusic.duration>0
+        ?bgMusic.duration:STARTUP_AUDIO_BUFFER_SECONDS;
     const target=Math.max(1,Math.min(STARTUP_AUDIO_BUFFER_SECONDS,duration));
     const seconds=bufferedSecondsFromStart(bgMusic);
-    startupAssetProgress.audio=Math.max(startupAssetProgress.audio,Math.min(.99,seconds/target));
 
-    if(seconds>=target || bgMusic.readyState>=4){
+    // Normal path: use the actual reported buffered duration.
+    if(seconds>0){
+        startupAssetProgress.audio=Math.max(
+            startupAssetProgress.audio,
+            Math.min(.99,seconds/target)
+        );
+    }else if(bgMusic.readyState>=2){
+        // Some mobile browsers load/decode audio but expose no useful buffered
+        // range before a user gesture. Show that useful work has happened.
+        startupAssetProgress.audio=Math.max(startupAssetProgress.audio,.18);
+    }
+
+    if(bgMusic.readyState>=3 && !startupCanPlaySeenAt){
+        startupCanPlaySeenAt=performance.now();
+    }
+
+    const browserBlocksDeepPreload =
+        startupCanPlaySeenAt &&
+        performance.now()-startupCanPlaySeenAt>=1500 &&
+        seconds<target;
+
+    if(seconds>=target || bgMusic.readyState>=4 || browserBlocksDeepPreload){
+        // Prefer the requested 15-second buffer. The fallback above exists only
+        // to prevent a permanent startup deadlock on browsers that will not
+        // deep-buffer media before the explicit START gesture.
         startupAudioReady=true;
         startupAssetProgress.audio=1;
         if(startupAudioPoll){clearInterval(startupAudioPoll);startupAudioPoll=0;}
@@ -3874,6 +3904,25 @@ function updateStartupAudioBuffer(){
 
 function beginStartupCountdown(){
     startupLoadStartedAt=performance.now();
+    startupVisualFloor=0;
+    startupCanPlaySeenAt=0;
+
+    // Never leave the first screen visually frozen at 0% while the browser is
+    // waiting for network/media progress events. This only affects presentation;
+    // actual readiness still controls when START becomes available.
+    const visualStart=performance.now();
+    const animateVisualFloor=(now)=>{
+        const q=Math.max(0,Math.min(1,(now-visualStart)/LOADER_MIN_MS));
+        startupVisualFloor=Math.max(startupVisualFloor,q*.35);
+        setStartupProgress();
+        if(!startupGateReady && q<1){
+            startupVisualFloorRaf=requestAnimationFrame(animateVisualFloor);
+        }else{
+            startupVisualFloorRaf=0;
+        }
+    };
+    startupVisualFloorRaf=requestAnimationFrame(animateVisualFloor);
+
     const slow=document.getElementById('startup-loader-slow');
     if(slow)slow.style.display='none';
     const tech=document.getElementById('startup-loader-tech');
@@ -3917,7 +3966,10 @@ function beginStartupCountdown(){
     // the ordinary <audio> source; startup opens once about 15 seconds are ready.
     bgMusic.addEventListener('progress',updateStartupAudioBuffer);
     bgMusic.addEventListener('loadedmetadata',updateStartupAudioBuffer);
-    bgMusic.addEventListener('canplay',updateStartupAudioBuffer);
+    bgMusic.addEventListener('canplay',()=>{
+        if(!startupCanPlaySeenAt)startupCanPlaySeenAt=performance.now();
+        updateStartupAudioBuffer();
+    });
     bgMusic.addEventListener('canplaythrough',()=>{
         startupAudioReady=true;
         startupAssetProgress.audio=1;
@@ -3936,7 +3988,24 @@ function beginStartupCountdown(){
     updateStartupAudioBuffer();
     setStartupProgress();
 }
-initThree(); initShowroomThree(); preloadAssets(); animate(); beginStartupCountdown();
+beginStartupCountdown();
+requestAnimationFrame(()=>{
+    try{
+        initThree();
+        initShowroomThree();
+        preloadAssets();
+        animate();
+    }catch(e){
+        console.error('[Startup initialization]',e);
+        // Do not silently leave a static 0% screen if an unrelated subsystem
+        // throws during initialization.
+        const note=document.getElementById('startup-loader-slow');
+        if(note){
+            note.style.display='block';
+            note.textContent='ETT FEL UPPSTOD VID INITIERING. LADDA OM SIDAN.';
+        }
+    }
+});
 
 function initThree(){
     scene=new THREE.Scene(); scene.background=new THREE.Color(0x87CEEB); scene.fog=new THREE.Fog(0x87CEEB,80,250);
