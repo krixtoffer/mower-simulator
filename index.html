@@ -1681,6 +1681,7 @@
 <audio id="sfx-fore"  src="./fore.mp3"    preload="auto"></audio>
 <audio id="sfx-goal2" src="./goal2.mp3" preload="auto"></audio>
 <audio id="sfx-goal" src="./goal.mp3" preload="auto"></audio>
+<audio id="sfx-ghost" src="./ghost.mp3" preload="auto" loop></audio>
 <audio id="sfx-mower" src="./handjag.mp3" loop preload="auto"></audio>
 
 <div id="settings-overlay">
@@ -3273,6 +3274,8 @@ let nightGhost=null;
 let nightGhostMotion=null;
 let nightGhostRespawnTimer=0;
 let nightGhostLoadRequested=false;
+let nightGhostSoundActive=false;
+const sfxGhost=document.getElementById('sfx-ghost');
 
 // Fanbyviken wildlife. All are visual-only and never enter mower collision.
 let level4Ducks=[];
@@ -3631,6 +3634,11 @@ function preloadAssets(){
 
 
 function disposeNightGhost(){
+    if(sfxGhost){
+        sfxGhost.pause();
+        sfxGhost.currentTime=0;
+    }
+    nightGhostSoundActive=false;
     if(nightGhost&&nightGhost.parent)nightGhost.parent.remove(nightGhost);
     nightGhost=null;
     nightGhostMotion=null;
@@ -3733,6 +3741,37 @@ function resetNightGhostForLevel(){
     disposeNightGhost();
     nightGhostRespawnTimer=.8+Math.random()*2.4;
     nightGhostLoadRequested=false;
+}
+
+function updateNightGhostProximitySound(){
+    if(!sfxGhost)return;
+
+    const canHear=
+        settings.sound &&
+        settings.nightMode &&
+        gameStarted &&
+        gameActive &&
+        nightGhost &&
+        mowerGroup;
+
+    let close=false;
+    if(canHear){
+        const dx=nightGhost.position.x-mowerGroup.position.x;
+        const dz=nightGhost.position.z-mowerGroup.position.z;
+        close=Math.hypot(dx,dz)<=22;
+    }
+
+    if(close){
+        if(!nightGhostSoundActive){
+            nightGhostSoundActive=true;
+            sfxGhost.volume=.42;
+            try{sfxGhost.play().catch(()=>{});}catch(e){}
+        }
+    }else if(nightGhostSoundActive){
+        nightGhostSoundActive=false;
+        sfxGhost.pause();
+        sfxGhost.currentTime=0;
+    }
 }
 
 function updateNightGhost(dt,t){
@@ -7227,6 +7266,7 @@ function animate(){
         updateLevel4TrampolineAudio();
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
+        updateNightGhostProximitySound();
         updateLevel4Wildlife(dt,t);
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
