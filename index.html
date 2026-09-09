@@ -1848,6 +1848,15 @@
             }
         }
 
+        /* v92: joystick is a gameplay control only. Older phone/tablet media
+           rules may request display:block, so menu state gets an explicit final
+           override. */
+        body:not(.touch-gameplay):not(.tablet-gameplay) #joystick-zone {
+            display:none !important;
+            visibility:hidden !important;
+            pointer-events:none !important;
+        }
+
         /* ══ v84: loading UI ═══════════════════════════════════════════════ */
         /* Completion text/button no longer participate in flex layout, so the
            mower and progress track never jump vertically when REDO appears. */
@@ -6245,8 +6254,7 @@ window.leaveGallery=function(){
     mowerStats.speed=0;
     document.getElementById('gallery-ui').style.display='none';
     document.getElementById('gallery-info').style.display='none';
-    document.body.classList.remove('touch-gameplay','tablet-gameplay');
-    document.getElementById('joystick-zone').style.display='none';
+    hideGameplayJoystick();
     openLevelSelect();
 };
 
@@ -7938,11 +7946,22 @@ function ensureGameplayJoystick(){
 // attachment or browser chrome changes. Re-assert the control while gameplay
 // is active instead of trusting one device-detection snapshot at level start.
 let joystickFailsafeTimer=0;
+function hideGameplayJoystick(){
+    document.body.classList.remove('touch-gameplay','tablet-gameplay');
+    const zone=document.getElementById('joystick-zone');
+    if(zone){
+        zone.style.setProperty('display','none','important');
+        zone.style.setProperty('visibility','hidden','important');
+        zone.style.setProperty('pointer-events','none','important');
+    }
+}
+
 function startJoystickFailsafe(){
     if(joystickFailsafeTimer)clearInterval(joystickFailsafeTimer);
     ensureGameplayJoystick();
     joystickFailsafeTimer=setInterval(()=>{
         if(gameActive)ensureGameplayJoystick();
+        else hideGameplayJoystick();
     },1000);
 }
 window.addEventListener('resize',()=>{if(gameActive)ensureGameplayJoystick();},{passive:true});
@@ -8207,12 +8226,14 @@ window.returnToMainMenuAfterLevel=function(){
     document.getElementById('hud').style.display='none';
     document.getElementById('hud-buttons').style.display='none';
     document.getElementById('game-over').style.display='none';
+    hideGameplayJoystick();
     openMainMenu();
 };
 
 window.leaveLevel=function(){
     if(currentLevel===5){leaveGallery();return;}
     stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);
+    hideGameplayJoystick();
     document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';openLevelSelect();
 };
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
