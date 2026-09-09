@@ -18,10 +18,19 @@
             padding:24px;box-sizing:border-box;
         }
         #startup-loader-text{
+            width:min(78vw,460px);
             font-size:16px;line-height:1.7;color:#ffff00;
             text-shadow:3px 3px #ff0055,5px 5px #000;
             margin-bottom:22px;
         }
+        .loader-main-word{display:block;text-align:center;}
+        .loader-tech-row{
+            display:grid;grid-template-columns:minmax(0,1fr) 72px;
+            align-items:center;width:100%;margin-top:5px;
+            font-size:10px;line-height:1.5;color:#fff;text-shadow:2px 2px #000;
+        }
+        .loader-tech-row > span:first-child{text-align:center;white-space:nowrap;min-width:0;}
+        .loader-tech-row > span:last-child{text-align:right;white-space:nowrap;color:#ffff00;}
         #startup-loader-track{
             position:relative;width:min(78vw,460px);height:92px;overflow:visible;
         }
@@ -38,6 +47,10 @@
             position:absolute;left:0;bottom:18px;width:112px;height:auto;
             transform:translateX(-50%);image-rendering:pixelated;
             pointer-events:none;will-change:left;
+        }
+        #startup-loader-slow{
+            display:none;width:min(78vw,460px);margin-top:14px;
+            font-size:8px;line-height:1.6;color:#fff;text-shadow:2px 2px #000;
         }
         #startup-ready-btn{
             display:none;
@@ -1840,6 +1853,7 @@
             padding:24px;box-sizing:border-box;
         }
         #level-loading-title{
+            width:min(78vw,460px);
             font-size:clamp(14px,2.4vw,22px);color:#ffff00;
             text-shadow:3px 3px #ff0055,5px 5px #000;margin-bottom:24px;
         }
@@ -1976,17 +1990,30 @@
 </div>
 
 <div id="startup-loader">
-    <div id="startup-loader-text">SPELET STARTAR OM 5</div>
+    <div id="startup-loader-text">
+        <div class="loader-main-word">LADDAR</div>
+        <div class="loader-tech-row">
+            <span id="startup-loader-tech">(VEKTORER)</span>
+            <span id="startup-loader-pct">0%</span>
+        </div>
+    </div>
     <div id="startup-loader-track">
         <div id="startup-loader-ground"></div>
         <div id="startup-loader-fill"></div>
         <img id="startup-loader-mower" src="./2dmower2.png" alt="" decoding="sync">
     </div>
+    <div id="startup-loader-slow">URSÄKTA, LADDNING LÅNGSAMMARE ÄN VANLIGT!</div>
     <button id="startup-ready-btn" type="button" onclick="enterStartScreen()">START</button>
 </div>
 
 <div id="level-loading-overlay">
-    <div id="level-loading-title">LADDAR BANA...</div>
+    <div id="level-loading-title">
+        <div class="loader-main-word">LADDAR</div>
+        <div class="loader-tech-row">
+            <span id="level-loading-tech">(VEKTORER)</span>
+            <span id="level-loading-pct">0%</span>
+        </div>
+    </div>
     <div id="level-loading-track">
         <div id="level-loading-ground"></div>
         <div id="level-loading-fill"></div>
@@ -3729,9 +3756,21 @@ const startCoverPrime=new Image();
 startCoverPrime.decoding='async';
 startCoverPrime.src='./startbild.jpg';
 
-// Five-second startup buffer. Heavy assets begin loading immediately underneath
-// this overlay; the cover image is explicitly decoded while menu audio buffers.
+// Shared loader timing. These constants must be initialized before startup begins.
+const LOADER_MIN_MS=3000;
+const LOADER_SLOW_MS=20000;
+
+// Startup audio only needs an initial progressive buffer, not the whole MP3.
 const STARTUP_AUDIO_BUFFER_SECONDS=15;
+const LOADER_TECH_WORDS=[
+    'VEKTORER','ANIMATIONER','AUDIO','SPELMEKANIK',
+    'TEXTURER','FYSIK','LJUSSÄTTNING','3D-MODELLER'
+];
+function loaderTechWord(progress){
+    const p=Math.max(0,Math.min(.9999,Number(progress)||0));
+    return LOADER_TECH_WORDS[Math.floor(p*LOADER_TECH_WORDS.length)];
+}
+
 let startupAssetProgress={image:0,audio:0};
 let startupImageReady=false,startupAudioReady=false,startupGateReady=false;
 let startupAudioPoll=0;
@@ -3742,12 +3781,16 @@ let startupMinFinishRaf=0;
 function setStartupProgress(){
     const fill=document.getElementById('startup-loader-fill');
     const mower=document.getElementById('startup-loader-mower');
-    const label=document.getElementById('startup-loader-text');
-    if(!fill||!mower||!label)return;
+    const tech=document.getElementById('startup-loader-tech');
+    const pctEl=document.getElementById('startup-loader-pct');
+    if(!fill||!mower||!tech||!pctEl)return;
+
     const p=Math.max(0,Math.min(1,(startupAssetProgress.image+startupAssetProgress.audio)/2));
     const pct=p*100;
     fill.style.width=pct.toFixed(1)+'%';
     mower.style.left=pct.toFixed(1)+'%';
+    tech.textContent='('+loaderTechWord(p)+')';
+    pctEl.textContent=Math.floor(pct)+'%';
 
     if(startupImageReady&&startupAudioReady){
         const elapsed=performance.now()-startupLoadStartedAt;
@@ -3757,35 +3800,28 @@ function setStartupProgress(){
             startupGateReady=true;
             fill.style.width='100%';
             mower.style.left='100%';
-            label.textContent='REDO!';
+            tech.textContent='(REDO)';
+            pctEl.textContent='100%';
             const btn=document.getElementById('startup-ready-btn');
             if(btn)btn.style.display='block';
             if(startupSlowTimer){clearTimeout(startupSlowTimer);startupSlowTimer=0;}
         };
 
-        if(remain<=0){
-            reveal();
-        }else if(!startupMinFinishRaf){
-            const startP=performance.now();
-            const baseP=pct;
+        if(remain<=0) reveal();
+        else if(!startupMinFinishRaf){
+            const startP=performance.now(), baseP=pct;
             const step=(now)=>{
                 const q=Math.max(0,Math.min(1,(now-startP)/remain));
                 const visual=Math.min(99,baseP+(99-baseP)*q);
                 fill.style.width=visual.toFixed(1)+'%';
                 mower.style.left=visual.toFixed(1)+'%';
+                tech.textContent='('+loaderTechWord(visual/100)+')';
+                pctEl.textContent=Math.floor(visual)+'%';
                 if(q<1)startupMinFinishRaf=requestAnimationFrame(step);
-                else{
-                    startupMinFinishRaf=0;
-                    reveal();
-                }
+                else{startupMinFinishRaf=0;reveal();}
             };
             startupMinFinishRaf=requestAnimationFrame(step);
         }
-    }else{
-        const names=[];
-        if(!startupImageReady)names.push('STARTBILD');
-        if(!startupAudioReady)names.push('MUSIK');
-        label.textContent='LADDAR '+names.join(' + ')+'... '+Math.floor(pct)+'%';
     }
 }
 
@@ -3838,12 +3874,16 @@ function updateStartupAudioBuffer(){
 
 function beginStartupCountdown(){
     startupLoadStartedAt=performance.now();
-    const label=document.getElementById('startup-loader-text');
-    if(label)label.textContent='LADDAR STARTBILD + MUSIK... 0%';
+    const slow=document.getElementById('startup-loader-slow');
+    if(slow)slow.style.display='none';
+    const tech=document.getElementById('startup-loader-tech');
+    const pct=document.getElementById('startup-loader-pct');
+    if(tech)tech.textContent='(VEKTORER)';
+    if(pct)pct.textContent='0%';
     startupSlowTimer=setTimeout(()=>{
         if(startupGateReady)return;
-        const l=document.getElementById('startup-loader-text');
-        if(l)l.textContent='URSÄKTA, LADDNING LÅNGSAMMARE ÄN VANLIGT!';
+        const note=document.getElementById('startup-loader-slow');
+        if(note)note.style.display='block';
     },LOADER_SLOW_MS);
 
     // The cover must be fully transferred and decoded.
@@ -7851,9 +7891,13 @@ function setLevelLoadingProgress(progress,statusText){
     const p=Math.max(0,Math.min(1,progress||0));
     const fill=document.getElementById('level-loading-fill');
     const mower=document.getElementById('level-loading-mower');
+    const tech=document.getElementById('level-loading-tech');
+    const pct=document.getElementById('level-loading-pct');
     const status=document.getElementById('level-loading-status');
     if(fill)fill.style.width=(p*100).toFixed(1)+'%';
     if(mower)mower.style.left=(p*100).toFixed(1)+'%';
+    if(tech)tech.textContent='('+loaderTechWord(p)+')';
+    if(pct)pct.textContent=Math.floor(p*100)+'%';
     if(status&&statusText)status.textContent=statusText;
 }
 
@@ -7868,7 +7912,7 @@ function waitForGalleryMusicBuffer(onReady){
         galleryMusicPrime.removeEventListener('loadedmetadata',check);
         galleryMusicPrime.removeEventListener('canplaythrough',finish);
         galleryMusicPrime.removeEventListener('error',finish);
-        setLevelLoadingProgress(.92,'MUSIK REDO...');
+        setLevelLoadingProgress(.92,' ');
         onReady();
     };
     const check=()=>{
@@ -7878,7 +7922,7 @@ function waitForGalleryMusicBuffer(onReady){
         const seconds=bufferedSecondsFromStart(galleryMusicPrime);
         const frac=Math.min(1,seconds/target);
         // Reserve the final 8% for scene construction.
-        setLevelLoadingProgress(.08+frac*.84,'BUFFRAR GALLERIMUSIK... '+Math.floor(frac*100)+'%');
+        setLevelLoadingProgress(.08+frac*.84,' ');
         if(seconds>=target||galleryMusicPrime.readyState>=4)finish();
     };
     galleryMusicPrime.addEventListener('progress',check);
@@ -7891,9 +7935,6 @@ function waitForGalleryMusicBuffer(onReady){
     check();
 }
 
-
-const LOADER_MIN_MS=3000;
-const LOADER_SLOW_MS=20000;
 
 function runLoaderWithMinimumDuration({
     onStart,
@@ -7932,7 +7973,7 @@ function runLoaderWithMinimumDuration({
             // rather than leaving it parked at 100%.
             const startP=performance.now();
             const status=document.getElementById('level-loading-status');
-            if(status&&!slowShown)status.textContent='FÖRBEREDER...';
+            if(status&&!slowShown)status.textContent=' ';
             const tick=(now)=>{
                 const q=Math.max(0,Math.min(1,(now-startP)/remain));
                 // Hold back the final 8% for actual scene construction.
@@ -7954,11 +7995,8 @@ function runLoaderWithMinimumDuration({
 
 window.confirmStartLevel=function(){
     const overlay=document.getElementById('level-loading-overlay');
-    const title=document.getElementById('level-loading-title');
-    const names={1:'VILLAKVARTERET',2:'FOTBOLLSPLANEN',3:'GOLFBANAN',4:'FANBYVIKEN',5:'GALLERIET'};
-    if(title)title.textContent='LADDAR '+(names[currentLevel]||'BANA')+'...';
     if(overlay)overlay.style.display='flex';
-    setLevelLoadingProgress(.04,currentLevel===5?'FÖRBEREDER GALLERIMUSIK...':'FÖRBEREDER BANA...');
+    setLevelLoadingProgress(.04,' ');
 
     runLoaderWithMinimumDuration({
         waitForReady:(ready)=>{
@@ -7967,16 +8005,16 @@ window.confirmStartLevel=function(){
             }else{
                 // Levels 1–4 have no additional blocking network gate here.
                 // The 3 s minimum still gives the loader a deliberate presence.
-                setLevelLoadingProgress(.82,'LADDAR BANA...');
+                setLevelLoadingProgress(.82,' ');
                 ready();
             }
         },
         onBuild:(done)=>{
-            setLevelLoadingProgress(.92,'BYGGER BANA...');
+            setLevelLoadingProgress(.92,' ');
             requestAnimationFrame(()=>requestAnimationFrame(()=>{
                 try{
                     buildConfirmedLevel();
-                    setLevelLoadingProgress(1,'REDO!');
+                    setLevelLoadingProgress(1,' ');
                 }finally{
                     requestAnimationFrame(()=>{
                         if(overlay)overlay.style.display='none';
