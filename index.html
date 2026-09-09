@@ -1618,12 +1618,7 @@
 
 
         /* ── GALLERI ─────────────────────────────────────────────────── */
-        .gallery-level-btn{
-            background:linear-gradient(135deg,#5b2416,#8b5a2b) !important;
-            border-color:#d7b55b !important;
-            box-shadow:4px 4px 0 #6a441b !important;
-        }
-        .gallery-level-btn > span:last-child{color:#ffe49a !important;}
+        .gallery-level-btn{}
         #gallery-ui{
             position:absolute;inset:0;display:none;z-index:205;
             pointer-events:none;font-family:'Press Start 2P',monospace;
@@ -1849,24 +1844,32 @@
             text-shadow:3px 3px #ff0055,5px 5px #000;margin-bottom:24px;
         }
         #level-loading-track{
-            position:relative;width:min(72vw,460px);height:18px;
-            border:3px solid #fff;background:#182018;box-shadow:4px 4px #000;
-            overflow:hidden;
+            position:relative;width:min(78vw,460px);height:92px;overflow:visible;
+        }
+        #level-loading-ground{
+            position:absolute;left:0;right:0;bottom:10px;height:12px;
+            background:#263425;border:2px solid #111;box-sizing:border-box;
         }
         #level-loading-fill{
-            position:absolute;left:-35%;top:0;width:35%;height:100%;
-            background:#55b84b;animation:levelLoadSweep 1.05s linear infinite;
+            position:absolute;left:0;bottom:12px;width:0%;height:8px;
+            background:#55b84b;box-shadow:0 -3px 0 #7bd65e;
+            transition:width .10s linear;
+        }
+        #level-loading-mower{
+            position:absolute;left:0;bottom:18px;width:112px;height:auto;
+            transform:translateX(-50%);image-rendering:pixelated;
+            pointer-events:none;will-change:left;
+            transition:left .10s linear;
         }
         #level-loading-status{
             margin-top:18px;font-size:9px;line-height:1.6;color:#ddd;
-        }
-        @keyframes levelLoadSweep{
-            from{left:-35%} to{left:100%}
+            min-height:16px;
         }
 </style>
 </head>
 <body>
 <audio id="bg-music"  src="./golf.mp3"    loop preload="auto"></audio>
+<audio id="gallery-music-prime" src="./velvet.mp3" preload="auto"></audio>
 <audio id="sfx-fan1"  src="./fan1.mp3"    preload="auto"></audio>
 <audio id="sfx-fan2"  src="./fan2.mp3"    preload="auto"></audio>
 <audio id="sfx-fan3"  src="./fan3.mp3"    preload="auto"></audio>
@@ -1984,7 +1987,11 @@
 
 <div id="level-loading-overlay">
     <div id="level-loading-title">LADDAR BANA...</div>
-    <div id="level-loading-track"><div id="level-loading-fill"></div></div>
+    <div id="level-loading-track">
+        <div id="level-loading-ground"></div>
+        <div id="level-loading-fill"></div>
+        <img id="level-loading-mower" src="./2dmower2.png" alt="" decoding="sync">
+    </div>
     <div id="level-loading-status">FÖRBEREDER...</div>
 </div>
 
@@ -3724,8 +3731,10 @@ startCoverPrime.src='./startbild.jpg';
 
 // Five-second startup buffer. Heavy assets begin loading immediately underneath
 // this overlay; the cover image is explicitly decoded while menu audio buffers.
+const STARTUP_AUDIO_BUFFER_SECONDS=15;
 let startupAssetProgress={image:0,audio:0};
 let startupImageReady=false,startupAudioReady=false,startupGateReady=false;
+let startupAudioPoll=0;
 
 function setStartupProgress(){
     const fill=document.getElementById('startup-loader-fill');
@@ -3764,30 +3773,46 @@ function trackStartupFile(url,key,onComplete){
             }
         };
         xhr.onload=()=>{
-            if(xhr.status>=200&&xhr.status<400){
-                startupAssetProgress[key]=1;
-                onComplete(xhr.response);
-            }else{
-                // The normal browser URL remains a fallback if progress fetch fails.
-                startupAssetProgress[key]=1;
-                onComplete(null);
-            }
-        };
-        xhr.onerror=()=>{
             startupAssetProgress[key]=1;
-            onComplete(null);
+            onComplete((xhr.status>=200&&xhr.status<400)?xhr.response:null);
         };
+        xhr.onerror=()=>{startupAssetProgress[key]=1;onComplete(null);};
         xhr.send();
     }catch(e){
-        startupAssetProgress[key]=1;
-        onComplete(null);
+        startupAssetProgress[key]=1;onComplete(null);
     }
+}
+
+function bufferedSecondsFromStart(audio){
+    try{
+        if(!audio||!audio.buffered||!audio.buffered.length)return 0;
+        for(let i=0;i<audio.buffered.length;i++){
+            if(audio.buffered.start(i)<=0.15)return Math.max(0,audio.buffered.end(i));
+        }
+        return 0;
+    }catch(e){return 0;}
+}
+
+function updateStartupAudioBuffer(){
+    if(startupAudioReady)return;
+    const duration=Number.isFinite(bgMusic.duration)&&bgMusic.duration>0?bgMusic.duration:STARTUP_AUDIO_BUFFER_SECONDS;
+    const target=Math.max(1,Math.min(STARTUP_AUDIO_BUFFER_SECONDS,duration));
+    const seconds=bufferedSecondsFromStart(bgMusic);
+    startupAssetProgress.audio=Math.max(startupAssetProgress.audio,Math.min(.99,seconds/target));
+
+    if(seconds>=target || bgMusic.readyState>=4){
+        startupAudioReady=true;
+        startupAssetProgress.audio=1;
+        if(startupAudioPoll){clearInterval(startupAudioPoll);startupAudioPoll=0;}
+    }
+    setStartupProgress();
 }
 
 function beginStartupCountdown(){
     const label=document.getElementById('startup-loader-text');
     if(label)label.textContent='LADDAR STARTBILD + MUSIK... 0%';
 
+    // The cover must be fully transferred and decoded.
     trackStartupFile('./startbild.jpg','image',blob=>{
         const finish=()=>{
             startupImageReady=true;
@@ -3814,25 +3839,27 @@ function beginStartupCountdown(){
         }
     });
 
-    trackStartupFile('./golf.mp3','audio',blob=>{
-        if(blob)bgMusic.src=URL.createObjectURL(blob);
-        else bgMusic.src='./golf.mp3';
-
-        let finished=false;
-        const finish=()=>{
-            if(finished)return;finished=true;
-            startupAudioReady=true;
-            startupAssetProgress.audio=1;
-            setStartupProgress();
-        };
-        bgMusic.addEventListener('canplaythrough',finish,{once:true});
-        bgMusic.addEventListener('loadeddata',finish,{once:true});
-        bgMusic.addEventListener('error',finish,{once:true});
-        try{bgMusic.load();}catch(e){finish();}
-        // The entire MP3 has already been fetched as a Blob at this point;
-        // loadeddata is enough to confirm the audio element can decode it.
-    });
-
+    // golf.mp3 is NOT downloaded in full here. The browser progressively buffers
+    // the ordinary <audio> source; startup opens once about 15 seconds are ready.
+    bgMusic.addEventListener('progress',updateStartupAudioBuffer);
+    bgMusic.addEventListener('loadedmetadata',updateStartupAudioBuffer);
+    bgMusic.addEventListener('canplay',updateStartupAudioBuffer);
+    bgMusic.addEventListener('canplaythrough',()=>{
+        startupAudioReady=true;
+        startupAssetProgress.audio=1;
+        if(startupAudioPoll){clearInterval(startupAudioPoll);startupAudioPoll=0;}
+        setStartupProgress();
+    },{once:true});
+    bgMusic.addEventListener('error',()=>{
+        // Never strand the whole game because an audio file failed. Playback can
+        // still be retried from the explicit START gesture.
+        startupAudioReady=true;
+        startupAssetProgress.audio=1;
+        setStartupProgress();
+    },{once:true});
+    try{bgMusic.preload='auto';bgMusic.load();}catch(e){}
+    startupAudioPoll=setInterval(updateStartupAudioBuffer,180);
+    updateStartupAudioBuffer();
     setStartupProgress();
 }
 initThree(); initShowroomThree(); preloadAssets(); animate(); beginStartupCountdown();
@@ -5974,6 +6001,9 @@ function enterGalleryMusic(){
     galleryPreviousMusicWasPlaying=!bgMusic.paused;
     bgMusic.pause();
     bgMusic.setAttribute('src','./velvet.mp3');
+    // velvet.mp3 has already been prebuffered by galleryMusicPrime before the
+    // gallery scene is built. The browser cache can satisfy this immediately.
+    bgMusic.preload='auto';
     bgMusic.load();
     bgMusic.currentTime=0;
     if(settings.music)bgMusic.play().catch(()=>{});
@@ -7603,19 +7633,25 @@ window.openLevelSelect=function(){
         listEl.appendChild(btn);
     });
 
-    // Minigames live under VÄLJ BANA, but remain fully isolated from level records/gameplay.
+    // Gallery sits directly below Bana 4 and deliberately uses the same visual
+    // treatment as the four normal level choices.
+    const galleryBtn=document.createElement('button');
+    galleryBtn.className='level-btn level-record-btn';
+    galleryBtn.innerHTML=`
+        <span class="level-record-main">
+            <span class="level-record-name">BONUS - Galleriet</span>
+            <span class="level-record-meta">Utforska klipphistorien</span>
+        </span>
+        <span class="level-record-stars" aria-hidden="true">▶</span>`;
+    galleryBtn.onclick=()=>showLevelIntro(5);
+    listEl.appendChild(galleryBtn);
+
+    // Minigames remain below the gallery in their existing magenta/yellow scheme.
     const mgBtn=document.createElement('button');
     mgBtn.className='level-btn minigames-level-btn';
     mgBtn.innerHTML='<span>🎮 MINISPEL</span><span style="color:#7a3fb3">▶</span>';
     mgBtn.onclick=()=>openMinigames();
     listEl.appendChild(mgBtn);
-
-    // Museum/gallery is a non-scoring exploratory bonus level.
-    const galleryBtn=document.createElement('button');
-    galleryBtn.className='level-btn gallery-level-btn';
-    galleryBtn.innerHTML='<span>🏛️ GALLERI</span><span>▶</span>';
-    galleryBtn.onclick=()=>showLevelIntro(5);
-    listEl.appendChild(galleryBtn);
 
 };
 
@@ -7774,27 +7810,85 @@ function buildConfirmedLevel(){
     clock.start();
 }
 
+const GALLERY_AUDIO_BUFFER_SECONDS=15;
+const galleryMusicPrime=document.getElementById('gallery-music-prime');
+
+function setLevelLoadingProgress(progress,statusText){
+    const p=Math.max(0,Math.min(1,progress||0));
+    const fill=document.getElementById('level-loading-fill');
+    const mower=document.getElementById('level-loading-mower');
+    const status=document.getElementById('level-loading-status');
+    if(fill)fill.style.width=(p*100).toFixed(1)+'%';
+    if(mower)mower.style.left=(p*100).toFixed(1)+'%';
+    if(status&&statusText)status.textContent=statusText;
+}
+
+function waitForGalleryMusicBuffer(onReady){
+    if(!galleryMusicPrime){onReady();return;}
+    let done=false;
+    const finish=()=>{
+        if(done)return;done=true;
+        clearInterval(poll);
+        galleryMusicPrime.removeEventListener('progress',check);
+        galleryMusicPrime.removeEventListener('canplay',check);
+        galleryMusicPrime.removeEventListener('loadedmetadata',check);
+        galleryMusicPrime.removeEventListener('canplaythrough',finish);
+        galleryMusicPrime.removeEventListener('error',finish);
+        setLevelLoadingProgress(.92,'MUSIK REDO...');
+        onReady();
+    };
+    const check=()=>{
+        const duration=Number.isFinite(galleryMusicPrime.duration)&&galleryMusicPrime.duration>0
+            ?galleryMusicPrime.duration:GALLERY_AUDIO_BUFFER_SECONDS;
+        const target=Math.max(1,Math.min(GALLERY_AUDIO_BUFFER_SECONDS,duration));
+        const seconds=bufferedSecondsFromStart(galleryMusicPrime);
+        const frac=Math.min(1,seconds/target);
+        // Reserve the final 8% for scene construction.
+        setLevelLoadingProgress(.08+frac*.84,'BUFFRAR GALLERIMUSIK... '+Math.floor(frac*100)+'%');
+        if(seconds>=target||galleryMusicPrime.readyState>=4)finish();
+    };
+    galleryMusicPrime.addEventListener('progress',check);
+    galleryMusicPrime.addEventListener('canplay',check);
+    galleryMusicPrime.addEventListener('loadedmetadata',check);
+    galleryMusicPrime.addEventListener('canplaythrough',finish,{once:true});
+    galleryMusicPrime.addEventListener('error',finish,{once:true});
+    try{galleryMusicPrime.preload='auto';galleryMusicPrime.load();}catch(e){}
+    const poll=setInterval(check,180);
+    check();
+}
+
 window.confirmStartLevel=function(){
     const overlay=document.getElementById('level-loading-overlay');
-    const status=document.getElementById('level-loading-status');
     const title=document.getElementById('level-loading-title');
     const names={1:'VILLAKVARTERET',2:'FOTBOLLSPLANEN',3:'GOLFBANAN',4:'FANBYVIKEN',5:'GALLERIET'};
     if(title)title.textContent='LADDAR '+(names[currentLevel]||'BANA')+'...';
-    if(status)status.textContent='BYGGER BANA...';
     if(overlay)overlay.style.display='flex';
+    setLevelLoadingProgress(.04,currentLevel===5?'FÖRBEREDER GALLERIMUSIK...':'FÖRBEREDER BANA...');
 
-    // Two frames guarantee that the loading overlay is actually painted before
-    // synchronous Three.js construction begins.
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        try{
-            buildConfirmedLevel();
-            if(status)status.textContent='REDO!';
-        }finally{
-            requestAnimationFrame(()=>{
-                if(overlay)overlay.style.display='none';
-            });
-        }
-    }));
+    const buildNow=()=>{
+        // Give the mower/grass loader a painted frame before synchronous
+        // Three.js construction begins.
+        setLevelLoadingProgress(.92,'BYGGER BANA...');
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+            try{
+                buildConfirmedLevel();
+                setLevelLoadingProgress(1,'REDO!');
+            }finally{
+                requestAnimationFrame(()=>{
+                    if(overlay)overlay.style.display='none';
+                });
+            }
+        }));
+    };
+
+    if(currentLevel===5)waitForGalleryMusicBuffer(buildNow);
+    else{
+        // Normal levels already use the progressively-buffered jukebox music.
+        // Their loader therefore represents scene construction rather than
+        // re-downloading the currently playing song.
+        setLevelLoadingProgress(.82,'LADDAR BANA...');
+        buildNow();
+    }
 };
 
 window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
