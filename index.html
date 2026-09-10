@@ -6238,6 +6238,7 @@ function buildGolfCourseSpectator(){
 
     const root=new THREE.Group();
     root.position.set(sx,0,sz);
+    root.scale.setScalar(0.70);
     scene.add(root);
 
     const skin=golfRangeMat(0xf1d09a,.76);
@@ -6245,6 +6246,7 @@ function buildGolfCourseSpectator(){
     const check=golfRangeMat(0xe6f0cf,.82);
     const red=golfRangeMat(0xb92730,.8);
     const dark=golfRangeMat(0x252525,.82);
+    const hairGrey=golfRangeMat(0xbfc3c7,.82);
     const metal=new THREE.MeshStandardMaterial({color:0x8f979d,metalness:.55,roughness:.34});
 
     const addBox=(parent,w,h,d,mat,x=0,y=0,z=0)=>{
@@ -6311,13 +6313,13 @@ function buildGolfCourseSpectator(){
 
     const hairTop=new THREE.Mesh(
         new THREE.SphereGeometry(.64,14,10,0,Math.PI*2,0,Math.PI*.58),
-        dark
+        hairGrey
     );
     hairTop.position.y=.17;
     headPivot.add(hairTop);
 
     const hairSideGeo=new THREE.CapsuleGeometry(.16,.62,5,8);
-    const hairLeft=new THREE.Mesh(hairSideGeo,dark);
+    const hairLeft=new THREE.Mesh(hairSideGeo,hairGrey);
     hairLeft.position.set(-.52,-.28,-.03);
     hairLeft.rotation.z=.10;
     headPivot.add(hairLeft);
@@ -6327,7 +6329,7 @@ function buildGolfCourseSpectator(){
     hairRight.rotation.z=-.10;
     headPivot.add(hairRight);
 
-    addBox(headPivot,.92,.62,.22,dark,0,-.34,-.47);
+    addBox(headPivot,.92,.62,.22,hairGrey,0,-.34,-.47);
 
     const glassesMat=new THREE.MeshStandardMaterial({
         color:0x252525,
@@ -6390,6 +6392,11 @@ function buildGolfCourseSpectator(){
     const dx=greenX-root.position.x;
     const dz=greenZ-root.position.z;
     root.rotation.y=Math.atan2(dx,dz)+Math.PI/2;
+
+    // Move her backward, in the direction of her backside.
+    const backDistance=9.0;
+    root.position.x-=Math.sin(root.rotation.y)*backDistance;
+    root.position.z-=Math.cos(root.rotation.y)*backDistance;
 
     const sounds=['f1.mp3','f2.mp3'].map(file=>{
         const a=new Audio(`./${file}`);
@@ -6491,6 +6498,7 @@ function buildGolfCourseGolfer(){
         9,true,false,2.6,['e1.mp3','e2.mp3','e3.mp3']
     );
     g.soundCooldownMs=3000;
+    g.root.scale.setScalar(1.20);
 
     // Aim the golfer toward the known green centre.
     const greenX=(256/512-.5)*193.2;
