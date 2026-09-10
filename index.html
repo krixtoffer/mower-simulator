@@ -7342,8 +7342,9 @@ let level4TrampolineAudioLastPlay=-Infinity;
 
 
 // Fanbyviken hammock hit sounds.
-// Same 40-map-pixel trigger radius as the trampoline. Each fresh entry advances
-// bird1.mp3 ... bird21.mp3, then wraps back to bird1. Five-second sound cooldown.
+// Same 40-map-pixel trigger radius as the trampoline.
+// Sounds are drawn from a shuffled bag: all 21 play once in random order
+// before any sound can repeat.
 const LEVEL4_HAMMOCK_MAP_POS={x:1176,y:423};
 const LEVEL4_HAMMOCK_AUDIO_RADIUS=LEVEL4_TRAMPOLINE_AUDIO_RADIUS;
 const LEVEL4_HAMMOCK_AUDIO_COOLDOWN_MS=2500;
@@ -7358,7 +7359,33 @@ const level4HammockBirdAudio=Array.from({length:21},(_,i)=>{
 });
 let level4HammockAudioInside=false;
 let level4HammockAudioLastPlay=-Infinity;
-let level4HammockBirdIndex=0;
+let level4HammockBirdDeck=[];
+let level4HammockLastBirdIndex=-1;
+
+function refillLevel4HammockBirdDeck(){
+    const deck=Array.from({length:level4HammockBirdAudio.length},(_,i)=>i);
+
+    // Fisher-Yates shuffle.
+    for(let i=deck.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+
+    // Also avoid an immediate repeat across shuffle-cycle boundaries.
+    if(deck.length>1&&deck[0]===level4HammockLastBirdIndex){
+        const swapIndex=1+Math.floor(Math.random()*(deck.length-1));
+        [deck[0],deck[swapIndex]]=[deck[swapIndex],deck[0]];
+    }
+
+    level4HammockBirdDeck=deck;
+}
+
+function nextLevel4HammockBirdIndex(){
+    if(level4HammockBirdDeck.length===0)refillLevel4HammockBirdDeck();
+    const index=level4HammockBirdDeck.shift();
+    level4HammockLastBirdIndex=index;
+    return index;
+}
 
 function updateLevel4HammockAudio(){
     if(currentLevel!==4||!mowerGroup){
@@ -7371,15 +7398,15 @@ function updateLevel4HammockAudio(){
     const now=performance.now();
 
     if(inside&&!level4HammockAudioInside&&now-level4HammockAudioLastPlay>=LEVEL4_HAMMOCK_AUDIO_COOLDOWN_MS){
+        const birdIndex=nextLevel4HammockBirdIndex();
         if(settings.sfx){
-            const a=level4HammockBirdAudio[level4HammockBirdIndex];
+            const a=level4HammockBirdAudio[birdIndex];
             try{
                 a.currentTime=0;
                 const p=a.play();
                 if(p&&typeof p.catch==='function')p.catch(()=>{});
             }catch(e){}
         }
-        level4HammockBirdIndex=(level4HammockBirdIndex+1)%level4HammockBirdAudio.length;
         level4HammockAudioLastPlay=now;
     }
     level4HammockAudioInside=inside;
