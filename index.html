@@ -3694,7 +3694,7 @@ let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 // v93: lightweight Level 3 driving range interaction state.
 let golfRangeGolfers=[],golfRangeBalls=[],golfRangeDispenser=null;
-let golfCourseGolfer=null;
+let golfCourseGolfer=null,golfCourseSpectator=null;
 let golfRangeTime=0;
 const GOLF_RANGE_RECT={xMin:92,xMax:172,zMin:-38,zMax:38};
 const golfRangeMachineHitAudio=new Audio('./shed.mp3');
@@ -5877,6 +5877,24 @@ function setupGolfLevel(){
     }
     buildGolfDrivingRange();
     buildGolfCourseGolfer();
+    buildGolfCourseSpectator();
+
+    // Two static bags close to the on-course pair, with different colors.
+    if(golfCourseGolfer&&golfCourseSpectator){
+        buildStaticCourseGolfBag(
+            golfCourseGolfer.standPos.x-1.85,
+            golfCourseGolfer.standPos.z-1.15,
+            golfCourseGolfer.standRotY+.18,
+            0x2f5f9d,0xd5dbe5
+        );
+        buildStaticCourseGolfBag(
+            golfCourseSpectator.standPos.x+1.55,
+            golfCourseSpectator.standPos.z+1.05,
+            golfCourseSpectator.standRotY-.28,
+            0x8b3f2f,0xe0c06b
+        );
+    }
+
     startGolfSfx();
 }
 
@@ -6226,15 +6244,111 @@ function buildGolfRangePath(){
 }
 
 
+
+
+function buildStaticCourseGolfBag(x,z,rotY,bagColor,trimColor){
+    const root=new THREE.Group();
+    root.position.set(x,0,z);
+    root.rotation.y=rotY;
+    scene.add(root);
+
+    const bagMat=golfRangeMat(bagColor,.72);
+    const trimMat=golfRangeMat(trimColor,.58);
+    const metalMat=new THREE.MeshStandardMaterial({
+        color:0xb8bdc3,metalness:.72,roughness:.26
+    });
+    const gripMat=golfRangeMat(0x2a2826,.80);
+
+    // Slightly tapered cylindrical bag.
+    golfRangeMesh(
+        root,
+        new THREE.CylinderGeometry(.38,.49,1.55,10),
+        bagMat,
+        0,.82,0
+    );
+
+    // Top rim.
+    const rim=golfRangeMesh(
+        root,
+        new THREE.TorusGeometry(.39,.055,6,12),
+        trimMat,
+        0,1.60,0
+    );
+    rim.rotation.x=Math.PI/2;
+
+    // Curved side strap/handle.
+    const strap=new THREE.Mesh(
+        new THREE.TorusGeometry(.52,.05,6,14,Math.PI*1.35),
+        trimMat
+    );
+    strap.position.set(.38,1.02,0);
+    strap.rotation.set(Math.PI/2,0,Math.PI/2);
+    root.add(strap);
+
+    // Four clubs sticking out of the top.
+    [[-.17,.02],[.02,.13],[.18,-.07],[-.04,-.15]].forEach((p,i)=>{
+        const shaft=golfRangeMesh(
+            root,
+            new THREE.CylinderGeometry(.018,.021,1.02,5),
+            metalMat,
+            p[0],2.04,p[1]
+        );
+        shaft.rotation.z=(i-1.5)*.035;
+        golfRangeMesh(
+            root,
+            new THREE.BoxGeometry(.18,.075,.11),
+            gripMat,
+            p[0]+.025*(i-1),2.54,p[1]
+        );
+    });
+
+    return root;
+}
+
+function buildGolfCourseSpectator(){
+    const hitter=golfCourseGolfer;
+    if(!hitter)return;
+
+    // Stand beside the hitter, facing toward them / the shot line.
+    const sx=hitter.standPos.x-3.0;
+    const sz=hitter.standPos.z+2.2;
+    const s=buildGolfRangeGolfer(
+        sx,sz,
+        {shirt:0x8acb62,pants:0xb5262d,accent:0x292929,hair:0x202020},
+        11,false,true,0,['f1.mp3','f2.mp3']
+    );
+    s.isCourseSpectator=true;
+    s.soundCooldownMs=3000;
+
+    // Face the golfer who is taking the shot.
+    const dx=hitter.standPos.x-sx,dz=hitter.standPos.z-sz;
+    s.root.rotation.y=Math.atan2(dx,dz);
+    s.standRotY=s.root.rotation.y;
+    s.standPos.copy(s.root.position);
+
+    // Static idle/watch pose inspired by the supplied reference:
+    // upright torso, left arm hanging, right arm angled forward/down.
+    s.torso.rotation.set(0,0,0);
+    s.leftShoulder.rotation.set(0,0,.08);
+    s.leftElbow.rotation.set(0,0,.05);
+    s.rightShoulder.rotation.set(-.18,0,-.58);
+    s.rightElbow.rotation.set(0,0,.72);
+    s.club.visible=false;
+    s.addressBall.visible=false;
+
+    golfCourseSpectator=s;
+}
+
 function buildGolfCourseGolfer(){
     // Deliberately re-use the proven driving-range golfer builder.
     // Unique clothing only; same construction, swing and knockdown system.
     const g=buildGolfRangeGolfer(
         -38,-18,
         {shirt:0x1f7a5a,pants:0xd8d0b8,accent:0x8b1e3f,hair:0x3a2418},
-        9,true,false,2.6,['e1.mp3','e2.mp3','e3.mp3']
+        9,true,false,2.6,['e1.mp3','e2.mp3']
     );
     g.soundCooldownMs=3000;
+    g.root.scale.setScalar(1.30);
 
     // Aim the golfer toward the known green centre.
     const greenX=(256/512-.5)*193.2;
@@ -6250,7 +6364,7 @@ function buildGolfCourseGolfer(){
 }
 
 function buildGolfDrivingRange(){
-    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfRangeTime=0;
+    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfRangeTime=0;
 
     // Grass extension joins the east edge of the existing course.
     const pad=new THREE.Mesh(
@@ -6287,6 +6401,8 @@ function buildGolfDrivingRange(){
     ];
     golfRangeGolfers.forEach(g=>{
         g.root.scale.setScalar(1.35);
+        g.root.rotation.y-=Math.PI/2;
+        g.standRotY=g.root.rotation.y;
         buildGolfRangeBucket(121.5,g.root.position.z);
     });
 
@@ -6345,6 +6461,11 @@ function updateGolfDrivingRange(dt){
         }
     }
 
+
+    if(golfCourseSpectator&&golfCourseSpectator.knocked){
+        golfRangeUpdateKnocked(golfCourseSpectator,dt);
+    }
+
     if(!mowerGroup)return;
     const mp=mowerGroup.position;
     const impact=new THREE.Vector3(Math.sin(mowerStats.rotation),0,Math.cos(mowerStats.rotation));
@@ -6356,7 +6477,11 @@ function updateGolfDrivingRange(dt){
     }
     if(golfCourseGolfer){
         const dx=mp.x-golfCourseGolfer.standPos.x,dz=mp.z-golfCourseGolfer.standPos.z;
-        if(dx*dx+dz*dz<2.15*2.15)golfRangeKnockGolfer(golfCourseGolfer,impact);
+        if(dx*dx+dz*dz<2.55*2.55)golfRangeKnockGolfer(golfCourseGolfer,impact);
+    }
+    if(golfCourseSpectator){
+        const dx=mp.x-golfCourseSpectator.standPos.x,dz=mp.z-golfCourseSpectator.standPos.z;
+        if(dx*dx+dz*dz<2.15*2.15)golfRangeKnockGolfer(golfCourseSpectator,impact);
     }
 
     // Destructible ball machine.
