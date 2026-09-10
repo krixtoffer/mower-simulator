@@ -3694,7 +3694,8 @@ let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 // v93: lightweight Level 3 driving range interaction state.
 let golfRangeGolfers=[],golfRangeBalls=[],golfRangeDispenser=null;
-let golfCourseGolfer=null,golfCourseSpectator=null;
+let golfCourseGolfer=null;
+let golfCourseSpectator=null;
 let golfRangeTime=0;
 const GOLF_RANGE_RECT={xMin:92,xMax:172,zMin:-38,zMax:38};
 const golfRangeMachineHitAudio=new Audio('./shed.mp3');
@@ -6232,35 +6233,254 @@ function buildGolfCourseSpectator(){
     const hitter=golfCourseGolfer;
     if(!hitter)return;
 
-    // Stand beside the hitter, facing toward them / the shot line.
     const sx=hitter.standPos.x-3.0;
     const sz=hitter.standPos.z+2.2;
-    const s=buildGolfRangeGolfer(
-        sx,sz,
-        {shirt:0x8acb62,pants:0xb5262d,accent:0x292929,hair:0x202020},
-        11,false,true,0,['f1.mp3','f2.mp3']
+
+    const root=new THREE.Group();
+    root.position.set(sx,0,sz);
+    scene.add(root);
+
+    const skin=golfRangeMat(0xf1d09a,.76);
+    const green=golfRangeMat(0x75d98e,.78);
+    const check=golfRangeMat(0xe6f0cf,.82);
+    const red=golfRangeMat(0xb92730,.8);
+    const dark=golfRangeMat(0x252525,.82);
+    const metal=new THREE.MeshStandardMaterial({color:0x8f979d,metalness:.55,roughness:.34});
+
+    const addBox=(parent,w,h,d,mat,x=0,y=0,z=0)=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+        m.position.set(x,y,z);
+        m.castShadow=false;
+        m.receiveShadow=true;
+        parent.add(m);
+        return m;
+    };
+    const addCylinder=(parent,w,h,d,mat,x=0,y=0,z=0)=>{
+        const radius=(w+d)*.25;
+        const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,h,10),mat);
+        m.position.set(x,y,z);
+        m.castShadow=false;
+        m.receiveShadow=true;
+        parent.add(m);
+        return m;
+    };
+
+    const leftLeg=new THREE.Group();
+    leftLeg.position.set(-.47,1.43,0);
+    root.add(leftLeg);
+    addCylinder(leftLeg,.46,2.55,.55,red);
+    addBox(leftLeg,.64,.30,1,dark,0,-1.42,.22);
+
+    const rightLeg=new THREE.Group();
+    rightLeg.position.set(.47,1.43,0);
+    root.add(rightLeg);
+    addCylinder(rightLeg,.46,2.55,.55,red);
+    addBox(rightLeg,.64,.30,1,dark,0,-1.42,.22);
+
+    const torsoPivot=new THREE.Group();
+    torsoPivot.position.set(0,3.58,0);
+    root.add(torsoPivot);
+    addBox(torsoPivot,1.65,2.25,.75,green);
+
+    const cols=4,rows=5;
+    const cw=1.48/cols,ch=2.02/rows;
+    for(let row=0;row<rows;row++){
+        for(let col=0;col<cols;col++){
+            const sq=new THREE.Mesh(
+                new THREE.PlaneGeometry(cw*.96,ch*.96),
+                ((row+col)%2===0)?green:check
+            );
+            sq.position.set(
+                -1.48/2+cw*(col+.5),
+                -2.02/2+ch*(row+.5),
+                .381
+            );
+            sq.castShadow=false;
+            torsoPivot.add(sq);
+        }
+    }
+
+    const headPivot=new THREE.Group();
+    headPivot.position.set(0,1.75,0);
+    torsoPivot.add(headPivot);
+
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.58,14,10),skin);
+    head.scale.y=1.08;
+    head.castShadow=false;
+    headPivot.add(head);
+
+    const hairTop=new THREE.Mesh(
+        new THREE.SphereGeometry(.64,14,10,0,Math.PI*2,0,Math.PI*.58),
+        dark
     );
-    s.isCourseSpectator=true;
-    s.soundCooldownMs=3000;
+    hairTop.position.y=.17;
+    headPivot.add(hairTop);
 
-    // Face the golfer who is taking the shot.
-    const dx=hitter.standPos.x-sx,dz=hitter.standPos.z-sz;
-    s.root.rotation.y=Math.atan2(dx,dz);
-    s.standRotY=s.root.rotation.y;
-    s.standPos.copy(s.root.position);
+    const hairSideGeo=new THREE.CapsuleGeometry(.16,.62,5,8);
+    const hairLeft=new THREE.Mesh(hairSideGeo,dark);
+    hairLeft.position.set(-.52,-.28,-.03);
+    hairLeft.rotation.z=.10;
+    headPivot.add(hairLeft);
 
-    // Static idle/watch pose inspired by the supplied reference:
-    // upright torso, left arm hanging, right arm angled forward/down.
-    s.torso.rotation.set(0,0,0);
-    s.leftShoulder.rotation.set(0,0,.08);
-    s.leftElbow.rotation.set(0,0,.05);
-    s.rightShoulder.rotation.set(-.18,0,-.58);
-    s.rightElbow.rotation.set(0,0,.72);
-    s.club.visible=false;
-    s.addressBall.visible=false;
+    const hairRight=hairLeft.clone();
+    hairRight.position.x=.52;
+    hairRight.rotation.z=-.10;
+    headPivot.add(hairRight);
 
-    golfCourseSpectator=s;
+    addBox(headPivot,.92,.62,.22,dark,0,-.34,-.47);
+
+    const glassesMat=new THREE.MeshStandardMaterial({
+        color:0x252525,
+        roughness:.55,
+        metalness:.12
+    });
+    [-.23,.23].forEach(x=>{
+        const ring=new THREE.Mesh(
+            new THREE.TorusGeometry(.20,.025,6,18),
+            glassesMat
+        );
+        ring.position.set(x,.02,.565);
+        headPivot.add(ring);
+    });
+    addBox(headPivot,.14,.035,.03,glassesMat,0,.02,.565);
+
+    const leftShoulder=new THREE.Group();
+    leftShoulder.position.set(-1.02,.72,0);
+    torsoPivot.add(leftShoulder);
+    addCylinder(leftShoulder,.45,1.35,.48,green,0,-.62,0);
+
+    const leftLower=new THREE.Group();
+    leftLower.position.set(0,-1.22,0);
+    leftShoulder.add(leftLower);
+    addCylinder(leftLower,.39,1.15,.43,skin,0,-.52,0);
+
+    leftShoulder.rotation.z=-.28;
+    leftShoulder.rotation.x=.12;
+    leftLower.rotation.z=-.10;
+
+    const rightShoulder=new THREE.Group();
+    rightShoulder.position.set(1.02,.72,0);
+    torsoPivot.add(rightShoulder);
+    addCylinder(rightShoulder,.46,2.25,.48,green,0,-1.02,0);
+    addCylinder(rightShoulder,.38,.58,.42,skin,0,-2.22,0);
+    rightShoulder.rotation.z=1.40;
+
+    const club=new THREE.Group();
+    torsoPivot.add(club);
+    club.position.set(3.40,.30,0);
+
+    const shaft=new THREE.Mesh(
+        new THREE.CylinderGeometry(.035,.035,3.85,6),
+        metal
+    );
+    shaft.position.y=-1.88;
+    shaft.castShadow=false;
+    club.add(shaft);
+
+    const clubHead=new THREE.Mesh(
+        new THREE.BoxGeometry(.48,.18,.34),
+        dark
+    );
+    clubHead.position.set(.16,-3.80,0);
+    clubHead.castShadow=false;
+    club.add(clubHead);
+
+    const greenX=(256/512-.5)*193.2;
+    const greenZ=(100/512-.5)*193.2;
+    const dx=greenX-root.position.x;
+    const dz=greenZ-root.position.z;
+    root.rotation.y=Math.atan2(dx,dz)+Math.PI/2;
+
+    const sounds=['f1.mp3','f2.mp3'].map(file=>{
+        const a=new Audio(`./${file}`);
+        a.preload='none';
+        return a;
+    });
+
+    golfCourseSpectator={
+        root,
+        standPos:root.position.clone(),
+        standRotY:root.rotation.y,
+        knocked:false,
+        knockTime:0,
+        sounds,
+        soundIndex:0,
+        lastSound:-Infinity
+    };
 }
+
+function golfCourseSpectatorPlaySound(s){
+    const now=performance.now();
+    if(now-s.lastSound<3000)return;
+    s.lastSound=now;
+    if(!s.sounds.length||!settings.sfx)return;
+
+    const a=s.sounds[s.soundIndex];
+    s.soundIndex=(s.soundIndex+1)%s.sounds.length;
+    try{
+        a.currentTime=0;
+        const p=a.play();
+        if(p&&typeof p.catch==='function')p.catch(()=>{});
+    }catch(e){}
+}
+
+function golfCourseSpectatorKnock(){
+    const s=golfCourseSpectator;
+    if(!s||s.knocked)return;
+    s.knocked=true;
+    s.knockTime=0;
+    s.standPos.copy(s.root.position);
+    s.standRotY=s.root.rotation.y;
+    golfCourseSpectatorPlaySound(s);
+}
+
+function updateGolfCourseSpectator(dt){
+    const s=golfCourseSpectator;
+    if(!s||!s.knocked)return;
+
+    s.knockTime+=dt;
+
+    let angle;
+    if(s.knockTime<.35){
+        angle=THREE.MathUtils.lerp(
+            0,
+            -Math.PI/2,
+            golfRangeSmooth(s.knockTime/.35)
+        );
+    }else if(s.knockTime<2.35){
+        angle=-Math.PI/2;
+    }else{
+        angle=THREE.MathUtils.lerp(
+            -Math.PI/2,
+            0,
+            golfRangeSmooth((s.knockTime-2.35)/.65)
+        );
+    }
+
+    const standQ=new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0,1,0),
+        s.standRotY
+    );
+    const fallQ=new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(1,0,0),
+        angle
+    );
+
+    s.root.position.copy(s.standPos);
+    s.root.quaternion.copy(standQ).multiply(fallQ);
+
+    if(Math.abs(angle)>.05){
+        s.root.position.y=Math.sin(Math.abs(angle))*.22;
+    }
+
+    if(s.knockTime>=3){
+        s.knocked=false;
+        s.knockTime=0;
+        s.root.position.copy(s.standPos);
+        s.root.rotation.set(0,s.standRotY,0);
+    }
+}
+
 
 function buildGolfCourseGolfer(){
     // Deliberately re-use the proven driving-range golfer builder.
@@ -6268,10 +6488,9 @@ function buildGolfCourseGolfer(){
     const g=buildGolfRangeGolfer(
         -38,-18,
         {shirt:0x1f7a5a,pants:0xd8d0b8,accent:0x8b1e3f,hair:0x3a2418},
-        9,true,false,2.6,['e1.mp3','e2.mp3']
+        9,true,false,2.6,['e1.mp3','e2.mp3','e3.mp3']
     );
     g.soundCooldownMs=3000;
-    g.root.scale.setScalar(1.30);
 
     // Aim the golfer toward the known green centre.
     const greenX=(256/512-.5)*193.2;
@@ -6324,8 +6543,6 @@ function buildGolfDrivingRange(){
     ];
     golfRangeGolfers.forEach(g=>{
         g.root.scale.setScalar(1.35);
-        g.root.rotation.y-=Math.PI/2;
-        g.standRotY=g.root.rotation.y;
         buildGolfRangeBucket(121.5,g.root.position.z);
     });
 
@@ -6340,6 +6557,7 @@ function updateGolfDrivingRange(dt){
 
     golfRangeUpdateBalls(dt);
     golfRangeUpdateDispenser(dt);
+    updateGolfCourseSpectator(dt);
 
     for(const g of golfRangeGolfers){
         if(golfRangeUpdateKnocked(g,dt))continue;
@@ -6384,11 +6602,6 @@ function updateGolfDrivingRange(dt){
         }
     }
 
-
-    if(golfCourseSpectator&&golfCourseSpectator.knocked){
-        golfRangeUpdateKnocked(golfCourseSpectator,dt);
-    }
-
     if(!mowerGroup)return;
     const mp=mowerGroup.position;
     const impact=new THREE.Vector3(Math.sin(mowerStats.rotation),0,Math.cos(mowerStats.rotation));
@@ -6400,11 +6613,11 @@ function updateGolfDrivingRange(dt){
     }
     if(golfCourseGolfer){
         const dx=mp.x-golfCourseGolfer.standPos.x,dz=mp.z-golfCourseGolfer.standPos.z;
-        if(dx*dx+dz*dz<2.55*2.55)golfRangeKnockGolfer(golfCourseGolfer,impact);
+        if(dx*dx+dz*dz<2.15*2.15)golfRangeKnockGolfer(golfCourseGolfer,impact);
     }
     if(golfCourseSpectator){
         const dx=mp.x-golfCourseSpectator.standPos.x,dz=mp.z-golfCourseSpectator.standPos.z;
-        if(dx*dx+dz*dz<2.15*2.15)golfRangeKnockGolfer(golfCourseSpectator,impact);
+        if(dx*dx+dz*dz<2.35*2.35)golfCourseSpectatorKnock();
     }
 
     // Destructible ball machine.
@@ -8597,7 +8810,7 @@ function buildConfirmedLevel(){
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
     animatedAnimals=[];trampolineKids=[];animatedLevel4Fire=[];stadiumOverlayMesh=null;
-    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfRangeTime=0;
+    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfRangeTime=0;
     level4HammockAudioInside=false;
     resetLevel4Wildlife();
     resetAmbientNightBats();
