@@ -5083,6 +5083,7 @@ function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8')
 
 
 let level1Neighbors=[];
+let level1PavedNeighbor=null;
 
 function refillLevel1NeighborSoundDeck(n){
     const deck=Array.from({length:n.audio.length},(_,i)=>i);
@@ -5200,8 +5201,6 @@ function updateLevel1Neighbors(dt){
 
 
 
-let level1PavedNeighbor=null;
-
 function buildLevel1PavedNeighbor(){
     const MAT={
         skin:new THREE.MeshStandardMaterial({color:0xe2ad88,roughness:.88}),
@@ -5286,60 +5285,103 @@ function buildLevel1PavedNeighbor(){
     root.scale.setScalar(1.22);
     scene.add(root);
 
-    const audio=['granne4a.mp3','granne4b.mp3','granne4c.mp3'].map(file=>{
-        const a=new Audio(`./${file}`);
-        a.preload='none';
-        return a;
-    });
-
     level1PavedNeighbor={
         root,
         fallen:false,
         fallenTime:0,
         hitRadius:4.0,
-        uprightRotationX:0,
-
-        // granne4 audio state. Reuses the exact same shuffled no-repeat
-        // deck logic as granne1-3.
-        audio,
-        soundDeck:[],
-        lastSoundIndex:-1,
-        inside:false,
-        timeOnLawn:0,
-        lawn:{xMin:50,xMax:150,zMin:74,zMax:174}
+        uprightRotationX:0
     };
-    refillLevel1NeighborSoundDeck(level1PavedNeighbor);
 }
+
+
+let level1Granne4Audio={
+    files:['granne4a.mp3','granne4b.mp3','granne4c.mp3'],
+    deck:[],
+    lastIndex:-1,
+    inside:false,
+    timeOnLot:0,
+    currentAudio:null
+};
+
+function refillLevel1Granne4Deck(){
+    const g=level1Granne4Audio;
+    const deck=Array.from({length:g.files.length},(_,i)=>i);
+
+    for(let i=deck.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+
+    // Do not allow the last clip of the previous cycle to become the
+    // first clip of the next cycle.
+    if(deck.length>1&&deck[0]===g.lastIndex){
+        const j=1+Math.floor(Math.random()*(deck.length-1));
+        [deck[0],deck[j]]=[deck[j],deck[0]];
+    }
+    g.deck=deck;
+}
+
+function playNextLevel1Granne4Sound(){
+    if(!settings.sfx)return;
+    const g=level1Granne4Audio;
+    if(!g.deck.length)refillLevel1Granne4Deck();
+
+    const index=g.deck.shift();
+    g.lastIndex=index;
+
+    try{
+        if(g.currentAudio){
+            g.currentAudio.pause();
+            g.currentAudio.currentTime=0;
+        }
+        const a=new Audio(`./${g.files[index]}`);
+        a.preload='auto';
+        g.currentAudio=a;
+        const p=a.play();
+        if(p&&typeof p.catch==='function')p.catch(()=>{});
+    }catch(e){}
+}
+
+function updateLevel1Granne4Audio(dt){
+    if(currentLevel!==1||!mowerGroup)return;
+
+    // North-east paved lot: directly beside granne3 and across from granne2.
+    const x=mowerGroup.position.x;
+    const z=mowerGroup.position.z;
+    const inside=(x>50&&x<150&&z>74&&z<174);
+    const g=level1Granne4Audio;
+
+    if(inside){
+        if(!g.inside){
+            g.inside=true;
+            g.timeOnLot=0;
+            playNextLevel1Granne4Sound();
+        }else{
+            g.timeOnLot+=dt;
+            if(g.timeOnLot>=10){
+                g.timeOnLot-=10;
+                playNextLevel1Granne4Sound();
+            }
+        }
+    }else if(g.inside){
+        g.inside=false;
+        g.timeOnLot=0;
+        if(g.currentAudio){
+            try{
+                g.currentAudio.pause();
+                g.currentAudio.currentTime=0;
+            }catch(e){}
+            g.currentAudio=null;
+        }
+    }
+}
+
 
 function updateLevel1PavedNeighbor(dt){
     if(currentLevel!==1||!level1PavedNeighbor||!mowerGroup)return;
 
     const n=level1PavedNeighbor;
-
-    // Audio behavior mirrors the other neighbors: one line immediately
-    // on entering the paved property, then another every 10 seconds while
-    // the mower remains there. Leaving resets only the timer; the shuffled
-    // deck itself is preserved so no clip repeats before the cycle is used.
-    const mx=mowerGroup.position.x;
-    const mz=mowerGroup.position.z;
-    const inside=pointInsideLevel1NeighborLawn(n,mx,mz);
-
-    if(inside){
-        if(!n.inside){
-            n.inside=true;
-            n.timeOnLawn=0;
-            playNextLevel1NeighborSound(n);
-        }else{
-            n.timeOnLawn+=dt;
-            if(n.timeOnLawn>=10){
-                n.timeOnLawn-=10;
-                playNextLevel1NeighborSound(n);
-            }
-        }
-    }else if(n.inside){
-        n.inside=false;
-        n.timeOnLawn=0;
-    }
 
     if(!n.fallen){
         const dx=mowerGroup.position.x-n.root.position.x;
@@ -9763,7 +9805,6 @@ function buildConfirmedLevel(){
     resetNightGhostForLevel();
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
     level1Neighbors=[];
-    level1PavedNeighbor=null;
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
     while(scene.children.length>0)scene.remove(scene.children[0]);
@@ -10100,6 +10141,7 @@ function animate(){
         updateLevel4HammockAudio();
         updateLevel1Neighbors(dt);
         updateLevel1PavedNeighbor(dt);
+        updateLevel1Granne4Audio(dt);
         updateGolfDrivingRange(dt);
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
