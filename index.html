@@ -5852,7 +5852,11 @@ function setupGolfLevel(){
 
     for(let i=0;i<60;i++){
         const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20;
-        spawnTree(Math.sin(a)*d,Math.cos(a)*d,0);
+        const tx=Math.sin(a)*d,tz=Math.cos(a)*d;
+        // Keep the driving-range footprint and its immediate margins tree-free.
+        const inRangeClearance=tx>GOLF_RANGE_RECT.xMin-8&&tx<GOLF_RANGE_RECT.xMax+8&&
+                               tz>GOLF_RANGE_RECT.zMin-6&&tz<GOLF_RANGE_RECT.zMax+6;
+        if(!inRangeClearance)spawnTree(tx,tz,0);
     }
     buildGolfDrivingRange();
     startGolfSfx();
@@ -6154,6 +6158,45 @@ function golfRangeUpdateDispenser(dt){
     });
 }
 
+function buildGolfRangeSideFence(z){
+    const g=new THREE.Group();
+    const postMat=golfRangeMat(0x76552c,.9),railMat=golfRangeMat(0x8c6b3f,.88);
+    const x0=99,x1=171,len=x1-x0;
+    [1.05,2.05].forEach(y=>{
+        golfRangeMesh(g,new THREE.BoxGeometry(len,.12,.12),railMat,(x0+x1)/2,y,z);
+    });
+    for(let x=x0;x<=x1;x+=7.2){
+        golfRangeMesh(g,new THREE.CylinderGeometry(.13,.16,2.45,6),postMat,x,1.22,z);
+    }
+    scene.add(g);
+}
+function buildGolfRangeSign(x,z){
+    const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+    const wood=golfRangeMat(0x6e4c2c,.86);
+    golfRangeMesh(g,new THREE.BoxGeometry(.16,2.6,.16),wood,-1.55,1.3,0);
+    golfRangeMesh(g,new THREE.BoxGeometry(.16,2.6,.16),wood, 1.55,1.3,0);
+
+    const cv=document.createElement('canvas');cv.width=768;cv.height=220;
+    const c=cv.getContext('2d');
+    c.fillStyle='#efe1b8';c.fillRect(0,0,768,220);
+    c.strokeStyle='#51351e';c.lineWidth=16;c.strokeRect(8,8,752,204);
+    c.fillStyle='#244321';c.font='bold 88px Arial,sans-serif';
+    c.textAlign='center';c.textBaseline='middle';c.fillText('Driving range',384,116);
+    const tx=new THREE.CanvasTexture(cv);tx.colorSpace=THREE.SRGBColorSpace;
+    const mat=new THREE.MeshBasicMaterial({map:tx,side:THREE.DoubleSide});
+    const sign=golfRangeMesh(g,new THREE.PlaneGeometry(3.7,1.06),mat,0,2.45,0);
+    // Face roughly toward the original course / approaching mower.
+    sign.rotation.y=-Math.PI/2;
+}
+function buildGolfRangePath(){
+    // Small pale gravel path from the old course into the hitting area.
+    const mat=new THREE.MeshStandardMaterial({color:0xb9aa88,roughness:1});
+    const path=new THREE.Mesh(new THREE.PlaneGeometry(23,3.1),mat);
+    path.rotation.x=-Math.PI/2;
+    path.position.set(105,.041,18);
+    path.receiveShadow=true;scene.add(path);
+}
+
 function buildGolfDrivingRange(){
     golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfRangeTime=0;
 
@@ -6165,6 +6208,13 @@ function buildGolfDrivingRange(){
     pad.rotation.x=-Math.PI/2;
     pad.position.set((GOLF_RANGE_RECT.xMin+GOLF_RANGE_RECT.xMax)/2,.012,0);
     pad.receiveShadow=true;scene.add(pad);
+
+    // Open toward the original course, but fenced along both long sides,
+    // parallel to the eastward ball-flight direction.
+    buildGolfRangeSideFence(-19);
+    buildGolfRangeSideFence(19);
+    buildGolfRangePath();
+    buildGolfRangeSign(103,-24);
 
     // Six bays, 20% wider than the first prototype.
     const bayZ=[-12,-7.2,-2.4,2.4,7.2,12];
@@ -6185,8 +6235,9 @@ function buildGolfDrivingRange(){
     ];
     golfRangeGolfers.forEach(g=>buildGolfRangeBucket(121.5,g.root.position.z));
 
-    // Slightly farther behind the line of golfers than in the standalone test.
-    golfRangeDispenser=buildGolfRangeDispenser(108,24);
+    // Larger and farther from the golfer line.
+    golfRangeDispenser=buildGolfRangeDispenser(104,27);
+    golfRangeDispenser.group.scale.setScalar(1.4);
 }
 
 function updateGolfDrivingRange(dt){
@@ -6226,11 +6277,13 @@ function updateGolfDrivingRange(dt){
     // Destructible ball machine.
     if(golfRangeDispenser&&!golfRangeDispenser.broken){
         const dx=mp.x-golfRangeDispenser.group.position.x,dz=mp.z-golfRangeDispenser.group.position.z;
-        if(dx*dx+dz*dz<3.0*3.0)golfRangeBreakDispenser(impact);
+        if(dx*dx+dz*dz<4.2*4.2)golfRangeBreakDispenser(impact);
     }
 }
 
-function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMaterial({color:0x8b6914}),wireMat=new THREE.MeshStandardMaterial({color:0x666655});[{x:0,z:-half,len:size,ry:0},{x:0,z:half,len:size,ry:0},{x:-half,z:0,len:size,ry:Math.PI/2},{x:half,z:0,len:size,ry:Math.PI/2}].forEach(({x,z,len,ry})=>{const sg=new THREE.Group();[1.5,3.0].forEach(hy=>{const r=new THREE.Mesh(new THREE.BoxGeometry(len,0.15,0.15),wireMat);r.position.set(0,hy,0);sg.add(r);});for(let i=-len/2;i<=len/2;i+=8){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,3.5,6),postMat);p.position.set(i,1.75,0);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);});}
+function buildGolfFence(size){const half=size/2,postMat=new THREE.MeshStandardMaterial({color:0x8b6914}),wireMat=new THREE.MeshStandardMaterial({color:0x666655});
+    // East (+X) side intentionally left open for the driving-range extension.
+    [{x:0,z:-half,len:size,ry:0},{x:0,z:half,len:size,ry:0},{x:-half,z:0,len:size,ry:Math.PI/2}].forEach(({x,z,len,ry})=>{const sg=new THREE.Group();[1.5,3.0].forEach(hy=>{const r=new THREE.Mesh(new THREE.BoxGeometry(len,0.15,0.15),wireMat);r.position.set(0,hy,0);sg.add(r);});for(let i=-len/2;i<=len/2;i+=8){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,3.5,6),postMat);p.position.set(i,1.75,0);sg.add(p);}sg.position.set(x,0,z);sg.rotation.y=ry;scene.add(sg);});}
 function buildGolfSurroundings(){
     const hillMat=new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1});
     const snowMat=new THREE.MeshStandardMaterial({color:0x8aaa8a,roughness:1});
@@ -6686,7 +6739,7 @@ let level4TrampolineAudioLastPlay=-Infinity;
 // bird1.mp3 ... bird21.mp3, then wraps back to bird1. Five-second sound cooldown.
 const LEVEL4_HAMMOCK_MAP_POS={x:1176,y:423};
 const LEVEL4_HAMMOCK_AUDIO_RADIUS=LEVEL4_TRAMPOLINE_AUDIO_RADIUS;
-const LEVEL4_HAMMOCK_AUDIO_COOLDOWN_MS=5000;
+const LEVEL4_HAMMOCK_AUDIO_COOLDOWN_MS=2500;
 const level4HammockBirdAudio=Array.from({length:21},(_,i)=>{
     const a=new Audio(`./bird${i+1}.mp3`);
     a.preload='none';
