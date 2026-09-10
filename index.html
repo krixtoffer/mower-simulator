@@ -3696,6 +3696,7 @@ let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=n
 let golfRangeGolfers=[],golfRangeBalls=[],golfRangeDispenser=null;
 let golfCourseGolfer=null;
 let golfCourseSpectator=null;
+let golfBags=[];
 let golfRangeTime=0;
 const GOLF_RANGE_RECT={xMin:92,xMax:172,zMin:-38,zMax:38};
 const golfRangeMachineHitAudio=new Audio('./shed.mp3');
@@ -5879,6 +5880,45 @@ function setupGolfLevel(){
     buildGolfDrivingRange();
     buildGolfCourseGolfer();
     buildGolfCourseSpectator();
+
+    // Course player bag: behind the direction of the shot toward the green.
+    if(golfCourseGolfer){
+        placeGolfBagBehindPlayer(
+            golfCourseGolfer,
+            0x2f6f52,
+            0xd8c16b,
+            3.7,
+            -1.5,
+            .70
+        );
+    }
+
+    // Spectator gets her own differently coloured bag. She is observing
+    // the same shot line, so keep this bag behind that direction as well.
+    if(golfCourseSpectator){
+        const greenX=(256/512-.5)*193.2;
+        const greenZ=(100/512-.5)*193.2;
+        const shotDir=new THREE.Vector3(
+            greenX-golfCourseGolfer.root.position.x,
+            0,
+            greenZ-golfCourseGolfer.root.position.z
+        ).normalize();
+
+        const pseudoPlayer={
+            root:golfCourseSpectator.root,
+            isCourseGolfer:false
+        };
+        placeGolfBagBehindPlayer(
+            pseudoPlayer,
+            0x9a6e45,
+            0xd9d9d9,
+            3.0,
+            1.15,
+            .58,
+            shotDir
+        );
+    }
+
     startGolfSfx();
 }
 
@@ -5908,6 +5948,189 @@ function golfRangeSmooth(x){
     x=THREE.MathUtils.clamp(x,0,1);
     return x*x*x*(x*(x*6-15)+10);
 }
+
+
+function buildGolfBag(x,z,bodyColor,trimColor,scale=.72){
+    const group=new THREE.Group();
+    group.position.set(x,0,z);
+    group.scale.setScalar(scale);
+    scene.add(group);
+
+    const bodyMat=golfRangeMat(bodyColor,.78);
+    const trimMat=golfRangeMat(trimColor,.72);
+    const darkMat=golfRangeMat(0x252525,.8);
+    const metalMat=new THREE.MeshStandardMaterial({
+        color:0xb9c0c5,metalness:.62,roughness:.32
+    });
+    const headMats=[
+        new THREE.MeshStandardMaterial({color:0x555b60,metalness:.5,roughness:.34}),
+        new THREE.MeshStandardMaterial({color:0x787e82,metalness:.5,roughness:.32}),
+        new THREE.MeshStandardMaterial({color:0x454a4e,metalness:.45,roughness:.36})
+    ];
+
+    const body=new THREE.Mesh(
+        new THREE.CylinderGeometry(1.02,.82,3.75,18),
+        bodyMat
+    );
+    body.position.y=2.0;
+    body.castShadow=false;
+    body.receiveShadow=true;
+    group.add(body);
+
+    const rim=new THREE.Mesh(
+        new THREE.TorusGeometry(1.02,.11,8,24),
+        trimMat
+    );
+    rim.rotation.x=Math.PI/2;
+    rim.position.y=3.88;
+    group.add(rim);
+
+    const opening=new THREE.Mesh(
+        new THREE.CircleGeometry(.91,20),
+        darkMat
+    );
+    opening.rotation.x=-Math.PI/2;
+    opening.position.y=3.885;
+    group.add(opening);
+
+    // Approved standalone handle: vertical ring, width ~= bag diameter,
+    // height ~= 85% of width, rotated 90 degrees.
+    const handle=new THREE.Mesh(
+        new THREE.TorusGeometry(1.0,.13,8,28),
+        trimMat
+    );
+    handle.scale.set(1.02,.865,1.0);
+    handle.rotation.set(0,0,0);
+    handle.position.set(1.02,2.35,0);
+    group.add(handle);
+
+    const lowerBand=new THREE.Mesh(
+        new THREE.TorusGeometry(.84,.09,8,22),
+        trimMat
+    );
+    lowerBand.rotation.x=Math.PI/2;
+    lowerBand.position.y=.30;
+    group.add(lowerBand);
+
+    // Five shorter/thinner clubs from standalone v4.
+    const clubData=[
+        {x:-.50,z:.05,h:2.56,lean:-.08,head:[.52,.22,.28]},
+        {x:-.25,z:-.22,h:2.84,lean:-.04,head:[.44,.20,.34]},
+        {x: .02,z:.18,h:3.08,lean: .00,head:[.62,.22,.25]},
+        {x: .28,z:-.10,h:2.72,lean: .05,head:[.48,.25,.31]},
+        {x: .50,z:.16,h:2.944,lean: .09,head:[.56,.21,.29]}
+    ];
+
+    clubData.forEach((c,i)=>{
+        const club=new THREE.Group();
+        club.position.set(c.x,3.55,c.z);
+        club.rotation.z=c.lean;
+        group.add(club);
+
+        const shaft=new THREE.Mesh(
+            new THREE.CylinderGeometry(.02975,.02975,c.h,7),
+            metalMat
+        );
+        shaft.position.y=c.h/2;
+        shaft.castShadow=false;
+        club.add(shaft);
+
+        const head=new THREE.Mesh(
+            new THREE.BoxGeometry(c.head[0],c.head[1],c.head[2]),
+            headMats[i%headMats.length]
+        );
+        head.position.set(.13,c.h+.04,0);
+        head.rotation.z=(i-2)*.10;
+        head.castShadow=false;
+        club.add(head);
+    });
+
+    const bag={
+        group,
+        standPos:group.position.clone(),
+        standRotY:group.rotation.y,
+        knocked:false,
+        knockTime:0,
+        fallAxis:new THREE.Vector3(1,0,0)
+    };
+    golfBags.push(bag);
+    return bag;
+}
+
+function placeGolfBagBehindPlayer(player,bodyColor,trimColor,distance=3.2,sideOffset=1.25,scale=.72,shotDir=null){
+    if(!player||!player.root)return null;
+
+    let dir;
+    if(shotDir){
+        dir=shotDir.clone();
+    }else if(player.isCourseGolfer){
+        const greenX=(256/512-.5)*193.2;
+        const greenZ=(100/512-.5)*193.2;
+        dir=new THREE.Vector3(
+            greenX-player.root.position.x,
+            0,
+            greenZ-player.root.position.z
+        );
+    }else{
+        // Driving range shots travel east (+X).
+        dir=new THREE.Vector3(1,0,0);
+    }
+
+    dir.y=0;
+    if(dir.lengthSq()<.001)dir.set(1,0,0);
+    dir.normalize();
+
+    // Perpendicular keeps the bag slightly to one side, but always behind
+    // the player relative to the shot direction.
+    const side=new THREE.Vector3(-dir.z,0,dir.x);
+    const pos=player.root.position.clone()
+        .addScaledVector(dir,-distance)
+        .addScaledVector(side,sideOffset);
+
+    const bag=buildGolfBag(pos.x,pos.z,bodyColor,trimColor,scale);
+    bag.group.rotation.y=Math.atan2(dir.x,dir.z);
+    bag.standRotY=bag.group.rotation.y;
+    bag.standPos.copy(bag.group.position);
+    return bag;
+}
+
+function knockGolfBag(bag,impactDir){
+    if(!bag||bag.knocked)return;
+    bag.knocked=true;
+    bag.knockTime=0;
+    bag.standPos.copy(bag.group.position);
+    bag.standRotY=bag.group.rotation.y;
+
+    const d=impactDir.clone();
+    d.y=0;
+    if(d.lengthSq()<.001)d.set(1,0,0);
+    d.normalize();
+    bag.fallAxis.set(d.z,0,-d.x).normalize();
+}
+
+function updateGolfBags(dt){
+    for(const bag of golfBags){
+        if(!bag.knocked)continue;
+
+        bag.knockTime+=dt;
+        const q=golfRangeSmooth(Math.min(bag.knockTime/.38,1));
+        const angle=q*Math.PI/2;
+
+        const fallQ=new THREE.Quaternion().setFromAxisAngle(bag.fallAxis,angle);
+        const standQ=new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0,1,0),
+            bag.standRotY
+        );
+
+        bag.group.position.copy(bag.standPos);
+        bag.group.quaternion.copy(fallQ).multiply(standQ);
+
+        // Small lift during the fall keeps the lower rim from tunnelling.
+        bag.group.position.y=Math.sin(angle)*.10;
+        // Bags intentionally remain down once knocked over.
+    }
+}
+
 
 function buildGolfRangeGolfer(x,z,outfit,pause,longHair=false,hasCap=true,phase=0,sounds=[]){
     const root=new THREE.Group();
@@ -6514,7 +6737,7 @@ function buildGolfCourseGolfer(){
 }
 
 function buildGolfDrivingRange(){
-    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfRangeTime=0;
+    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfBags=[];golfRangeTime=0;
 
     // Grass extension joins the east edge of the existing course.
     const pad=new THREE.Mesh(
@@ -6554,6 +6777,27 @@ function buildGolfDrivingRange(){
         buildGolfRangeBucket(121.5,g.root.position.z);
     });
 
+    // One individual bag per occupied bay, positioned behind the golfer
+    // relative to the eastward (+X) shot direction.
+    const rangeBagColors=[
+        [0xb3262e,0xf1d65c],
+        [0x245a9b,0xe6e8e9],
+        [0x6b3b86,0xe5c45a],
+        [0xd36a2d,0x1d5c43]
+    ];
+    golfRangeGolfers.forEach((g,i)=>{
+        const side=(i%2===0)?1.30:-1.30;
+        placeGolfBagBehindPlayer(
+            g,
+            rangeBagColors[i][0],
+            rangeBagColors[i][1],
+            3.25,
+            side,
+            .72,
+            new THREE.Vector3(1,0,0)
+        );
+    });
+
     // Larger and farther from the golfer line.
     golfRangeDispenser=buildGolfRangeDispenser(104,27);
     golfRangeDispenser.group.scale.setScalar(1.4);
@@ -6566,6 +6810,7 @@ function updateGolfDrivingRange(dt){
     golfRangeUpdateBalls(dt);
     golfRangeUpdateDispenser(dt);
     updateGolfCourseSpectator(dt);
+    updateGolfBags(dt);
 
     for(const g of golfRangeGolfers){
         if(golfRangeUpdateKnocked(g,dt))continue;
@@ -6626,6 +6871,14 @@ function updateGolfDrivingRange(dt){
     if(golfCourseSpectator){
         const dx=mp.x-golfCourseSpectator.standPos.x,dz=mp.z-golfCourseSpectator.standPos.z;
         if(dx*dx+dz*dz<2.35*2.35)golfCourseSpectatorKnock();
+    }
+
+    // Knockable golf bags. They stay down once hit.
+    for(const bag of golfBags){
+        if(bag.knocked)continue;
+        const dx=mp.x-bag.standPos.x,dz=mp.z-bag.standPos.z;
+        const hitRadius=1.55*bag.group.scale.x;
+        if(dx*dx+dz*dz<hitRadius*hitRadius)knockGolfBag(bag,impact);
     }
 
     // Destructible ball machine.
@@ -8818,7 +9071,7 @@ function buildConfirmedLevel(){
     animatedCars=[];animatedCrowdArms=[];animatedPlayers=[];animatedClouds=[];
     animatedFlag=null;animatedPond=null;pondCollider=null;bunkerZones=[];
     animatedAnimals=[];trampolineKids=[];animatedLevel4Fire=[];stadiumOverlayMesh=null;
-    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfRangeTime=0;
+    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseSpectator=null;golfBags=[];golfRangeTime=0;
     level4HammockAudioInside=false;
     resetLevel4Wildlife();
     resetAmbientNightBats();
