@@ -9547,6 +9547,62 @@ function level4HouseClusterDriveOverride(x,z){
     return true;
 }
 
+
+// Bana 1 neighborhood roaming. The central 100x100 lawn remains the only
+// mowable/scored surface, but the mower may leave through actual driveway
+// openings, use the street, and enter the displayed neighboring gardens.
+function level1NeighborhoodCanMove(nx,nz){
+    const r=mowerStats.radius;
+    const minX=-250+r,maxX=250-r;
+    const southRear=-50+r,northRear=174-r;
+
+    // Keep roaming inside the neighborhood that is actually built/visible.
+    if(nx<minX||nx>maxX||nz<southRear||nz>northRear)return false;
+
+    const boundaryXs=[-250,-150,-50,50,150,250];
+    const southStreetZ=50;
+    const northStreetZ=74;
+    const fencePad=Math.max(1.1,r*.72);
+
+    // Continuous side fences inside the south and north garden rows.
+    // The street itself is deliberately unobstructed between z=50..74.
+    for(const fx of boundaryXs){
+        if(Math.abs(nx-fx)<=fencePad){
+            if(nz<=southStreetZ+fencePad || nz>=northStreetZ-fencePad)return false;
+        }
+    }
+
+    // Street-facing fences have a centered 30-unit driveway opening per lot.
+    // Collision is applied only to the solid fence portions, so the mower must
+    // actually use one of the visible openings to enter/leave a garden.
+    const lotCenters=[-200,-100,0,100,200];
+    const halfOpening=15;
+    const onSouthFence=Math.abs(nz-southStreetZ)<=fencePad;
+    const onNorthFence=Math.abs(nz-northStreetZ)<=fencePad;
+    if(onSouthFence||onNorthFence){
+        let inOpening=false;
+        for(const cx of lotCenters){
+            if(Math.abs(nx-cx)<halfOpening-r*.18){inOpening=true;break;}
+        }
+        if(!inOpening)return false;
+    }
+
+    // Approximate the visible GLB house footprints for all displayed lots.
+    // South houses occupy the rear half; north houses mirror them.
+    for(const cx of lotCenters){
+        if(nx>cx-32-r*.25&&nx<cx+32+r*.25){
+            if(nz<-5+r*.10)return false;          // south-row houses
+            if(nz>129-r*.10)return false;         // north-row houses
+        }
+    }
+
+    return true;
+}
+
+function level1InsidePlayableLawn(x,z){
+    return x>=-50&&x<=50&&z>=-50&&z<=50;
+}
+
 function canMoveTo(nx,nz){
     if(currentLevel===5){
         const bx=GALLERY_HALF_W-mowerStats.radius-1.0;
@@ -9560,13 +9616,12 @@ function canMoveTo(nx,nz){
         nx<GOLF_RANGE_RECT.xMax-mowerStats.radius &&
         nz>GOLF_RANGE_RECT.zMin+mowerStats.radius &&
         nz<GOLF_RANGE_RECT.zMax-mowerStats.radius;
-    if(!inGolfRange&&(nx<-b||nx>b||nz<-b||nz>b))return false;
 
-    if(
-        currentLevel===1 &&
-        nx>VILLA1_HOUSE_BLOCK.xMin&&nx<VILLA1_HOUSE_BLOCK.xMax &&
-        nz>VILLA1_HOUSE_BLOCK.zMin&&nz<VILLA1_HOUSE_BLOCK.zMax
-    )return false;
+    if(currentLevel===1){
+        if(!level1NeighborhoodCanMove(nx,nz))return false;
+    }else if(!inGolfRange&&(nx<-b||nx>b||nz<-b||nz>b)){
+        return false;
+    }
 
     if(currentLevel===3&&!inGolfRange&&pondCollider){
         const ex=(nx-pondCollider.cx)/pondCollider.rx;
@@ -9668,6 +9723,15 @@ function updateMowerPhysics(dt=1/60){
 }
 function paintCutTrail(){
     if(!lawnContext||!mowerGroup)return;
+
+    // Bana 1: neighboring gardens and the street are roam-only. Never write
+    // mowing pixels outside the original central 100x100 lawn, and reset the
+    // stroke anchor while outside so re-entering cannot draw a line across it.
+    if(currentLevel===1&&!level1InsidePlayableLawn(mowerGroup.position.x,mowerGroup.position.z)){
+        lawnCanvas.lastPaintedX=null;
+        lawnCanvas.lastPaintedY=null;
+        return;
+    }
 
     const uvX=currentLevel===4
         ?(mowerGroup.position.x+LEVEL4_WORLD_W/2)/LEVEL4_WORLD_W
