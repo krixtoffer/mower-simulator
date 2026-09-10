@@ -5083,7 +5083,6 @@ function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8')
 
 
 let level1Neighbors=[];
-    level1PavedNeighbor=null;
 
 function refillLevel1NeighborSoundDeck(n){
     const deck=Array.from({length:n.audio.length},(_,i)=>i);
@@ -9764,6 +9763,7 @@ function buildConfirmedLevel(){
     resetNightGhostForLevel();
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
     level1Neighbors=[];
+    level1PavedNeighbor=null;
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
     while(scene.children.length>0)scene.remove(scene.children[0]);
