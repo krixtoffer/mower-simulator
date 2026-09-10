@@ -5080,6 +5080,254 @@ function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8')
     return null;
 }
 
+
+function buildLevel1NeighborCharacters(){
+    function mat(color,roughness=.9){
+        return new THREE.MeshStandardMaterial({color,roughness});
+    }
+    function mesh(parent,geometry,material,x,y,z){
+        const m=new THREE.Mesh(geometry,material);
+        m.position.set(x,y,z);
+        m.castShadow=true;
+        m.receiveShadow=true;
+        parent.add(m);
+        return m;
+    }
+
+    // ---------------------------------------------------------
+    // granne1: old chubby man with balding grey hair, glasses,
+    // and thick moustache.
+    // ---------------------------------------------------------
+    function buildGranne1(){
+        const root=new THREE.Group();
+
+        const skin=mat(0xe4b08d,.88);
+        const shirt=mat(0x8e2f2f,.9);
+        const pants=mat(0x4b5663,.95);
+        const shoes=mat(0x30251f,.92);
+        const hair=mat(0xb9bcc0,.95);
+        const dark=mat(0x242424,.72);
+        const moustache=mat(0x777b7e,.96);
+
+        mesh(root,new THREE.BoxGeometry(.72,.38,1.05),shoes,-.48,.20,.18);
+        mesh(root,new THREE.BoxGeometry(.72,.38,1.05),shoes,.48,.20,.18);
+
+        const legGeo=new THREE.CylinderGeometry(.18,.20,1.72,10);
+        mesh(root,legGeo,pants,-.48,1.18,0);
+        mesh(root,legGeo,pants,.48,1.18,0);
+
+        const body=mesh(root,new THREE.SphereGeometry(1.45,20,14),shirt,0,3.05,0);
+        body.scale.set(1.08,1.20,.92);
+
+        mesh(root,new THREE.CylinderGeometry(.25,.28,.34,10),skin,0,4.46,0);
+
+        const head=mesh(root,new THREE.SphereGeometry(.92,20,14),skin,0,5.25,0);
+        head.scale.set(.97,1.04,.95);
+
+        const armGeo=new THREE.CylinderGeometry(.13,.16,1.82,8);
+        const la=mesh(root,armGeo,skin,-1.48,3.02,0); la.rotation.z=-.12;
+        const ra=mesh(root,armGeo,skin, 1.48,3.02,0); ra.rotation.z=.12;
+        mesh(root,new THREE.SphereGeometry(.23,10,8),skin,-1.58,2.06,0);
+        mesh(root,new THREE.SphereGeometry(.23,10,8),skin, 1.58,2.06,0);
+
+        const hairCap=new THREE.Mesh(
+            new THREE.SphereGeometry(.96,20,10,0,Math.PI*2,0,Math.PI*.43),
+            hair
+        );
+        hairCap.position.set(0,5.55,-.02);
+        hairCap.scale.set(1.01,.72,1.01);
+        hairCap.castShadow=true;
+        root.add(hairCap);
+
+        const templeGeo=new THREE.SphereGeometry(.20,10,7);
+        const lt=mesh(root,templeGeo,hair,-.82,5.34,-.02); lt.scale.set(.75,1.1,.75);
+        const rt=mesh(root,templeGeo,hair, .82,5.34,-.02); rt.scale.set(.75,1.1,.75);
+
+        const nose=mesh(root,new THREE.SphereGeometry(.13,10,7),skin,0,5.18,.87);
+        nose.scale.set(.8,.9,1.4);
+
+        const moustacheGeo=new THREE.CapsuleGeometry(.16,.42,4,8);
+        const ml=mesh(root,moustacheGeo,moustache,-.24,4.91,.86);
+        ml.rotation.z=Math.PI/2-.18; ml.scale.set(1.20,1.08,.72);
+        const mr=mesh(root,moustacheGeo,moustache,.24,4.91,.86);
+        mr.rotation.z=Math.PI/2+.18; mr.scale.set(1.20,1.08,.72);
+        const mc=mesh(root,new THREE.SphereGeometry(.19,10,7),moustache,0,4.96,.88);
+        mc.scale.set(1.25,.72,.62);
+
+        const rimGeo=new THREE.TorusGeometry(.27,.035,7,18);
+        mesh(root,rimGeo,dark,-.34,5.39,.82);
+        mesh(root,rimGeo,dark, .34,5.39,.82);
+        mesh(root,new THREE.BoxGeometry(.18,.045,.045),dark,0,5.39,.82);
+
+        const browGeo=new THREE.BoxGeometry(.28,.045,.05);
+        const lb=mesh(root,browGeo,dark,-.34,5.70,.80); lb.rotation.z=.08;
+        const rb=mesh(root,browGeo,dark, .34,5.70,.80); rb.rotation.z=-.08;
+
+        return root;
+    }
+
+    // ---------------------------------------------------------
+    // granne2: tall slender bald man, square patterned torso,
+    // beard, tiny black-dot eyes, and red lips.
+    // ---------------------------------------------------------
+    function buildGranne2(){
+        const root=new THREE.Group();
+
+        const skin=mat(0xe0ad8d,.88);
+        const shirt=mat(0x355a8a,.9);
+        const shirtAlt=mat(0xe5d18a,.9);
+        const pants=mat(0x5a3f72,.95);
+        const shoes=mat(0x252525,.92);
+        const beard=mat(0x5f5146,.98);
+        const eye=mat(0x050505,.8);
+        const lips=mat(0xb8142e,.7);
+
+        mesh(root,new THREE.BoxGeometry(.58,.30,.90),shoes,-.34,.16,.16);
+        mesh(root,new THREE.BoxGeometry(.58,.30,.90),shoes, .34,.16,.16);
+
+        const legGeo=new THREE.CylinderGeometry(.12,.14,2.35,8);
+        mesh(root,legGeo,pants,-.34,1.45,0);
+        mesh(root,legGeo,pants, .34,1.45,0);
+
+        mesh(root,new THREE.BoxGeometry(1.55,2.45,.88),shirt,0,3.75,0);
+
+        const bandGeo=new THREE.BoxGeometry(1.58,.18,.035);
+        for(let i=0;i<5;i++){
+            const b=mesh(root,bandGeo,shirtAlt,0,2.95+i*.42,.458);
+            b.castShadow=false;
+        }
+
+        const armGeo=new THREE.CylinderGeometry(.10,.12,2.25,8);
+        const la=mesh(root,armGeo,skin,-.94,3.72,0); la.rotation.z=-.08;
+        const ra=mesh(root,armGeo,skin, .94,3.72,0); ra.rotation.z=.08;
+        mesh(root,new THREE.SphereGeometry(.19,10,7),skin,-1.02,2.55,0);
+        mesh(root,new THREE.SphereGeometry(.19,10,7),skin, 1.02,2.55,0);
+
+        mesh(root,new THREE.CylinderGeometry(.19,.21,.42,10),skin,0,5.18,0);
+        const head=mesh(root,new THREE.SphereGeometry(.72,18,13),skin,0,5.95,0);
+        head.scale.set(.88,1.08,.90);
+
+        const beardMain=mesh(root,new THREE.SphereGeometry(.58,16,10),beard,0,5.62,.20);
+        beardMain.scale.set(.92,.82,.78);
+        const beardLower=mesh(root,new THREE.ConeGeometry(.40,.72,12),beard,0,5.20,.28);
+        beardLower.rotation.x=Math.PI;
+
+        mesh(root,new THREE.SphereGeometry(.055,8,6),eye,-.20,6.08,.65);
+        mesh(root,new THREE.SphereGeometry(.055,8,6),eye, .20,6.08,.65);
+
+        const nose=mesh(root,new THREE.SphereGeometry(.10,8,6),skin,0,5.91,.68);
+        nose.scale.set(.78,.92,1.30);
+
+        const ul=mesh(root,new THREE.CapsuleGeometry(.10,.34,4,8),lips,0,5.70,.74);
+        ul.rotation.z=Math.PI/2; ul.scale.set(1.15,.72,.62);
+        const ll=mesh(root,new THREE.CapsuleGeometry(.11,.38,4,8),lips,0,5.59,.75);
+        ll.rotation.z=Math.PI/2; ll.scale.set(1.18,.86,.68);
+
+        return root;
+    }
+
+    // ---------------------------------------------------------
+    // granne3: grey-haired woman with long hair and patterned
+    // truncated-cone pink dress.
+    // ---------------------------------------------------------
+    function buildGranne3(){
+        const root=new THREE.Group();
+
+        const skin=mat(0xe7b493,.88);
+        const dress=mat(0xd94f8a,.9);
+        const dressLight=mat(0xf4a6c8,.9);
+        const dressDark=mat(0xa92f68,.9);
+        const shoes=mat(0x7d2857,.92);
+        const hair=mat(0xb9bec3,.94);
+        const eye=mat(0x252525,.8);
+        const lips=mat(0xb92f57,.75);
+
+        mesh(root,new THREE.BoxGeometry(.55,.28,.85),shoes,-.34,.15,.16);
+        mesh(root,new THREE.BoxGeometry(.55,.28,.85),shoes, .34,.15,.16);
+
+        mesh(root,new THREE.CylinderGeometry(.68,1.55,3.35,20),dress,0,1.92,0);
+
+        const spotData=[
+            [-.48,2.95,.70,.18,0],[.35,2.72,.86,.13,1],
+            [-.16,2.40,1.08,.16,1],[.58,2.14,.99,.20,0],
+            [-.62,1.92,1.06,.14,1],[.08,1.68,1.31,.21,0],
+            [.72,1.34,1.10,.15,1],[-.78,1.18,1.05,.19,0],
+            [-.28,.88,1.30,.14,1],[.38,.72,1.35,.20,0]
+        ];
+        spotData.forEach(([x,y,z,s,alt])=>{
+            const sp=mesh(root,new THREE.CircleGeometry(s,12),alt?dressLight:dressDark,x,y,z);
+            sp.castShadow=false;
+        });
+
+        mesh(root,new THREE.BoxGeometry(1.18,1.12,.82),dressLight,0,3.67,0);
+
+        const diamondGeo=new THREE.PlaneGeometry(.22,.22);
+        [[-.28,3.86],[.28,3.86],[0,3.53]].forEach(([x,y],i)=>{
+            const d=mesh(root,diamondGeo,i===2?dressDark:dress,x,y,.421);
+            d.rotation.z=Math.PI/4;
+            d.castShadow=false;
+        });
+
+        const armGeo=new THREE.CylinderGeometry(.11,.14,1.95,8);
+        const la=mesh(root,armGeo,skin,-.82,3.70,0); la.rotation.z=-.13;
+        const ra=mesh(root,armGeo,skin, .82,3.70,0); ra.rotation.z=.13;
+        mesh(root,new THREE.SphereGeometry(.20,10,7),skin,-.94,2.68,0);
+        mesh(root,new THREE.SphereGeometry(.20,10,7),skin, .94,2.68,0);
+
+        mesh(root,new THREE.CylinderGeometry(.19,.21,.34,10),skin,0,4.30,0);
+        const head=mesh(root,new THREE.SphereGeometry(.72,18,13),skin,0,5.07,0);
+        head.scale.set(.94,1.05,.94);
+
+        const hairCap=new THREE.Mesh(
+            new THREE.SphereGeometry(.76,20,11,0,Math.PI*2,0,Math.PI*.58),
+            hair
+        );
+        hairCap.position.set(0,5.31,-.03);
+        hairCap.scale.set(1.03,.90,1.04);
+        hairCap.castShadow=true;
+        root.add(hairCap);
+
+        const lockGeo=new THREE.CapsuleGeometry(.20,1.48,5,8);
+        const leftLock=mesh(root,lockGeo,hair,-.66,4.42,-.04); leftLock.rotation.z=-.05;
+        const rightLock=mesh(root,lockGeo,hair,.66,4.42,-.04); rightLock.rotation.z=.05;
+        mesh(root,new THREE.BoxGeometry(1.20,1.72,.30),hair,0,4.42,-.57);
+
+        mesh(root,new THREE.SphereGeometry(.052,8,6),eye,-.20,5.19,.65);
+        mesh(root,new THREE.SphereGeometry(.052,8,6),eye, .20,5.19,.65);
+
+        const nose=mesh(root,new THREE.SphereGeometry(.085,8,6),skin,0,5.03,.68);
+        nose.scale.set(.75,.9,1.25);
+
+        const lip=mesh(root,new THREE.CapsuleGeometry(.07,.25,4,8),lips,0,4.87,.69);
+        lip.rotation.z=Math.PI/2;
+        lip.scale.set(1.08,.70,.62);
+
+        return root;
+    }
+
+    // Each neighbor gets a separate non-mowable garden.
+    // South-row characters face toward the street (+Z). The north-row
+    // character is rotated to face back toward the street (-Z).
+    const granne1=buildGranne1();
+    granne1.position.set(-100,0,20);
+    granne1.rotation.y=0;
+    granne1.scale.setScalar(.92);
+    scene.add(granne1);
+
+    const granne2=buildGranne2();
+    granne2.position.set(100,0,18);
+    granne2.rotation.y=0;
+    granne2.scale.setScalar(.92);
+    scene.add(granne2);
+
+    const granne3=buildGranne3();
+    granne3.position.set(0,0,103);
+    granne3.rotation.y=Math.PI;
+    granne3.scale.setScalar(.92);
+    scene.add(granne3);
+}
+
+
 function setupVillaLevel(){
     lawnWorldSize=100;animatedCars=[];animatedAnimals=[];animatedClouds=[];
     addSunAndClouds();
@@ -5238,6 +5486,7 @@ function setupVillaLevel(){
     spawnGardenTable(30,15);spawnGrill(-30,-15);
     spawnDecoTree(-35,30);spawnDecoTree(35,30);spawnDecoTree(-35,-35);spawnDecoTree(35,-35);
     spawnBush(20,-30);spawnBush(-22,25);spawnBush(18,32);
+    buildLevel1NeighborCharacters();
     spawnDog(-80,10);spawnDog(90,-20);spawnCat(-85,30);spawnCat(95,15);
     // Two traffic lanes, four GLB vehicles. Procedural box cars and the older
     // suv/taxi assets are no longer spawned on Bana 1.
