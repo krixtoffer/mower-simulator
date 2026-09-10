@@ -4609,29 +4609,45 @@ function addNightSky(){
     halo.position.copy(moon.position);
     scene.add(halo);
 
-    // Lightweight upper-hemisphere star field.
-    const count=650;
-    const pos=new Float32Array(count*3);
-    for(let i=0;i<count;i++){
-        const a=Math.random()*Math.PI*2;
-        const y=55+Math.random()*250;
-        const r=260+Math.random()*240;
-        pos[i*3]=Math.cos(a)*r;
-        pos[i*3+1]=y;
-        pos[i*3+2]=Math.sin(a)*r;
-    }
-    const geo=new THREE.BufferGeometry();
-    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    const mat=new THREE.PointsMaterial({
-        color:0xffffff,
-        size:1.25,
-        sizeAttenuation:true,
-        transparent:true,
-        opacity:0.92,
-        depthWrite:false
+    // Dense but cheap perimeter star field. Three Points objects give visible
+    // size variation while keeping the cost to only three draw calls.
+    const groups=[
+        {count:900,size:1.0,opacity:.82,phase:Math.random()*6.28},
+        {count:400,size:1.65,opacity:.91,phase:Math.random()*6.28},
+        {count:150,size:2.35,opacity:.98,phase:Math.random()*6.28}
+    ];
+    groups.forEach(g=>{
+        const pos=new Float32Array(g.count*3);
+        for(let i=0;i<g.count;i++){
+            const a=Math.random()*Math.PI*2;
+            // Ring around the playable world rather than wasting stars overhead.
+            const r=300+Math.random()*240;
+            const y=35+Math.pow(Math.random(),1.65)*150;
+            pos[i*3]=Math.cos(a)*r;
+            pos[i*3+1]=y;
+            pos[i*3+2]=Math.sin(a)*r;
+        }
+        const geo=new THREE.BufferGeometry();
+        geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+        const mat=new THREE.PointsMaterial({
+            color:0xffffff,size:g.size,sizeAttenuation:true,
+            transparent:true,opacity:g.opacity,depthWrite:false,fog:false
+        });
+        const stars=new THREE.Points(geo,mat);
+        stars.userData.nightStarTwinkle={base:g.opacity,phase:g.phase};
+        scene.add(stars);
     });
-    const stars=new THREE.Points(geo,mat);
-    scene.add(stars);
+}
+
+function updateNightStarTwinkle(t){
+    if(!settings.nightMode)return;
+    scene.children.forEach(o=>{
+        const s=o.userData&&o.userData.nightStarTwinkle;
+        if(s&&o.material){
+            // Mild, slow group-level twinkle; no per-star animation cost.
+            o.material.opacity=s.base*(.94+.06*Math.sin(t*1.15+s.phase));
+        }
+    });
 }
 
 function tuneSceneMaterials(){
@@ -5854,8 +5870,8 @@ function setupGolfLevel(){
         const a=Math.random()*Math.PI*2,d=lawnWorldSize/2+15+Math.random()*20;
         const tx=Math.sin(a)*d,tz=Math.cos(a)*d;
         // Keep the driving-range footprint and its immediate margins tree-free.
-        const inRangeClearance=tx>GOLF_RANGE_RECT.xMin-8&&tx<GOLF_RANGE_RECT.xMax+8&&
-                               tz>GOLF_RANGE_RECT.zMin-6&&tz<GOLF_RANGE_RECT.zMax+6;
+        const inRangeClearance=tx>GOLF_RANGE_RECT.xMin-8&&
+                               tz>GOLF_RANGE_RECT.zMin-8&&tz<GOLF_RANGE_RECT.zMax+8;
         if(!inRangeClearance)spawnTree(tx,tz,0);
     }
     buildGolfDrivingRange();
@@ -6185,8 +6201,8 @@ function buildGolfRangeSign(x,z){
     const tx=new THREE.CanvasTexture(cv);tx.colorSpace=THREE.SRGBColorSpace;
     const mat=new THREE.MeshBasicMaterial({map:tx,side:THREE.DoubleSide});
     const sign=golfRangeMesh(g,new THREE.PlaneGeometry(3.7,1.06),mat,0,2.45,0);
-    // Face roughly toward the original course / approaching mower.
-    sign.rotation.y=-Math.PI/2;
+    // Keep the board aligned with its support posts.
+    sign.rotation.y=0;
 }
 function buildGolfRangePath(){
     // Small pale gravel path from the old course into the hitting area.
@@ -6740,9 +6756,13 @@ let level4TrampolineAudioLastPlay=-Infinity;
 const LEVEL4_HAMMOCK_MAP_POS={x:1176,y:423};
 const LEVEL4_HAMMOCK_AUDIO_RADIUS=LEVEL4_TRAMPOLINE_AUDIO_RADIUS;
 const LEVEL4_HAMMOCK_AUDIO_COOLDOWN_MS=2500;
+const LEVEL4_HAMMOCK_BIRD_VOLUMES=[
+    .98,1.00,.94,.38,.75,.39,.65,.51,.36,.35,.39,.62,.38,.73,.82,.50,.38,1.00,.97,.41,1.00
+];
 const level4HammockBirdAudio=Array.from({length:21},(_,i)=>{
     const a=new Audio(`./bird${i+1}.mp3`);
     a.preload='none';
+    a.volume=LEVEL4_HAMMOCK_BIRD_VOLUMES[i];
     return a;
 });
 let level4HammockAudioInside=false;
@@ -8806,6 +8826,7 @@ function animate(){
         updateNightGhostProximitySound(dt);
         updateLevel4Wildlife(dt,t);
         updateAmbientNightBats(dt,t);
+        updateNightStarTwinkle(t);
         if(charLeftLeg&&charRightLeg&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const legSwing=Math.sin(t*6)*0.55;charLeftLeg.rotation.x=legSwing;charRightLeg.rotation.x=-legSwing;}
         else if(charLeftLeg&&charRightLeg&&!charIsSitting){charLeftLeg.rotation.x=THREE.MathUtils.lerp(charLeftLeg.rotation.x,0,0.1);charRightLeg.rotation.x=THREE.MathUtils.lerp(charRightLeg.rotation.x,0,0.1);}
         if(charLeftArm&&charRightArm&&!charIsSitting&&Math.abs(mowerStats.speed)>0.005){const armSwing=Math.sin(t*6)*0.15;charLeftArm.rotation.z=armSwing;charRightArm.rotation.z=-armSwing;}
