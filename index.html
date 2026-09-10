@@ -5083,6 +5083,7 @@ function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8')
 
 
 let level1Neighbors=[];
+    level1PavedNeighbor=null;
 
 function refillLevel1NeighborSoundDeck(n){
     const deck=Array.from({length:n.audio.length},(_,i)=>i);
@@ -5196,6 +5197,205 @@ function updateLevel1Neighbors(dt){
             n.root.rotation.y+=delta*Math.min(1,dt*2.2);
         }
     }
+}
+
+
+
+let level1PavedNeighbor=null;
+
+function buildLevel1PavedNeighbor(){
+    const MAT={
+        skin:new THREE.MeshStandardMaterial({color:0xe2ad88,roughness:.88}),
+        speedo:new THREE.MeshStandardMaterial({color:0x247d8f,roughness:.90}),
+        speedoTrim:new THREE.MeshStandardMaterial({color:0xf1c84c,roughness:.88}),
+        shoes:new THREE.MeshStandardMaterial({color:0xeeeeea,roughness:.90}),
+        dark:new THREE.MeshStandardMaterial({color:0x171717,roughness:.72}),
+        nipple:new THREE.MeshStandardMaterial({color:0xa96554,roughness:.86}),
+        mouth:new THREE.MeshStandardMaterial({color:0x7d3434,roughness:.82})
+    };
+
+    function add(parent,geometry,material,x,y,z){
+        const m=new THREE.Mesh(geometry,material);
+        m.position.set(x,y,z);
+        m.castShadow=true;
+        m.receiveShadow=true;
+        parent.add(m);
+        return m;
+    }
+
+    const root=new THREE.Group();
+
+    add(root,new THREE.BoxGeometry(.50,.27,.82),MAT.shoes,-.30,.14,.14);
+    add(root,new THREE.BoxGeometry(.50,.27,.82),MAT.shoes,.30,.14,.14);
+
+    const legGeo=new THREE.CylinderGeometry(.095,.115,2.65,10);
+    add(root,legGeo,MAT.skin,-.29,1.58,0);
+    add(root,legGeo,MAT.skin,.29,1.58,0);
+
+    const pelvis=add(root,new THREE.SphereGeometry(.66,20,14),MAT.speedo,0,2.83,0);
+    pelvis.scale.set(1.05,.68,.92);
+
+    const waistband=add(root,new THREE.TorusGeometry(.62,.055,8,22),MAT.speedoTrim,0,3.08,0);
+    waistband.rotation.x=Math.PI/2;
+    waistband.scale.set(1.04,1,.90);
+
+    add(root,new THREE.CylinderGeometry(.39,.48,2.35,16),MAT.skin,0,4.18,0);
+
+    const nippleGeo=new THREE.SphereGeometry(.055,10,7);
+    const nl=add(root,nippleGeo,MAT.nipple,-.20,4.48,.375); nl.scale.set(1,.72,.48);
+    const nr=add(root,nippleGeo,MAT.nipple,.20,4.48,.375); nr.scale.set(1,.72,.48);
+
+    const armGeo=new THREE.CylinderGeometry(.075,.095,2.45,9);
+    const la=add(root,armGeo,MAT.skin,-.60,4.08,0); la.rotation.z=-.075;
+    const ra=add(root,armGeo,MAT.skin,.60,4.08,0); ra.rotation.z=.075;
+    add(root,new THREE.SphereGeometry(.155,12,8),MAT.skin,-.69,2.82,0);
+    add(root,new THREE.SphereGeometry(.155,12,8),MAT.skin,.69,2.82,0);
+
+    add(root,new THREE.CylinderGeometry(.15,.17,.43,10),MAT.skin,0,5.56,0);
+
+    const head=add(root,new THREE.SphereGeometry(.62,22,16),MAT.skin,0,6.22,0);
+    head.scale.set(.86,1.10,.88);
+
+    add(root,new THREE.SphereGeometry(.042,8,6),MAT.dark,-.17,6.32,.555);
+    add(root,new THREE.SphereGeometry(.042,8,6),MAT.dark,.17,6.32,.555);
+
+    const nose=add(root,new THREE.SphereGeometry(.075,9,7),MAT.skin,0,6.15,.59);
+    nose.scale.set(.72,.90,1.28);
+
+    function frame(x){
+        const g=new THREE.Group();
+        g.position.set(x,6.33,.575);
+        root.add(g);
+        const w=.31,h=.22,th=.035;
+        add(g,new THREE.BoxGeometry(w,th,th),MAT.dark,0,h/2,0);
+        add(g,new THREE.BoxGeometry(w,th,th),MAT.dark,0,-h/2,0);
+        add(g,new THREE.BoxGeometry(th,h,th),MAT.dark,-w/2,0,0);
+        add(g,new THREE.BoxGeometry(th,h,th),MAT.dark,w/2,0,0);
+    }
+    frame(-.19); frame(.19);
+    add(root,new THREE.BoxGeometry(.10,.035,.035),MAT.dark,0,6.33,.575);
+    const gl=add(root,new THREE.BoxGeometry(.26,.03,.03),MAT.dark,-.42,6.33,.48); gl.rotation.y=.55;
+    const gr=add(root,new THREE.BoxGeometry(.26,.03,.03),MAT.dark,.42,6.33,.48); gr.rotation.y=-.55;
+
+    const mouth=add(root,new THREE.BoxGeometry(.28,.028,.025),MAT.mouth,0,5.96,.585);
+    mouth.rotation.z=-.025;
+
+    // North-east lot: this is the property directly beside granne3 and
+    // directly across the street from granne2.
+    root.position.set(100,0,105);
+    root.rotation.y=Math.PI;
+    root.scale.setScalar(1.22);
+    scene.add(root);
+
+    const audio=['granne4a.mp3','granne4b.mp3','granne4c.mp3'].map(file=>{
+        const a=new Audio(`./${file}`);
+        a.preload='none';
+        return a;
+    });
+
+    level1PavedNeighbor={
+        root,
+        fallen:false,
+        fallenTime:0,
+        hitRadius:4.0,
+        uprightRotationX:0,
+
+        // granne4 audio state. Reuses the exact same shuffled no-repeat
+        // deck logic as granne1-3.
+        audio,
+        soundDeck:[],
+        lastSoundIndex:-1,
+        inside:false,
+        timeOnLawn:0,
+        lawn:{xMin:50,xMax:150,zMin:74,zMax:174}
+    };
+    refillLevel1NeighborSoundDeck(level1PavedNeighbor);
+}
+
+function updateLevel1PavedNeighbor(dt){
+    if(currentLevel!==1||!level1PavedNeighbor||!mowerGroup)return;
+
+    const n=level1PavedNeighbor;
+
+    // Audio behavior mirrors the other neighbors: one line immediately
+    // on entering the paved property, then another every 10 seconds while
+    // the mower remains there. Leaving resets only the timer; the shuffled
+    // deck itself is preserved so no clip repeats before the cycle is used.
+    const mx=mowerGroup.position.x;
+    const mz=mowerGroup.position.z;
+    const inside=pointInsideLevel1NeighborLawn(n,mx,mz);
+
+    if(inside){
+        if(!n.inside){
+            n.inside=true;
+            n.timeOnLawn=0;
+            playNextLevel1NeighborSound(n);
+        }else{
+            n.timeOnLawn+=dt;
+            if(n.timeOnLawn>=10){
+                n.timeOnLawn-=10;
+                playNextLevel1NeighborSound(n);
+            }
+        }
+    }else if(n.inside){
+        n.inside=false;
+        n.timeOnLawn=0;
+    }
+
+    if(!n.fallen){
+        const dx=mowerGroup.position.x-n.root.position.x;
+        const dz=mowerGroup.position.z-n.root.position.z;
+        const hitDistance=n.hitRadius+mowerStats.radius*.45;
+
+        if(dx*dx+dz*dz<hitDistance*hitDistance){
+            n.fallen=true;
+            n.fallenTime=5;
+            // Fall sideways away from the mower approach.
+            n.root.rotation.z=(dx>=0?-1:1)*Math.PI*.48;
+        }
+    }else{
+        n.fallenTime-=dt;
+        if(n.fallenTime<=0){
+            n.fallen=false;
+            n.fallenTime=0;
+            n.root.rotation.z=0;
+            n.root.position.y=0;
+        }
+    }
+}
+
+function buildLevel1PavedNeighborLot(){
+    // Entire north-east 100x100 property is paved. The house remains on top
+    // of this surface, while the front yard visibly contains no grass.
+    const paving=new THREE.Mesh(
+        new THREE.PlaneGeometry(99,99),
+        new THREE.MeshStandardMaterial({
+            color:0x8b8b86,
+            roughness:.96,
+            metalness:0
+        })
+    );
+    paving.rotation.x=-Math.PI/2;
+    paving.position.set(100,.015,124);
+    paving.receiveShadow=true;
+    scene.add(paving);
+
+    // Subtle slab joints make the paving read as a deliberate hard surface.
+    const jointMat=new THREE.MeshStandardMaterial({color:0x686864,roughness:1});
+    for(let x=60;x<=140;x+=20){
+        const joint=new THREE.Mesh(new THREE.PlaneGeometry(.32,98),jointMat);
+        joint.rotation.x=-Math.PI/2;
+        joint.position.set(x,.021,124);
+        scene.add(joint);
+    }
+    for(let z=84;z<=164;z+=20){
+        const joint=new THREE.Mesh(new THREE.PlaneGeometry(98,.32),jointMat);
+        joint.rotation.x=-Math.PI/2;
+        joint.position.set(100,.022,z);
+        scene.add(joint);
+    }
+
+    buildLevel1PavedNeighbor();
 }
 
 
@@ -5465,7 +5665,7 @@ function buildLevel1NeighborCharacters(){
         buildGranne1(),
         -100,20,0,
         {xMin:-150,xMax:-50,zMin:-50,zMax:50},
-        ['granne1a.mp3','granne1b.mp3','granne1c.mp3']
+        ['granne1a.mp3','granne1b.mp3','granne1c.mp3','granne1d.mp3']
     );
 
     // granne2: lot immediately east of the playable lawn.
@@ -5473,7 +5673,7 @@ function buildLevel1NeighborCharacters(){
         buildGranne2(),
         100,18,0,
         {xMin:50,xMax:150,zMin:-50,zMax:50},
-        ['granne2a.mp3','granne2b.mp3','granne2c.mp3','granne2d.mp3']
+        ['granne2a.mp3','granne2b.mp3','granne2c.mp3','granne2d.mp3','granne2e.mp3']
     );
 
     // granne3: lot directly across the street.
@@ -5696,6 +5896,7 @@ function setupVillaLevel(){
     spawnBush(20,-30);spawnBush(-22,25);spawnBush(18,32);
     buildLevel1NeighborCharacters();
     buildLevel1NeighborGardenProps();
+    buildLevel1PavedNeighborLot();
     spawnDog(-80,10);spawnDog(90,-20);spawnCat(-85,30);spawnCat(95,15);
     // Two traffic lanes, four GLB vehicles. Procedural box cars and the older
     // suv/taxi assets are no longer spawned on Bana 1.
@@ -9898,6 +10099,7 @@ function animate(){
         updateLevel4TrampolineAudio();
         updateLevel4HammockAudio();
         updateLevel1Neighbors(dt);
+        updateLevel1PavedNeighbor(dt);
         updateGolfDrivingRange(dt);
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
