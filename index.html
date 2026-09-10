@@ -5081,6 +5081,112 @@ function spawnVillaHouse(assetId,x,z,rotation=0,scale=1,fallbackColor='#d8d8d8')
 }
 
 
+
+let level1Neighbors=[];
+
+function refillLevel1NeighborSoundDeck(n){
+    const deck=Array.from({length:n.audio.length},(_,i)=>i);
+    for(let i=deck.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+    // Avoid the last sound of the previous cycle becoming the first sound
+    // of the new one.
+    if(deck.length>1&&deck[0]===n.lastSoundIndex){
+        const j=1+Math.floor(Math.random()*(deck.length-1));
+        [deck[0],deck[j]]=[deck[j],deck[0]];
+    }
+    n.soundDeck=deck;
+}
+
+function playNextLevel1NeighborSound(n){
+    if(!n||!n.audio.length||!settings.sfx)return;
+    if(!n.soundDeck.length)refillLevel1NeighborSoundDeck(n);
+
+    const index=n.soundDeck.shift();
+    n.lastSoundIndex=index;
+    const a=n.audio[index];
+
+    try{
+        a.currentTime=0;
+        const p=a.play();
+        if(p&&typeof p.catch==='function')p.catch(()=>{});
+    }catch(e){}
+}
+
+function pointInsideLevel1NeighborLawn(n,x,z){
+    return x>n.lawn.xMin&&x<n.lawn.xMax&&z>n.lawn.zMin&&z<n.lawn.zMax;
+}
+
+function updateLevel1Neighbors(dt){
+    if(currentLevel!==1||!mowerGroup||!level1Neighbors.length)return;
+
+    const mx=mowerGroup.position.x;
+    const mz=mowerGroup.position.z;
+
+    for(const n of level1Neighbors){
+        const inside=pointInsideLevel1NeighborLawn(n,mx,mz);
+
+        if(inside){
+            // Fresh entry: immediate voice line and a fresh 10-second timer.
+            if(!n.inside){
+                n.inside=true;
+                n.timeOnLawn=0;
+                playNextLevel1NeighborSound(n);
+            }else{
+                n.timeOnLawn+=dt;
+                if(n.timeOnLawn>=10){
+                    n.timeOnLawn-=10;
+                    playNextLevel1NeighborSound(n);
+                }
+            }
+
+            // Walk slowly toward the mower, but stop a short distance away.
+            const dx=mx-n.root.position.x;
+            const dz=mz-n.root.position.z;
+            const dist=Math.hypot(dx,dz);
+            const stopDistance=5.0;
+
+            if(dist>stopDistance){
+                const step=Math.min(n.followSpeed*dt,dist-stopDistance);
+                n.root.position.x+=dx/dist*step;
+                n.root.position.z+=dz/dist*step;
+
+                // Turn toward the mower. Character fronts point toward +Z.
+                const desiredRot=Math.atan2(dx,dz);
+                let delta=desiredRot-n.root.rotation.y;
+                delta=Math.atan2(Math.sin(delta),Math.cos(delta));
+                n.root.rotation.y+=delta*Math.min(1,dt*3.0);
+            }
+        }else{
+            if(n.inside){
+                n.inside=false;
+                n.timeOnLawn=0;
+            }
+
+            // Once the mower leaves this garden, walk back home slowly.
+            const dx=n.home.x-n.root.position.x;
+            const dz=n.home.z-n.root.position.z;
+            const dist=Math.hypot(dx,dz);
+
+            if(dist>.02){
+                const step=Math.min(n.returnSpeed*dt,dist);
+                n.root.position.x+=dx/dist*step;
+                n.root.position.z+=dz/dist*step;
+            }else{
+                n.root.position.x=n.home.x;
+                n.root.position.z=n.home.z;
+            }
+
+            // Ease back to the original facing direction while returning.
+            let delta=n.homeRotation-n.root.rotation.y;
+            delta=Math.atan2(Math.sin(delta),Math.cos(delta));
+            n.root.rotation.y+=delta*Math.min(1,dt*2.2);
+        }
+    }
+}
+
+
 function buildLevel1NeighborCharacters(){
     function mat(color,roughness=.9){
         return new THREE.MeshStandardMaterial({color,roughness});
@@ -5306,25 +5412,64 @@ function buildLevel1NeighborCharacters(){
     }
 
     // Each neighbor gets a separate non-mowable garden.
-    // South-row characters face toward the street (+Z). The north-row
-    // character is rotated to face back toward the street (-Z).
-    const granne1=buildGranne1();
-    granne1.position.set(-100,0,20);
-    granne1.rotation.y=0;
-    granne1.scale.setScalar(.92);
-    scene.add(granne1);
+    // Their lawn rectangles use the same fence grid as Level 1:
+    // south lots z=-50..50 and north lots z=74..174, each 100 units wide.
+    // All three are 40% larger than in v111.
+    level1Neighbors=[];
 
-    const granne2=buildGranne2();
-    granne2.position.set(100,0,18);
-    granne2.rotation.y=0;
-    granne2.scale.setScalar(.92);
-    scene.add(granne2);
+    function makeNeighbor(root,homeX,homeZ,homeRotation,lawn,soundFiles){
+        root.position.set(homeX,0,homeZ);
+        root.rotation.y=homeRotation;
+        root.scale.setScalar(.92*1.40);
+        scene.add(root);
 
-    const granne3=buildGranne3();
-    granne3.position.set(0,0,103);
-    granne3.rotation.y=Math.PI;
-    granne3.scale.setScalar(.92);
-    scene.add(granne3);
+        const audio=soundFiles.map(file=>{
+            const a=new Audio(`./${file}`);
+            a.preload='none';
+            return a;
+        });
+
+        const n={
+            root,
+            home:new THREE.Vector3(homeX,0,homeZ),
+            homeRotation,
+            lawn,
+            audio,
+            soundDeck:[],
+            lastSoundIndex:-1,
+            inside:false,
+            timeOnLawn:0,
+            followSpeed:2.15,
+            returnSpeed:2.45
+        };
+        refillLevel1NeighborSoundDeck(n);
+        level1Neighbors.push(n);
+        return n;
+    }
+
+    // granne1: lot immediately west of the playable lawn.
+    makeNeighbor(
+        buildGranne1(),
+        -100,20,0,
+        {xMin:-150,xMax:-50,zMin:-50,zMax:50},
+        ['granne1a.mp3','granne1b.mp3','granne1c.mp3']
+    );
+
+    // granne2: lot immediately east of the playable lawn.
+    makeNeighbor(
+        buildGranne2(),
+        100,18,0,
+        {xMin:50,xMax:150,zMin:-50,zMax:50},
+        ['granne2a.mp3','granne2b.mp3','granne2c.mp3','granne2d.mp3']
+    );
+
+    // granne3: lot directly across the street.
+    makeNeighbor(
+        buildGranne3(),
+        0,103,Math.PI,
+        {xMin:-50,xMax:50,zMin:74,zMax:174},
+        ['granne3a.mp3','granne3b.mp3','granne3c.mp3']
+    );
 }
 
 
@@ -9353,6 +9498,7 @@ function buildConfirmedLevel(){
     resetAmbientNightBats();
     resetNightGhostForLevel();
     lawn=null;lawnCanvas=null;lawnContext=null;lawnTexture=null;
+    level1Neighbors=[];
     golfBaseCanvas=null;golfBaseTexture=null;golfBaseMesh=null;golfCuttableMask=null;
 
     while(scene.children.length>0)scene.remove(scene.children[0]);
@@ -9687,6 +9833,7 @@ function animate(){
         if(currentLevel===5)updateGalleryUI();
         updateLevel4TrampolineAudio();
         updateLevel4HammockAudio();
+        updateLevel1Neighbors(dt);
         updateGolfDrivingRange(dt);
         updateFootballBallInteractions();
         updateNightGhost(dt,t);
