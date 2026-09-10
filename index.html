@@ -6416,7 +6416,7 @@ function buildGalleryArtwork(item,index,side,z){
     group.rotation.y=side<0?Math.PI/2:-Math.PI/2;
     scene.add(group);
 
-    const picLight=new THREE.SpotLight(0xffd7a1,1.65,13,Math.PI/5.5,.7,1.5);
+    const picLight=new THREE.SpotLight(0xffd7a1,1.95,14,Math.PI/5.5,.7,1.5);
     picLight.position.set(side*(GALLERY_HALF_W-4.1),10.2,z);
     picLight.target.position.set(side*(GALLERY_HALF_W-.8),6.8,z);
     picLight.castShadow=false;
@@ -6447,7 +6447,7 @@ function buildGalleryChandelier(z){
         bulb.position.set(Math.cos(a)*2.15,.08,Math.sin(a)*2.15);g.add(bulb);
     }
     g.position.set(0,13.2,z);scene.add(g);
-    const light=new THREE.PointLight(0xffb55d,3.45,38,2);
+    const light=new THREE.PointLight(0xffb55d,4.15,42,2);
     light.position.set(0,12.4,z);light.castShadow=false;scene.add(light);
 }
 
@@ -6513,9 +6513,9 @@ function setupGalleryLevel(){
     scene.fog=new THREE.Fog(0x1b0d08,60,125);
 
     // Moody ambient + warm directional edge light.
-    scene.add(new THREE.HemisphereLight(0x80664d,0x1b0e09,.64));
-    scene.add(new THREE.AmbientLight(0xffd0a0,.20));
-    const warm=new THREE.DirectionalLight(0xffc37a,.88);
+    scene.add(new THREE.HemisphereLight(0x9a7b5d,0x21110b,.82));
+    scene.add(new THREE.AmbientLight(0xffd0a0,.30));
+    const warm=new THREE.DirectionalLight(0xffc37a,1.08);
     warm.position.set(-18,22,28);scene.add(warm);
 
     const walnut=new THREE.MeshStandardMaterial({color:0x3b1d12,roughness:.77});
@@ -6580,7 +6580,7 @@ function setupGalleryLevel(){
     // Additional pools of warm wall lighting without costly shadows.
     [-40,-20,0,20,40].forEach(z=>{
         [-12.2,12.2].forEach(x=>{
-            const sconce=new THREE.PointLight(0xffa94f,1.08,21,2);
+            const sconce=new THREE.PointLight(0xffa94f,1.38,24,2);
             sconce.position.set(x,8.2,z);scene.add(sconce);
             const fixture=new THREE.Mesh(
                 new THREE.SphereGeometry(.18,8,6),
