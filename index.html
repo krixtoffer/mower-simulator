@@ -6256,7 +6256,12 @@ function knockCourseGolfBag(b,impactDir){
     b.root.quaternion.copy(fallQ).multiply(standQ);
 }
 function buildGolfCourseGolfer(){
-    const green=golfPxToWorld(256,100);
+    // Do not call setupGolfLevel()'s local golfPxToWorld helper here.
+    // Compute the green position directly from the same texture/world mapping.
+    const green={
+        x:(256/lawnTexResolution-.5)*lawnWorldSize,
+        z:(100/lawnTexResolution-.5)*lawnWorldSize
+    };
     const gx=-38,gz=-18;
     const g=buildGolfRangeGolfer(
         gx,gz,
