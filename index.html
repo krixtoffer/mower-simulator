@@ -3694,6 +3694,7 @@ let animatedLevel4Fire=[];
 let animatedFlag=null, animatedPond=null, pondCollider=null, clubhouseCollider=null, bunkerZones=[], trampolineKids=[];
 // v93: lightweight Level 3 driving range interaction state.
 let golfRangeGolfers=[],golfRangeBalls=[],golfRangeDispenser=null;
+let golfCourseGolfer=null,golfCourseBag=null;
 let golfRangeTime=0;
 const GOLF_RANGE_RECT={xMin:92,xMax:172,zMin:-38,zMax:38};
 const golfRangeMachineHitAudio=new Audio('./shed.mp3');
@@ -5875,6 +5876,7 @@ function setupGolfLevel(){
         if(!inRangeClearance)spawnTree(tx,tz,0);
     }
     buildGolfDrivingRange();
+    buildGolfCourseGolfer();
     startGolfSfx();
 }
 
@@ -5966,7 +5968,7 @@ function buildGolfRangeGolfer(x,z,outfit,pause,longHair=false,hasCap=true,phase=
         root,pelvis,torso,headPivot,ls,rs,club,lh,rh,la,ra,clubLen,addressBall,
         pause,phase,hit:false,lookUntil:-1,knocked:false,knockTime:0,pausedTime:0,
         standPos:root.position.clone(),standRotY:root.rotation.y,
-        sounds:audio,soundIndex:0,lastSound:-Infinity
+        sounds:audio,soundIndex:0,lastSound:-Infinity,soundCooldownMs:5000
     };
 }
 
@@ -6023,8 +6025,14 @@ function golfRangeFireBall(g){
     }
     b.visible=true;
     b.position.set(g.root.position.x+.35,.12,g.root.position.z+(Math.random()-.5)*.15);
-    // Away from the actual course, eastward into the void.
-    b.userData.v.set(18+Math.random()*2,5+Math.random()*.8,(Math.random()-.5)*1.3);
+    if(g.isCourseGolfer&&g.courseTarget){
+        const dir=g.courseTarget.clone().sub(b.position);dir.y=0;dir.normalize();
+        const sp=15.5+Math.random()*1.5;
+        b.userData.v.set(dir.x*sp,5+Math.random()*.8,dir.z*sp);
+    }else{
+        // Driving range: away from the actual course, eastward into the void.
+        b.userData.v.set(18+Math.random()*2,5+Math.random()*.8,(Math.random()-.5)*1.3);
+    }
 }
 function golfRangeUpdateBalls(dt){
     for(const b of golfRangeBalls){
@@ -6042,7 +6050,7 @@ function golfRangeUpdateBalls(dt){
 
 function golfRangePlayGolferSound(g){
     const now=performance.now();
-    if(now-g.lastSound<5000)return;
+    if(now-g.lastSound<(g.soundCooldownMs||5000))return;
     g.lastSound=now;
     if(!g.sounds.length)return;
     const a=g.sounds[g.soundIndex];
@@ -6213,8 +6221,66 @@ function buildGolfRangePath(){
     path.receiveShadow=true;scene.add(path);
 }
 
+
+function buildCourseGolfBag(x,z,rotY=0){
+    const g=new THREE.Group();
+    g.position.set(x,0,z);g.rotation.y=rotY;scene.add(g);
+    const bagMat=golfRangeMat(0x5b2f78,.78);
+    const rimMat=golfRangeMat(0xc8b7d8,.55);
+    const metal=new THREE.MeshStandardMaterial({color:0xa5a9ad,metalness:.7,roughness:.3});
+    const grip=golfRangeMat(0x2b2522,.8);
+
+    golfRangeMesh(g,new THREE.CylinderGeometry(.38,.47,1.55,10),bagMat,0,.82,0);
+    const rim=golfRangeMesh(g,new THREE.TorusGeometry(.39,.055,6,12),rimMat,0,1.60,0);
+    rim.rotation.x=Math.PI/2;
+
+    const strap=new THREE.Mesh(new THREE.TorusGeometry(.53,.055,6,14,Math.PI*1.35),bagMat);
+    strap.position.set(.38,1.02,0);strap.rotation.set(Math.PI/2,0,Math.PI/2);g.add(strap);
+
+    [[-.19,0],[0,.12],[.17,-.08],[-.05,-.15]].forEach((p,i)=>{
+        const shaft=golfRangeMesh(g,new THREE.CylinderGeometry(.018,.022,1.08,5),metal,p[0],2.05,p[1]);
+        shaft.rotation.z=(i-1.5)*.04;
+        golfRangeMesh(g,new THREE.BoxGeometry(.18,.08,.12),grip,p[0]+.03*(i-1),2.58,p[1]);
+    });
+
+    return {root:g,knocked:false,standPos:g.position.clone(),standRotY:g.rotation.y,radius:1.15};
+}
+function knockCourseGolfBag(b,impactDir){
+    if(!b||b.knocked)return;
+    b.knocked=true;
+    const d=impactDir.clone();d.y=0;if(d.lengthSq()<.001)d.set(1,0,0);d.normalize();
+    const axis=new THREE.Vector3(d.z,0,-d.x).normalize();
+    const fallQ=new THREE.Quaternion().setFromAxisAngle(axis,Math.PI/2);
+    const standQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),b.standRotY);
+    b.root.position.copy(b.standPos);b.root.position.y=.12;
+    b.root.quaternion.copy(fallQ).multiply(standQ);
+}
+function buildGolfCourseGolfer(){
+    const green=golfPxToWorld(256,100);
+    const gx=-38,gz=-18;
+    const g=buildGolfRangeGolfer(
+        gx,gz,
+        {shirt:0x2f8f83,pants:0x6a4a2f,accent:0xe6d36f,hair:0x2c1b16},
+        9,true,false,1.4,['e1.mp3','e2.mp3','e3.mp3']
+    );
+    g.soundCooldownMs=3000;
+    g.root.scale.setScalar(1.12);
+
+    const dx=green.x-gx,dz=green.z-gz;
+    g.root.rotation.y=Math.atan2(-dx,-dz);
+    g.standRotY=g.root.rotation.y;g.standPos.copy(g.root.position);
+    g.courseTarget=green.clone();g.isCourseGolfer=true;
+
+    // Distinct tied-hair/bun look, no cap.
+    const hairMat=golfRangeMat(0x2c1b16);
+    golfRangeMesh(g.headPivot,new THREE.SphereGeometry(.16,8,6),hairMat,0,.42,.12);
+
+    golfCourseBag=buildCourseGolfBag(gx-2.4,gz+1.8,g.root.rotation.y+.35);
+    golfCourseGolfer=g;
+}
+
 function buildGolfDrivingRange(){
-    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfRangeTime=0;
+    golfRangeGolfers=[];golfRangeBalls=[];golfRangeDispenser=null;golfCourseGolfer=null;golfCourseBag=null;golfRangeTime=0;
 
     // Grass extension joins the east edge of the existing course.
     const pad=new THREE.Mesh(
@@ -6249,7 +6315,10 @@ function buildGolfDrivingRange(){
         // Orange shirt: long hair AND cap.
         buildGolfRangeGolfer(126,bayZ[4],{shirt:0xd68132,pants:0x40543d,accent:0x174f39,hair:0x6b3b23},10,true,true,7.3,['d1.mp3','d2.mp3'])
     ];
-    golfRangeGolfers.forEach(g=>buildGolfRangeBucket(121.5,g.root.position.z));
+    golfRangeGolfers.forEach(g=>{
+        g.root.scale.setScalar(1.35);
+        buildGolfRangeBucket(121.5,g.root.position.z);
+    });
 
     // Larger and farther from the golfer line.
     golfRangeDispenser=buildGolfRangeDispenser(104,27);
@@ -6280,6 +6349,29 @@ function updateGolfDrivingRange(dt){
         }
     }
 
+
+    if(golfCourseGolfer){
+        const g=golfCourseGolfer;
+        if(!golfRangeUpdateKnocked(g,dt)){
+            const cycle=GR_SWING+g.pause;
+            const ct=(golfRangeTime-g.pausedTime+g.phase)%cycle;
+            if(ct<GR_SWING){
+                const st=ct/GR_SWING;
+                golfRangePose(g,st,golfRangeTime);
+                if(st>=GR_IMPACT&&!g.hit){
+                    g.hit=true;g.lookUntil=golfRangeTime+5;g.addressBall.visible=false;
+                    golfRangeFireBall(g);
+                }
+            }else{
+                golfRangePose(g,0,golfRangeTime);g.hit=false;
+                if(!g.addressBall.visible){
+                    g.addressBall.visible=true;
+                    g.addressBall.position.set(g.root.position.x,.09,g.root.position.z+.15);
+                }
+            }
+        }
+    }
+
     if(!mowerGroup)return;
     const mp=mowerGroup.position;
     const impact=new THREE.Vector3(Math.sin(mowerStats.rotation),0,Math.cos(mowerStats.rotation));
@@ -6287,7 +6379,15 @@ function updateGolfDrivingRange(dt){
     // Knockable golfers.
     for(const g of golfRangeGolfers){
         const dx=mp.x-g.standPos.x,dz=mp.z-g.standPos.z;
-        if(dx*dx+dz*dz<2.15*2.15)golfRangeKnockGolfer(g,impact);
+        if(dx*dx+dz*dz<2.90*2.90)golfRangeKnockGolfer(g,impact);
+    }
+    if(golfCourseGolfer){
+        const dx=mp.x-golfCourseGolfer.standPos.x,dz=mp.z-golfCourseGolfer.standPos.z;
+        if(dx*dx+dz*dz<2.35*2.35)golfRangeKnockGolfer(golfCourseGolfer,impact);
+    }
+    if(golfCourseBag&&!golfCourseBag.knocked){
+        const dx=mp.x-golfCourseBag.standPos.x,dz=mp.z-golfCourseBag.standPos.z;
+        if(dx*dx+dz*dz<golfCourseBag.radius*golfCourseBag.radius)knockCourseGolfBag(golfCourseBag,impact);
     }
 
     // Destructible ball machine.
