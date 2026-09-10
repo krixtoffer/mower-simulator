@@ -6258,10 +6258,11 @@ function knockCourseGolfBag(b,impactDir){
 function buildGolfCourseGolfer(){
     // Do not call setupGolfLevel()'s local golfPxToWorld helper here.
     // Compute the green position directly from the same texture/world mapping.
-    const green={
-        x:(256/lawnTexResolution-.5)*lawnWorldSize,
-        z:(100/lawnTexResolution-.5)*lawnWorldSize
-    };
+    const green=new THREE.Vector3(
+        (256/lawnTexResolution-.5)*lawnWorldSize,
+        0,
+        (100/lawnTexResolution-.5)*lawnWorldSize
+    );
     const gx=-38,gz=-18;
     const g=buildGolfRangeGolfer(
         gx,gz,
