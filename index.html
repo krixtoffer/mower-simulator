@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Mower Simulator</title>
     <link rel="preload" as="image" href="./startbild.jpg" fetchpriority="high">
     <link rel="preload" as="audio" href="./golf.mp3">
@@ -1934,6 +1937,97 @@
             margin-top:18px;font-size:9px;line-height:1.6;color:#ddd;
             min-height:16px;
         }
+
+        /* ══ v121: robust gameplay settings + equal audio sliders ═══════ */
+        .setting-audio-row{
+            display:block !important;
+            width:100% !important;
+            box-sizing:border-box !important;
+        }
+        .setting-audio-row .audio-label{
+            display:flex !important;
+            width:100% !important;
+            align-items:center !important;
+            justify-content:space-between !important;
+            gap:12px !important;
+            box-sizing:border-box !important;
+        }
+        .setting-audio-row .volume-wrap{
+            display:grid !important;
+            grid-template-columns:minmax(0,1fr) 44px !important;
+            gap:10px !important;
+            width:100% !important;
+            margin-top:10px !important;
+            box-sizing:border-box !important;
+        }
+        .setting-audio-row .volume-slider{
+            display:block !important;
+            width:100% !important;
+            min-width:0 !important;
+            max-width:none !important;
+            box-sizing:border-box !important;
+        }
+        .setting-audio-row .volume-value{
+            width:44px !important;
+            text-align:right !important;
+        }
+
+        #game-settings-wheel{
+            position:fixed !important;
+            z-index:450 !important;
+            top:calc(74px + env(safe-area-inset-top)) !important;
+            right:calc(12px + env(safe-area-inset-right)) !important;
+        }
+        body.gameplay-running #game-settings-wheel{
+            display:flex !important;
+        }
+        body:not(.gameplay-running) #game-settings-wheel{
+            display:none !important;
+        }
+
+        @media(max-width:640px), (pointer:coarse){
+            #settings-overlay{
+                padding:
+                    calc(8px + env(safe-area-inset-top))
+                    calc(8px + env(safe-area-inset-right))
+                    calc(8px + env(safe-area-inset-bottom))
+                    calc(8px + env(safe-area-inset-left)) !important;
+                overflow:hidden !important;
+            }
+            #settings-panel{
+                width:min(94vw,520px) !important;
+                max-width:94vw !important;
+                max-height:calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+                overflow-y:auto !important;
+                overscroll-behavior:contain !important;
+                -webkit-overflow-scrolling:touch !important;
+                padding:14px !important;
+            }
+            .settings-basic-group{
+                padding:6px 10px !important;
+            }
+            .setting-audio-row{
+                margin:12px 0 16px !important;
+            }
+            .setting-audio-row .volume-wrap{
+                grid-template-columns:minmax(0,1fr) 40px !important;
+                gap:8px !important;
+                margin-top:8px !important;
+            }
+            .setting-audio-row .volume-slider{
+                min-height:28px !important;
+                touch-action:pan-x !important;
+            }
+            .setting-audio-row .volume-value{
+                width:40px !important;
+                font-size:7px !important;
+            }
+            #game-settings-wheel{
+                width:44px !important;
+                height:44px !important;
+                font-size:22px !important;
+            }
+        }
 </style>
 </head>
 <body>
@@ -3564,6 +3658,7 @@ function resumeGameplayAfterSettings(){
 
     gameActive=true;
     settingsResumeLevel=0;
+    document.body.classList.add('gameplay-running');
 
     // Re-sync Three.Clock so a long settings visit cannot create a large
     // first-frame delta on return.
@@ -3592,6 +3687,7 @@ function resumeGameplayAfterSettings(){
 
 window.openGameplaySettings=function(){
     if(!gameStarted||!gameActive)return;
+    document.body.classList.add('gameplay-running');
     pauseGameplayForSettings();
     document.getElementById('settings-overlay').style.display='flex';
     updateSettingsUI();
@@ -5875,8 +5971,8 @@ function buildGranne6Children(){
     older.position.set(1.15,0,-.10);
 
     // Counter the normal adult-neighbor scale so they remain visibly child-sized.
-    baby.scale.setScalar(.72);
-    older.scale.setScalar(.72);
+    baby.scale.setScalar(.936);
+    older.scale.setScalar(.936);
 
     pair.add(baby,older);
     return pair;
@@ -6219,12 +6315,12 @@ function buildLevel1NeighborGardenProps(){
         ['tree2',30,153,1.05,2.4],
 
         // granne5 north-west lawn: flamboyant man's garden
-        ['flamingo',-123,112,1.00,-0.35],
+        ['flamingo',-123,112,3.00,-0.35],
         ['tree2',-137,142,1.00,0.45],
         ['tree2',-66,153,0.96,-0.70],
 
         // granne6 far south-west lawn: children's garden
-        ['tricycle',-185,18,1.00,0.55],
+        ['tricycle',-185,18,1.60,0.55],
         ['plant3',-225,31,1.00,0.10],
         ['plant3',-216,34,0.95,0.80],
         ['plant3',-207,31,1.05,1.55],
@@ -8469,7 +8565,7 @@ window.leaveGallery=function(){
     galleryMode=false;galleryOpenItem=null;
     gameActive=false;gameStarted=false;
     settingsOpenedFromGameplay=false;settingsResumeLevel=0;
-    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
+    document.body.classList.remove('gameplay-running'); const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.removeProperty('display');
     mowerStats.speed=0;
     document.getElementById('gallery-ui').style.display='none';
     document.getElementById('gallery-info').style.display='none';
@@ -10385,8 +10481,9 @@ function buildConfirmedLevel(){
     gameStarted=true;gameActive=true;
     settingsOpenedFromGameplay=false;
     settingsResumeLevel=0;
+    document.body.classList.add('gameplay-running');
     const settingsWheel=document.getElementById('game-settings-wheel');
-    if(settingsWheel)settingsWheel.style.display='flex';
+    if(settingsWheel)settingsWheel.style.removeProperty('display');
     applyAudioSettings();
     startJoystickFailsafe();
     if(timerInterval)clearInterval(timerInterval);
@@ -10525,7 +10622,7 @@ window.returnToMainMenuAfterLevel=function(){
     if(timerInterval)clearInterval(timerInterval);
     document.getElementById('hud').style.display='none';
     document.getElementById('hud-buttons').style.display='none';
-    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
+    document.body.classList.remove('gameplay-running'); const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.removeProperty('display');
     document.getElementById('game-over').style.display='none';
     hideGameplayJoystick();
     openMainMenu();
@@ -10536,7 +10633,7 @@ window.leaveLevel=function(){
     stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);
     hideGameplayJoystick();
     document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';
-    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
+    document.body.classList.remove('gameplay-running'); const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.removeProperty('display');
     openLevelSelect();
 };
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
@@ -10612,7 +10709,7 @@ function calculateProgress(){
 }
 function renderStars(id,n){let h='';for(let i=1;i<=5;i++)h+=i<=n?'<span class="star-earned">★</span>':'★';document.getElementById(id).innerHTML=h;}
 function endGame(title='TIDEN ÄR UTE!'){
-    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();saveLevelRecord(currentLevel,currentProgress,currentStars);const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
+    document.body.classList.remove('gameplay-running'); const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.removeProperty('display');if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();saveLevelRecord(currentLevel,currentProgress,currentStars);const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
 window.openShop=function(){['main-menu-screen','minigames-screen','game-over','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('shop-screen').style.display='flex';document.getElementById('shop-wallet').innerText=totalMoney+' KR';};
 
 function animate(){
