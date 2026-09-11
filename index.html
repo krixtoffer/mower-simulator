@@ -4647,11 +4647,40 @@ function ensureMowerAsset(id){
     return p;
 }
 
+async function preloadCoreMowers(){
+    // v124: all four mower GLBs are core shell assets.
+    // Selected mower first, then the remaining three with conservative concurrency.
+    const ordered=[
+        selectedMower,
+        ...['standard','klippo','ts112','combine'].filter(id=>id!==selectedMower)
+    ];
+
+    // Selected mower is highest priority and is awaited first.
+    await ensureMowerAsset(ordered[0]);
+
+    const remaining=ordered.slice(1);
+    const policy=connectionPolicy();
+    const concurrency=policy.constrained?1:Math.min(2,policy.concurrency);
+
+    let cursor=0;
+    const workers=Array.from({length:Math.min(concurrency,remaining.length)},async()=>{
+        while(cursor<remaining.length){
+            const id=remaining[cursor++];
+            await ensureMowerAsset(id);
+        }
+    });
+    await Promise.all(workers);
+}
+
 function preloadAssets(){
-    // Highest 3D priority after the shell/intro artwork: the mower the player
-    // has actually selected. Other mower models load only if the showroom asks.
+    // No scenery fan-out at startup.
+    // Core order is:
+    // 1) shell/start image/audio
+    // 2) all five level intro images
+    // 3) all four mower GLBs
+    // 4) stop heavy loading until a level is actually started
     preloadSceneryAssets();
-    ensureMowerAsset(selectedMower);
+    preloadCoreMowers();
 }
 
 
@@ -10255,6 +10284,8 @@ function buildKidMesh(style='plain'){
 
 window.openShowroom=function(mowerId){
     inspectingMowerId=mowerId;const data=mowerData[mowerId];
+    // Normally already available from the v124 core mower preload.
+    // Keep this on-demand safety path in case startup loading was interrupted.
     ensureMowerAsset(mowerId).then(ok=>{if(ok&&inspectingMowerId===mowerId)updateShowroomModel();});
     document.getElementById('shop-screen').style.display='none';document.getElementById('showroom-screen').style.display='flex';
     document.getElementById('showroom-name').innerText=data.name;
