@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Mower Simulator</title>
@@ -1903,8 +1903,11 @@
         #level-loading-overlay{
             position:fixed;inset:0;z-index:255;display:none;
             flex-direction:column;align-items:center;justify-content:center;
-            background:rgba(5,7,13,.96);color:#fff;text-align:center;
+            /* v123: stay on top of the selected level's intro artwork. */
+            background:rgba(5,7,13,.58);color:#fff;text-align:center;
             padding:24px;box-sizing:border-box;
+            backdrop-filter:blur(1.5px);
+            -webkit-backdrop-filter:blur(1.5px);
         }
         #level-loading-title{
             width:min(78vw,460px);
@@ -4514,9 +4517,10 @@ function preloadSceneryAsset(id){
 }
 
 function preloadSceneryAssets(){
-    Object.keys(sceneryAssets).forEach(id=>{
-        if(!sceneryAssets[id].lazy)preloadSceneryAsset(id);
-    });
+    // v123 stability policy:
+    // Do NOT fan out dozens of GLB requests at startup. Scenery is now loaded
+    // by the current-level priority gate or by existing on-demand callbacks.
+    // This function intentionally remains as a compatibility no-op.
 }
 
 function whenSceneryResolved(id,callback){
@@ -4584,17 +4588,70 @@ function refreshGameplayMowerIfReady(mowerId){
     }
 }
 
-function preloadAssets(){
-    preloadSceneryAssets();
+const MOWER_ASSET_INFO={
+    standard:{path:'./hand_shaded.glb',height:3.5},
+    klippo:{path:'./mower2.glb',height:3.5},
+    ts112:{path:'./ride_shaded.glb',height:4.5},
+    combine:{path:'./combine_shaded.glb',height:6.4}
+};
+const mowerLoadPromises=new Map();
 
-    [['./mats-v1.glb',4.2,m=>{loadedMatsMesh=m;}],
-     ['./hand_shaded.glb',3.5,m=>{loadedHandMesh=m;if(inspectingMowerId==='standard')updateShowroomModel();refreshGameplayMowerIfReady('standard');}],
-     ['./mower2.glb',3.5,m=>{loadedKlippoMesh=m;if(inspectingMowerId==='klippo')updateShowroomModel();refreshGameplayMowerIfReady('klippo');}],
-     ['./ride_shaded.glb',4.5,m=>{loadedRideMesh=m;if(inspectingMowerId==='ts112')updateShowroomModel();refreshGameplayMowerIfReady('ts112');}],
-     ['./combine_shaded.glb',6.4,m=>{loadedCombineMesh=m;if(inspectingMowerId==='combine')updateShowroomModel();refreshGameplayMowerIfReady('combine');}]
-    ].forEach(([path,h,cb])=>{
-        gltfLoader.load(path,gltf=>{ const m=gltf.scene; setupMeshProps(m); const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()); if(s.y>0)m.scale.setScalar(h/s.y); cb(m); },undefined,err=>{console.warn('Mower GLB failed to load:',path,err);});
+function getLoadedMowerAsset(id){
+    if(id==='standard')return loadedHandMesh;
+    if(id==='klippo')return loadedKlippoMesh;
+    if(id==='ts112')return loadedRideMesh;
+    if(id==='combine')return loadedCombineMesh;
+    return null;
+}
+function setLoadedMowerAsset(id,m){
+    if(id==='standard')loadedHandMesh=m;
+    else if(id==='klippo')loadedKlippoMesh=m;
+    else if(id==='ts112')loadedRideMesh=m;
+    else if(id==='combine')loadedCombineMesh=m;
+}
+function ensureMowerAsset(id){
+    const already=getLoadedMowerAsset(id);
+    if(already)return Promise.resolve(true);
+    if(mowerLoadPromises.has(id))return mowerLoadPromises.get(id);
+
+    const info=MOWER_ASSET_INFO[id];
+    if(!info)return Promise.resolve(false);
+
+    const p=new Promise(resolve=>{
+        gltfLoader.load(
+            info.path,
+            gltf=>{
+                try{
+                    const m=gltf.scene;
+                    setupMeshProps(m);
+                    const s=new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+                    if(s.y>0)m.scale.setScalar(info.height/s.y);
+                    setLoadedMowerAsset(id,m);
+                    if(inspectingMowerId===id)updateShowroomModel();
+                    refreshGameplayMowerIfReady(id);
+                    resolve(true);
+                }catch(e){
+                    console.warn('Mower GLB preparation failed:',info.path,e);
+                    resolve(false);
+                }
+            },
+            undefined,
+            err=>{
+                console.warn('Mower GLB failed to load:',info.path,err);
+                mowerLoadPromises.delete(id); // allow a later retry
+                resolve(false);
+            }
+        );
     });
+    mowerLoadPromises.set(id,p);
+    return p;
+}
+
+function preloadAssets(){
+    // Highest 3D priority after the shell/intro artwork: the mower the player
+    // has actually selected. Other mower models load only if the showroom asks.
+    preloadSceneryAssets();
+    ensureMowerAsset(selectedMower);
 }
 
 
@@ -10198,6 +10255,7 @@ function buildKidMesh(style='plain'){
 
 window.openShowroom=function(mowerId){
     inspectingMowerId=mowerId;const data=mowerData[mowerId];
+    ensureMowerAsset(mowerId).then(ok=>{if(ok&&inspectingMowerId===mowerId)updateShowroomModel();});
     document.getElementById('shop-screen').style.display='none';document.getElementById('showroom-screen').style.display='flex';
     document.getElementById('showroom-name').innerText=data.name;
     ['speed','width','turn'].forEach(k=>{document.getElementById('stat-'+k+'-val').innerText=data[k]+'%';document.getElementById('stat-'+k+'-bar').style.width=data[k]+'%';});
@@ -10273,20 +10331,239 @@ window.openLevelSelect=function(){
 
 };
 
+const LEVEL_INTRO_META={
+    1:{img:'./villa.jpg',title:'Level 1: Villakvarteret'},
+    2:{img:'./fotboll.jpg',title:'Level 2: Fotbollsplanen'},
+    3:{img:'./golf.jpg',title:'Level 3: Golfbanan'},
+    4:{img:'./bana_intro.jpg',title:'Level 4: Fanbyviken'},
+    5:{img:'./galleri.jpg',title:'Galleriet'}
+};
+const levelIntroPrimes=new Map();
+
+function primeLevelIntroImage(levelId){
+    const meta=LEVEL_INTRO_META[levelId];
+    if(!meta)return Promise.resolve(false);
+    if(levelIntroPrimes.has(levelId))return levelIntroPrimes.get(levelId);
+
+    const p=new Promise(resolve=>{
+        const img=new Image();
+        try{img.fetchPriority='high';}catch(e){}
+        img.decoding='async';
+        const finish=ok=>{
+            if(ok&&img.decode){
+                img.decode().then(()=>resolve(true)).catch(()=>resolve(true));
+            }else resolve(!!ok);
+        };
+        img.onload=()=>finish(true);
+        img.onerror=()=>finish(false);
+        img.src=meta.img;
+        if(img.complete&&img.naturalWidth>0)finish(true);
+    });
+    levelIntroPrimes.set(levelId,p);
+    return p;
+}
+
+function primeAllLevelIntroImages(){
+    // These five images are deliberately one of the earliest request groups:
+    // they are the next screen the player sees after choosing a level.
+    [1,2,3,4,5].forEach(primeLevelIntroImage);
+}
+// Begin immediately, before any bulk 3D work.
+primeAllLevelIntroImages();
+
+const LEVEL_CRITICAL_SCENERY={
+    // Villakvarteret: structures/road scenery plus the visible neighbour props.
+    1:['house1','house2','house3','house4','house5','fence01',
+       'car1','car2','car3','car4','birch01','tree1','tree2',
+       'bush1','plant3','plant5','tricycle','flamingo'],
+    // Fotbollsplanen is overwhelmingly procedural.
+    2:[],
+    // Golfbanan: the two external GLB scene anchors.
+    3:['cart','clubhouse'],
+    // Fanbyviken: non-wildlife GLBs needed to avoid visible pop-in.
+    4:['house7','house8','house9','fence01',
+       'pine1','pine2','pine3','pine4','pine5',
+       'birch01','birch02','birch03','birch04',
+       'tree1','tree2','bush1',
+       'plant1','plant2','plant3','plant4','plant5',
+       'swing','hammock2'],
+    // Gallery scene itself is procedural/texture based; music keeps its
+    // existing dedicated readiness gate.
+    5:[]
+};
+
+const LEVEL_SECONDARY_SCENERY={
+    // Decorative wildlife should never hold the player at the loading screen.
+    4:['duck','gull','eagle','robin','squirrel','wren','bat','owl','bee']
+};
+
+let levelCriticalLoadActive=false;
+let speculativeWarmupToken=0;
+
+function connectionPolicy(){
+    const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection||null;
+    const effective=c&&c.effectiveType?String(c.effectiveType):'';
+    const saveData=!!(c&&c.saveData);
+    const constrained=saveData||effective==='slow-2g'||effective==='2g';
+    const moderate=effective==='3g';
+    return {
+        constrained,
+        moderate,
+        // Keep concurrent GLB work intentionally small. More is not necessarily
+        // faster on mobile because parsing/decompression also competes for CPU.
+        concurrency:constrained?1:(moderate?2:3)
+    };
+}
+
+function ensureSceneryAssetPromise(id){
+    const cached=sceneryCache.get(id);
+    if(cached&&cached.status==='ready')return Promise.resolve(true);
+    return new Promise(resolve=>{
+        whenSceneryResolved(id,status=>resolve(status==='ready'));
+    });
+}
+
+function loadSceneryQueue(ids,{onProgress=null,concurrency=null}={}){
+    const unique=[...new Set((ids||[]).filter(id=>sceneryAssets[id]))];
+    if(!unique.length)return Promise.resolve({loaded:0,total:0});
+
+    const limit=Math.max(1,concurrency||connectionPolicy().concurrency);
+    let cursor=0,finished=0,loaded=0;
+
+    return new Promise(resolve=>{
+        const launch=()=>{
+            while(cursor<unique.length && (cursor-finished)<limit){
+                const id=unique[cursor++];
+                ensureSceneryAssetPromise(id).then(ok=>{
+                    finished++;
+                    if(ok)loaded++;
+                    if(onProgress)onProgress(finished,unique.length,id,ok);
+                    if(finished>=unique.length)resolve({loaded,total:unique.length});
+                    else launch();
+                });
+            }
+        };
+        launch();
+    });
+}
+
+function waitForCurrentLevelPriorityAssets(onReady){
+    levelCriticalLoadActive=true;
+    speculativeWarmupToken++;
+
+    const ids=LEVEL_CRITICAL_SCENERY[currentLevel]||[];
+    const totalUnits=1+ids.length; // selected mower + scenery
+    let completed=0;
+
+    const tick=(label)=>{
+        completed++;
+        const frac=totalUnits?completed/totalUnits:1;
+        // 6–88% belongs to network/model readiness. Scene construction gets
+        // the final 12%.
+        setLevelLoadingProgress(.06+frac*.82,label||' ');
+    };
+
+    setLevelLoadingProgress(.06,'LADDAR MASKIN...');
+    ensureMowerAsset(selectedMower).then(mowerOK=>{
+        tick(mowerOK?'MASKIN KLAR':'FÖRSÖKER IGEN...');
+        if(!mowerOK){
+            // A failed/aborted request gets one clean retry. We never knowingly
+            // enter gameplay with an invisible mower.
+            mowerLoadPromises.delete(selectedMower);
+            return ensureMowerAsset(selectedMower);
+        }
+        return true;
+    }).then(mowerOK=>{
+        if(!mowerOK){
+            levelCriticalLoadActive=false;
+            const status=document.getElementById('level-loading-status');
+            if(status)status.textContent='KUNDE INTE LADDA MASKINEN. KONTROLLERA ANSLUTNINGEN OCH FÖRSÖK IGEN.';
+            const overlay=document.getElementById('level-loading-overlay');
+            setTimeout(()=>{if(overlay)overlay.style.display='none';},2200);
+            return;
+        }
+
+        if(!ids.length){
+            levelCriticalLoadActive=false;
+            setLevelLoadingProgress(.88,' ');
+            onReady();
+            return;
+        }
+
+        setLevelLoadingProgress(Math.max(.10,.06+completed/totalUnits*.82),'LADDAR BANAN...');
+        loadSceneryQueue(ids,{
+            onProgress:(done,total,id,ok)=>{
+                const frac=(completed+done)/totalUnits;
+                setLevelLoadingProgress(.06+Math.min(1,frac)*.82,ok?'LADDAR BANAN...':'FORTSÄTTER...');
+            }
+        }).then(()=>{
+            levelCriticalLoadActive=false;
+            setLevelLoadingProgress(.88,' ');
+            onReady();
+        });
+    });
+}
+
+function scheduleCurrentLevelSecondaryWarmup(){
+    const ids=LEVEL_SECONDARY_SCENERY[currentLevel]||[];
+    if(!ids.length)return;
+
+    const policy=connectionPolicy();
+    if(policy.constrained)return;
+
+    const token=++speculativeWarmupToken;
+    const start=()=>{
+        if(token!==speculativeWarmupToken||levelCriticalLoadActive||!gameActive)return;
+        // One at a time only. These are decorative and may quietly arrive
+        // during play, but never compete as a burst.
+        loadSceneryQueue(ids,{concurrency:1});
+    };
+    if('requestIdleCallback' in window){
+        requestIdleCallback(()=>setTimeout(start,1800),{timeout:4500});
+    }else{
+        setTimeout(start,3500);
+    }
+}
+
+function scheduleLikelyNextLevelWarmup(){
+    const policy=connectionPolicy();
+    if(policy.constrained||policy.moderate)return;
+
+    // Only a small "next likely destination" set; never the whole 28 MB game.
+    const nextWarm={
+        1:[],
+        2:['cart','clubhouse'],
+        3:['house7','house8','house9','fence01'],
+        4:[],
+        5:[]
+    };
+    const ids=nextWarm[currentLevel]||[];
+    if(!ids.length)return;
+
+    const token=++speculativeWarmupToken;
+    const start=()=>{
+        if(token!==speculativeWarmupToken||levelCriticalLoadActive||!gameActive)return;
+        loadSceneryQueue(ids,{concurrency:1});
+    };
+    if('requestIdleCallback' in window){
+        requestIdleCallback(()=>setTimeout(start,7000),{timeout:12000});
+    }else{
+        setTimeout(start,9000);
+    }
+}
+
 function showLevelIntro(id){
+    speculativeWarmupToken++;
     currentLevel=id;
+    const meta=LEVEL_INTRO_META[id]||{img:'',title:'?'};
+    // Re-assert this specific image as high priority. In normal use it has
+    // already been fetched by primeAllLevelIntroImages().
+    primeLevelIntroImage(id);
+
     document.getElementById('level-select-screen').style.display='none';
     const is=document.getElementById('level-intro-screen'),it=document.getElementById('intro-title');
-    const map={
-        1:['./villa.jpg','Level 1: Villakvarteret'],
-        2:['./fotboll.jpg','Level 2: Fotbollsplanen'],
-        3:['./golf.jpg','Level 3: Golfbanan'],
-        4:['./bana_intro.jpg','Level 4: Fanbyviken'],
-        5:['./galleri.jpg','Galleriet']
-    };
-    const[img,title]=map[id]||['','?'];
-    is.style.backgroundImage=`url('${img}')`;
-    it.innerText=title;
+    is.style.backgroundImage=`url('${meta.img}')`;
+    it.innerText=meta.title;
     is.style.display='flex';
 }
 
@@ -10499,6 +10776,10 @@ function buildConfirmedLevel(){
     updateMowerSfxVolume();
     mowerSfxPlaying=false;
     clock.start();
+
+    // v123: speculative work begins only after the current level is stable.
+    scheduleCurrentLevelSecondaryWarmup();
+    scheduleLikelyNextLevelWarmup();
 }
 
 const GALLERY_AUDIO_BUFFER_SECONDS=15;
@@ -10594,12 +10875,27 @@ window.confirmStartLevel=function(){
     runLoaderWithMinimumDuration({
         waitForReady:(ready)=>{
             if(currentLevel===5){
-                waitForGalleryMusicBuffer(ready);
+                // Gallery needs both the selected mower and its established
+                // music buffer before scene construction.
+                setLevelLoadingProgress(.06,'LADDAR MASKIN...');
+                ensureMowerAsset(selectedMower).then(ok=>{
+                    if(!ok){
+                        mowerLoadPromises.delete(selectedMower);
+                        return ensureMowerAsset(selectedMower);
+                    }
+                    return ok;
+                }).then(ok=>{
+                    if(!ok){
+                        const status=document.getElementById('level-loading-status');
+                        if(status)status.textContent='KUNDE INTE LADDA MASKINEN. FÖRSÖK IGEN.';
+                        if(overlay)setTimeout(()=>overlay.style.display='none',2200);
+                        return;
+                    }
+                    setLevelLoadingProgress(.10,'LADDAR GALLERI...');
+                    waitForGalleryMusicBuffer(ready);
+                });
             }else{
-                // Levels 1–4 have no additional blocking network gate here.
-                // Their loader is allowed to advance immediately.
-                setLevelLoadingProgress(.82,' ');
-                ready();
+                waitForCurrentLevelPriorityAssets(ready);
             }
         },
         onBuild:(done)=>{
@@ -10622,6 +10918,7 @@ window.confirmStartLevel=function(){
 window.finishLevel=function(){if(!gameActive)return;if(currentLevel===5){leaveGallery();return;}endGame('BANAN AVSLUTAD!');};
 
 window.returnToMainMenuAfterLevel=function(){
+    speculativeWarmupToken++;
     stopLevelSfx();
     gameActive=false;
     gameStarted=false;
