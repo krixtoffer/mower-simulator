@@ -3543,6 +3543,8 @@ const sceneryAssets={
     plant3:{path:'./plant3.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant4:{path:'./plant4.glb',height:2.2,castShadow:true,receiveShadow:true},
     plant5:{path:'./plant5.glb',height:2.2,castShadow:true,receiveShadow:true},
+    tricycle:{path:'./tricycle.glb',length:2.8,castShadow:true,receiveShadow:true},
+    flamingo:{path:'./flamingo.glb',height:2.4,castShadow:true,receiveShadow:true},
     swing:{path:'./swing.glb',height:5.0,castShadow:true,receiveShadow:true},
     hammock2:{path:'./hammock2.glb',length:5.98,castShadow:true,receiveShadow:true},
 
@@ -5440,6 +5442,267 @@ function buildLevel1PavedNeighborLot(){
 }
 
 
+
+function buildGranne5Character(){
+    const MAT={
+      skin:new THREE.MeshStandardMaterial({color:0xe2ad8d,roughness:.88}),
+      pink:new THREE.MeshStandardMaterial({color:0xff4fa3,roughness:.78}),
+      pinkDark:new THREE.MeshStandardMaterial({color:0xc72e78,roughness:.78}),
+      leather:new THREE.MeshStandardMaterial({color:0x181818,roughness:.34,metalness:.10}),
+      leather2:new THREE.MeshStandardMaterial({color:0x2b2b2b,roughness:.42}),
+      silver:new THREE.MeshStandardMaterial({color:0xbfc6ce,roughness:.28,metalness:.72}),
+      black:new THREE.MeshStandardMaterial({color:0x090909,roughness:.7}),
+      hair:new THREE.MeshStandardMaterial({color:0x5a3527,roughness:.95}),
+      lip:new THREE.MeshStandardMaterial({color:0xa54857,roughness:.72}),
+      shoe:new THREE.MeshStandardMaterial({color:0x121212,roughness:.35,metalness:.08})
+    };
+
+    function add(parent,geometry,material,x,y,z){
+      const m=new THREE.Mesh(geometry,material);
+      m.position.set(x,y,z);
+      m.castShadow=true;
+      m.receiveShadow=true;
+      parent.add(m);
+      return m;
+    }
+
+    const root=new THREE.Group();
+
+    add(root,new THREE.BoxGeometry(.52,.34,.92),MAT.shoe,-.32,.18,.16);
+    add(root,new THREE.BoxGeometry(.52,.34,.92),MAT.shoe,.32,.18,.16);
+    add(root,new THREE.BoxGeometry(.18,.22,.24),MAT.shoe,-.32,.23,-.30);
+    add(root,new THREE.BoxGeometry(.18,.22,.24),MAT.shoe,.32,.23,-.30);
+
+    const legGeo=new THREE.CylinderGeometry(.14,.17,2.35,12);
+    add(root,legGeo,MAT.leather,-.31,1.52,0);
+    add(root,legGeo,MAT.leather,.31,1.52,0);
+
+    const hips=add(root,new THREE.SphereGeometry(.66,18,12),MAT.leather,0,2.62,0);
+    hips.scale.set(1.0,.55,.78);
+
+    const belt=add(root,new THREE.TorusGeometry(.58,.055,8,24),MAT.leather2,0,2.84,0);
+    belt.rotation.x=Math.PI/2;
+    belt.scale.set(1.04,1,.82);
+    add(root,new THREE.BoxGeometry(.22,.18,.06),MAT.silver,0,2.84,.50);
+
+    // Approved crop-shirt version: exposed stomach below the pink shirt.
+    const torso=add(root,new THREE.CylinderGeometry(.49,.54,1.38,16),MAT.pink,0,4.08,0);
+    torso.scale.set(.94,1,.78);
+
+    const stomach=add(root,new THREE.CylinderGeometry(.53,.56,.70,16),MAT.skin,0,3.04,0);
+    stomach.scale.set(.94,1,.78);
+    const bellybutton=add(root,new THREE.SphereGeometry(.035,8,6),MAT.lip,0,3.13,.425);
+    bellybutton.scale.set(1,.65,.42);
+
+    const collarL=add(root,new THREE.BoxGeometry(.08,.58,.05),MAT.pinkDark,-.12,4.45,.42);
+    collarL.rotation.z=-.38;
+    const collarR=add(root,new THREE.BoxGeometry(.08,.58,.05),MAT.pinkDark,.12,4.45,.42);
+    collarR.rotation.z=.38;
+
+    const sleeveGeo=new THREE.CylinderGeometry(.17,.18,.45,10);
+    const sl=add(root,sleeveGeo,MAT.pink,-.69,4.18,0); sl.rotation.z=-.12;
+    const sr=add(root,sleeveGeo,MAT.pink,.69,4.18,0); sr.rotation.z=.12;
+
+    const armGeo=new THREE.CylinderGeometry(.10,.12,1.65,10);
+    const la=add(root,armGeo,MAT.skin,-.77,3.35,0); la.rotation.z=-.10;
+    const ra=add(root,armGeo,MAT.skin,.77,3.35,0); ra.rotation.z=.10;
+    add(root,new THREE.SphereGeometry(.17,12,8),MAT.skin,-.84,2.50,0);
+    add(root,new THREE.SphereGeometry(.17,12,8),MAT.skin,.84,2.50,0);
+
+    const br1=add(root,new THREE.TorusGeometry(.14,.028,8,16),MAT.silver,-.82,2.72,0);
+    br1.rotation.x=Math.PI/2;
+    const br2=add(root,new THREE.TorusGeometry(.14,.032,8,16),MAT.pinkDark,.82,2.72,0);
+    br2.rotation.x=Math.PI/2;
+
+    add(root,new THREE.CylinderGeometry(.19,.21,.42,12),MAT.skin,0,5.03,0);
+
+    const head=add(root,new THREE.SphereGeometry(.68,24,18),MAT.skin,0,5.78,0);
+    head.scale.set(.88,1.06,.90);
+
+    const cap=add(root,new THREE.SphereGeometry(.69,20,12,0,Math.PI*2,0,Math.PI*.56),MAT.hair,0,6.05,-.01);
+    cap.scale.set(.90,.70,.92);
+    const quiff=add(root,new THREE.SphereGeometry(.30,14,10),MAT.hair,.18,6.32,.10);
+    quiff.scale.set(1.15,.75,.85);
+
+    const browGeo=new THREE.BoxGeometry(.20,.035,.03);
+    const bl=add(root,browGeo,MAT.hair,-.21,5.92,.61); bl.rotation.z=.08;
+    const br=add(root,browGeo,MAT.hair,.21,5.92,.61); br.rotation.z=-.08;
+
+    add(root,new THREE.SphereGeometry(.052,10,8),MAT.black,-.20,5.83,.64);
+    add(root,new THREE.SphereGeometry(.052,10,8),MAT.black,.20,5.83,.64);
+
+    const nose=add(root,new THREE.SphereGeometry(.095,10,8),MAT.skin,0,5.66,.68);
+    nose.scale.set(.78,.96,1.30);
+
+    const mouth=add(root,new THREE.CapsuleGeometry(.045,.22,4,8),MAT.lip,0,5.45,.69);
+    mouth.rotation.z=Math.PI/2;
+    mouth.scale.set(1.05,.62,.55);
+
+    const hoop=add(root,new THREE.TorusGeometry(.105,.022,8,18),MAT.silver,.63,5.70,.02);
+    hoop.rotation.y=Math.PI/2;
+
+    const chain=add(root,new THREE.TorusGeometry(.31,.022,8,22),MAT.silver,0,5.00,.22);
+    chain.rotation.x=Math.PI/2;
+    add(root,new THREE.SphereGeometry(.065,10,8),MAT.silver,0,4.82,.48);
+
+    const strapL=add(root,new THREE.BoxGeometry(.08,1.75,.05),MAT.leather2,-.34,3.86,.47);
+    strapL.rotation.z=-.18;
+    const strapR=add(root,new THREE.BoxGeometry(.08,1.75,.05),MAT.leather2,.34,3.86,.47);
+    strapR.rotation.z=.18;
+
+    return root;
+}
+
+
+
+function buildGranne6Children(){
+    const MAT={
+      skin:new THREE.MeshStandardMaterial({color:0xe3b18f,roughness:.9}),
+      diaper:new THREE.MeshStandardMaterial({color:0xf5f3ea,roughness:.95}),
+      diaperEdge:new THREE.MeshStandardMaterial({color:0xdedbd1,roughness:.95}),
+      blond:new THREE.MeshStandardMaterial({color:0xe8c85e,roughness:.92}),
+      eye:new THREE.MeshStandardMaterial({color:0x111111,roughness:.8}),
+      pacifier:new THREE.MeshStandardMaterial({color:0x74b8e8,roughness:.72}),
+      pacifierRing:new THREE.MeshStandardMaterial({color:0xd6ecff,roughness:.7}),
+      shirt:new THREE.MeshStandardMaterial({color:0x4d7fc4,roughness:.9}),
+      stripe:new THREE.MeshStandardMaterial({color:0xf2df75,roughness:.9}),
+      shorts:new THREE.MeshStandardMaterial({color:0x5b774b,roughness:.92})
+    };
+
+    function add(parent,geometry,material,x,y,z){
+      const m=new THREE.Mesh(geometry,material);
+      m.position.set(x,y,z);
+      m.castShadow=true;
+      m.receiveShadow=true;
+      parent.add(m);
+      return m;
+    }
+
+    function buildBaby(){
+      const root=new THREE.Group();
+
+      const body=add(root,new THREE.SphereGeometry(.62,18,14),MAT.skin,0,1.12,0);
+      body.scale.set(1.0,1.08,.92);
+
+      const diaper=add(root,new THREE.SphereGeometry(.62,18,12),MAT.diaper,0,.76,0);
+      diaper.scale.set(1.06,.62,.96);
+
+      const band=add(root,new THREE.TorusGeometry(.57,.055,8,20),MAT.diaperEdge,0,1.00,0);
+      band.rotation.x=Math.PI/2;
+      band.scale.set(1.03,1,.92);
+
+      const legGeo=new THREE.CylinderGeometry(.13,.15,.62,10);
+      const l1=add(root,legGeo,MAT.skin,-.24,.37,0); l1.rotation.z=-.10;
+      const l2=add(root,legGeo,MAT.skin,.24,.37,0); l2.rotation.z=.10;
+
+      add(root,new THREE.SphereGeometry(.16,12,8),MAT.skin,-.26,.09,.08).scale.set(1.15,.55,1.45);
+      add(root,new THREE.SphereGeometry(.16,12,8),MAT.skin,.26,.09,.08).scale.set(1.15,.55,1.45);
+
+      const armGeo=new THREE.CylinderGeometry(.105,.12,.75,9);
+      const la=add(root,armGeo,MAT.skin,-.58,1.14,0); la.rotation.z=-.40;
+      const ra=add(root,armGeo,MAT.skin,.58,1.14,0); ra.rotation.z=.40;
+      add(root,new THREE.SphereGeometry(.13,10,8),MAT.skin,-.72,.84,0);
+      add(root,new THREE.SphereGeometry(.13,10,8),MAT.skin,.72,.84,0);
+
+      const head=add(root,new THREE.SphereGeometry(.58,22,16),MAT.skin,0,1.98,0);
+      head.scale.set(.95,1.02,.93);
+
+      add(root,new THREE.SphereGeometry(.045,8,6),MAT.eye,-.17,2.05,.535);
+      add(root,new THREE.SphereGeometry(.045,8,6),MAT.eye,.17,2.05,.535);
+      add(root,new THREE.SphereGeometry(.07,8,6),MAT.skin,0,1.91,.56).scale.set(.8,.8,1.2);
+
+      const shield=add(root,new THREE.SphereGeometry(.17,12,8),MAT.pacifier,0,1.75,.57);
+      shield.scale.set(1.35,.72,.36);
+      add(root,new THREE.SphereGeometry(.075,10,8),MAT.pacifierRing,0,1.75,.66);
+      const ring=add(root,new THREE.TorusGeometry(.12,.026,8,16),MAT.pacifierRing,0,1.75,.70);
+      ring.rotation.x=Math.PI/2;
+
+      class BabySwirlCurve extends THREE.Curve{
+        getPoint(tt){
+          const a=tt*Math.PI*2.2;
+          const r=.18*(1-tt*.55);
+          return new THREE.Vector3(Math.cos(a)*r,tt*.18,Math.sin(a)*r);
+        }
+      }
+      const swirl=add(root,new THREE.TubeGeometry(new BabySwirlCurve(),30,.032,6,false),MAT.blond,0,2.57,0);
+      swirl.rotation.x=.15;
+
+      return root;
+    }
+
+    function buildOlderChild(){
+      const root=new THREE.Group();
+
+      add(root,new THREE.SphereGeometry(.18,12,8),MAT.skin,-.27,.10,.12).scale.set(1.25,.55,1.55);
+      add(root,new THREE.SphereGeometry(.18,12,8),MAT.skin,.27,.10,.12).scale.set(1.25,.55,1.55);
+
+      const legGeo=new THREE.CylinderGeometry(.115,.135,1.10,10);
+      add(root,legGeo,MAT.skin,-.27,.67,0);
+      add(root,legGeo,MAT.skin,.27,.67,0);
+
+      add(root,new THREE.BoxGeometry(.52,.62,.58),MAT.shorts,-.27,1.38,0);
+      add(root,new THREE.BoxGeometry(.52,.62,.58),MAT.shorts,.27,1.38,0);
+
+      const torso=add(root,new THREE.CylinderGeometry(.48,.54,1.35,14),MAT.shirt,0,2.20,0);
+      torso.scale.set(1,.98,.76);
+
+      for(let i=0;i<4;i++){
+        const stripe=add(root,new THREE.BoxGeometry(1.00,.14,.045),MAT.stripe,0,1.77+i*.32,.39);
+        stripe.castShadow=false;
+      }
+
+      const sleeveGeo=new THREE.CylinderGeometry(.16,.18,.42,10);
+      const sl=add(root,sleeveGeo,MAT.shirt,-.60,2.33,0); sl.rotation.z=-.18;
+      const sr=add(root,sleeveGeo,MAT.shirt,.60,2.33,0); sr.rotation.z=.18;
+
+      const armGeo=new THREE.CylinderGeometry(.095,.11,.95,9);
+      const la=add(root,armGeo,MAT.skin,-.67,1.86,0); la.rotation.z=-.12;
+      const ra=add(root,armGeo,MAT.skin,.67,1.86,0); ra.rotation.z=.12;
+      add(root,new THREE.SphereGeometry(.13,10,8),MAT.skin,-.72,1.37,0);
+      add(root,new THREE.SphereGeometry(.13,10,8),MAT.skin,.72,1.37,0);
+
+      add(root,new THREE.CylinderGeometry(.15,.17,.30,10),MAT.skin,0,2.94,0);
+      const head=add(root,new THREE.SphereGeometry(.57,22,16),MAT.skin,0,3.55,0);
+      head.scale.set(.90,1.05,.92);
+
+      add(root,new THREE.SphereGeometry(.045,8,6),MAT.eye,-.17,3.63,.53);
+      add(root,new THREE.SphereGeometry(.045,8,6),MAT.eye,.17,3.63,.53);
+      add(root,new THREE.SphereGeometry(.07,8,6),MAT.skin,0,3.48,.56).scale.set(.8,.8,1.2);
+      add(root,new THREE.BoxGeometry(.22,.025,.025),MAT.eye,0,3.33,.57);
+
+      class ChildSwirlCurve extends THREE.Curve{
+        getPoint(tt){
+          const a=tt*Math.PI*3.2;
+          const r=.25*(1-tt*.45);
+          return new THREE.Vector3(Math.cos(a)*r,tt*.24,Math.sin(a)*r);
+        }
+      }
+      const swirl=add(root,new THREE.TubeGeometry(new ChildSwirlCurve(),42,.04,6,false),MAT.blond,0,4.12,0);
+      swirl.rotation.x=.10;
+
+      const tuft=add(root,new THREE.SphereGeometry(.22,12,8),MAT.blond,0,4.08,-.02);
+      tuft.scale.set(1.25,.35,1.0);
+
+      return root;
+    }
+
+    // Treat the pair as one lawn resident for entry/audio/follow logic.
+    const pair=new THREE.Group();
+    const baby=buildBaby();
+    const older=buildOlderChild();
+
+    baby.position.set(-1.25,0,.15);
+    older.position.set(1.15,0,-.10);
+
+    // Counter the normal adult-neighbor scale so they remain visibly child-sized.
+    baby.scale.setScalar(.72);
+    older.scale.setScalar(.72);
+
+    pair.add(baby,older);
+    return pair;
+}
+
+
 function buildLevel1NeighborCharacters(){
     function mat(color,roughness=.9){
         return new THREE.MeshStandardMaterial({color,roughness});
@@ -5706,7 +5969,7 @@ function buildLevel1NeighborCharacters(){
         buildGranne1(),
         -100,20,0,
         {xMin:-150,xMax:-50,zMin:-50,zMax:50},
-        ['granne1a.mp3','granne1b.mp3','granne1c.mp3','granne1d.mp3']
+        ['granne1a.mp3','granne1b.mp3','granne1c.mp3','granne1d.mp3','granne1e.mp3','granne1f.mp3']
     );
 
     // granne2: lot immediately east of the playable lawn.
@@ -5714,7 +5977,7 @@ function buildLevel1NeighborCharacters(){
         buildGranne2(),
         100,18,0,
         {xMin:50,xMax:150,zMin:-50,zMax:50},
-        ['granne2a.mp3','granne2b.mp3','granne2c.mp3','granne2d.mp3','granne2e.mp3']
+        ['granne2a.mp3','granne2b.mp3','granne2c.mp3','granne2d.mp3','granne2e.mp3','granne2f.mp3','granne2g.mp3']
     );
 
     // granne3: lot directly across the street.
@@ -5722,7 +5985,26 @@ function buildLevel1NeighborCharacters(){
         buildGranne3(),
         0,103,Math.PI,
         {xMin:-50,xMax:50,zMin:74,zMax:174},
-        ['granne3a.mp3','granne3b.mp3','granne3c.mp3']
+        ['granne3a.mp3','granne3b.mp3','granne3c.mp3','granne3d.mp3']
+    );
+
+    // granne5: previously empty north-west neighboring lawn.
+    // Uses the same startled jump, slow follow/return behavior and
+    // shuffled no-repeat 10-second voice cycle as granne1-3.
+    makeNeighbor(
+        buildGranne5Character(),
+        -100,104,Math.PI,
+        {xMin:-150,xMax:-50,zMin:74,zMax:174},
+        ['granne5a.mp3','granne5b.mp3','granne5c.mp3','granne5d.mp3','granne5e.mp3']
+    );
+
+    // granne6: the two children share the previously empty far south-west lawn.
+    // The pair uses the same shuffled no-repeat entry/10-second audio cycle.
+    makeNeighbor(
+        buildGranne6Children(),
+        -200,18,0,
+        {xMin:-250,xMax:-150,zMin:-50,zMax:50},
+        ['granne6a.mp3','granne6b.mp3','granne6c.mp3','granne6d.mp3','granne6e.mp3']
     );
 }
 
@@ -5754,7 +6036,20 @@ function buildLevel1NeighborGardenProps(){
         // granne3 north-center lawn: three trees
         ['tree2',-32,118,1.00,0.2],
         ['tree2',27,121,0.95,1.3],
-        ['tree2',30,153,1.05,2.4]
+        ['tree2',30,153,1.05,2.4],
+
+        // granne5 north-west lawn: flamboyant man's garden
+        ['flamingo',-123,112,1.00,-0.35],
+        ['tree2',-137,142,1.00,0.45],
+        ['tree2',-66,153,0.96,-0.70],
+
+        // granne6 far south-west lawn: children's garden
+        ['tricycle',-185,18,1.00,0.55],
+        ['plant3',-225,31,1.00,0.10],
+        ['plant3',-216,34,0.95,0.80],
+        ['plant3',-207,31,1.05,1.55],
+        ['plant3',-198,34,0.98,2.30],
+        ['tree1',-232,-15,1.00,0.35]
     ];
 
     const serial=levelBuildSerial;
