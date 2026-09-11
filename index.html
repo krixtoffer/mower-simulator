@@ -3403,6 +3403,10 @@ const settings = {
     sfxVolume:1
 };
 const MUSIC_BASE_VOLUME=0.35;
+const NEIGHBOR_SFX_GAINS={
+    'granne6e.mp3':2.0
+};
+
 let settingsOpenedFromGameplay=false;
 let settingsResumeLevel=0;
 
@@ -5385,7 +5389,9 @@ function playNextLevel1NeighborSound(n){
     const a=n.audio[index];
 
     try{
-        applySfxVolume(a,1);
+        const src=(a.currentSrc||a.src||'').split('/').pop();
+        const baseGain=NEIGHBOR_SFX_GAINS[src]||1;
+        applySfxVolume(a,baseGain);
         a.currentTime=0;
         const p=a.play();
         if(p&&typeof p.catch==='function')p.catch(()=>{});
