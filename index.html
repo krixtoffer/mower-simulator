@@ -125,6 +125,25 @@
             position:absolute; bottom:20px; right:20px;
             display:none; flex-direction:column; gap:10px; z-index:15; pointer-events:auto;
         }
+        #game-settings-wheel{
+            position:absolute;top:82px;right:18px;z-index:32;
+            display:none;width:44px;height:44px;padding:0;
+            align-items:center;justify-content:center;
+            border:3px solid #00ffff;border-radius:50%;
+            background:rgba(18,0,38,.88);color:#fff;
+            box-shadow:3px 3px 0 #ff00ff;
+            font-size:22px;line-height:1;cursor:pointer;
+            pointer-events:auto;touch-action:manipulation;
+        }
+        #game-settings-wheel:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #ff00ff;}
+        .setting-audio-row{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;}
+        .setting-audio-row .audio-label{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+        .volume-wrap{grid-column:1 / -1;display:grid;grid-template-columns:1fr 42px;gap:10px;align-items:center;}
+        .volume-slider{width:100%;accent-color:#ff00ff;cursor:pointer;}
+        .volume-value{font-size:7px;color:#00ffff;text-align:right;white-space:nowrap;}
+        @media(max-width:600px){
+            #game-settings-wheel{top:74px;right:12px;width:40px;height:40px;font-size:20px;}
+        }
         #game-over {
             position:absolute; top:0; left:0; width:100%; height:100%;
             background:rgba(0,0,0,0.85); display:none; flex-direction:column;
@@ -1935,8 +1954,20 @@
         <h2>⚙ INSTÄLLNINGAR</h2>
 
         <div class="settings-basic-group">
-            <div class="setting-row"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
-            <div class="setting-row"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
+            <div class="setting-row setting-audio-row">
+                <div class="audio-label"><span>MUSIK</span><button class="toggle-btn" id="toggle-music" onclick="toggleSetting('music')">PÅ</button></div>
+                <div class="volume-wrap">
+                    <input class="volume-slider" id="music-volume" type="range" min="0" max="100" step="1" value="100" oninput="setVolumeSetting('music',this.value)">
+                    <span class="volume-value" id="music-volume-value">100%</span>
+                </div>
+            </div>
+            <div class="setting-row setting-audio-row">
+                <div class="audio-label"><span>LJUDEFFEKTER</span><button class="toggle-btn" id="toggle-sfx" onclick="toggleSetting('sfx')">PÅ</button></div>
+                <div class="volume-wrap">
+                    <input class="volume-slider" id="sfx-volume" type="range" min="0" max="100" step="1" value="100" oninput="setVolumeSetting('sfx',this.value)">
+                    <span class="volume-value" id="sfx-volume-value">100%</span>
+                </div>
+            </div>
             <div class="setting-row"><span>TIDSBEGRÄNSNING</span><button class="toggle-btn" id="toggle-timer" onclick="toggleSetting('timer')">PÅ</button></div>
         </div>
 
@@ -2142,6 +2173,7 @@
 <div id="hud-buttons">
     <button class="arcade-btn" style="font-size:9px;padding:10px 14px;background:#27ae60;" onclick="finishLevel()">✓ KLAR</button>
 </div>
+<button id="game-settings-wheel" aria-label="Inställningar" onclick="openGameplaySettings()">⚙</button>
 
 <div id="game-over">
     <div id="go-panel">
@@ -3268,7 +3300,18 @@ const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
-const settings = { music:true, sfx:true, timedMode:true, nightMode:false };
+const settings = {
+    music:true,
+    sfx:true,
+    timedMode:true,
+    nightMode:false,
+    musicVolume:1,
+    sfxVolume:1
+};
+const MUSIC_BASE_VOLUME=0.35;
+let settingsOpenedFromGameplay=false;
+let settingsResumeLevel=0;
+
 
 // ── JUKEBOX ───────────────────────────────────────────────────────────────────
 const jukeboxTracks = [
@@ -3318,7 +3361,7 @@ window.jukeboxSelect = function(trackId){
 
 // ── AUDIO ─────────────────────────────────────────────────────────────────────
 const bgMusic = document.getElementById('bg-music');
-bgMusic.volume = 0.35;
+bgMusic.volume = MUSIC_BASE_VOLUME*settings.musicVolume;
 
 // Ask the browser to fetch/decode the menu music immediately. Autoplay may still
 // be blocked by mobile browsers, so STARTA SPELET also performs an explicit
@@ -3399,6 +3442,7 @@ function playFootballGoalSfx(){
     setTimeout(()=>{
         if(!settings.sfx||currentLevel!==2||!gameActive)return;
         try{
+            applySfxVolume(goalSfx,1);
             goalSfx.currentTime=0;
             goalSfx.play().catch(()=>{});
         }catch(e){}
@@ -3444,9 +3488,34 @@ mowerSfx.volume=MOWER_SFX_VOLUME_NORMAL;
 let mowerSfxPlaying = false;
 const mowerSfxFiles = { standard:'./handjag.mp3', klippo:'./klippo.mp3', ts112:'./rideon.mp3', combine:'./combine.mp3' };
 
-function playSfx(id){ if(!settings.sfx) return; const e=sfxEls[id]; if(!e) return; e.currentTime=0; e.play().catch(()=>{}); }
+function applySfxVolume(audio,base=1){
+    if(!audio)return;
+    audio.volume=Math.max(0,Math.min(1,base*settings.sfxVolume));
+}
+function applyAudioSettings(){
+    if(bgMusic)bgMusic.volume=MUSIC_BASE_VOLUME*settings.musicVolume;
+
+    Object.values(sfxEls).forEach(a=>applySfxVolume(a,1));
+    applySfxVolume(goal2Sfx,1);
+    applySfxVolume(goalSfx,1);
+    applySfxVolume(sfxGhost,.42);
+    applySfxVolume(level4TrampolineAudio,1);
+    applySfxVolume(golfRangeMachineHitAudio,1);
+
+    if(typeof level4HammockBirdAudio!=='undefined'){
+        level4HammockBirdAudio.forEach((a,i)=>applySfxVolume(a,LEVEL4_HAMMOCK_BIRD_VOLUMES[i]||1));
+    }
+    if(typeof level1Neighbors!=='undefined'){
+        level1Neighbors.forEach(n=>(n.audio||[]).forEach(a=>applySfxVolume(a,1)));
+    }
+    if(typeof level1Granne4Audio!=='undefined'&&level1Granne4Audio.currentAudio){
+        applySfxVolume(level1Granne4Audio.currentAudio,1);
+    }
+    updateMowerSfxVolume();
+}
+function playSfx(id){ if(!settings.sfx) return; const e=sfxEls[id]; if(!e) return; applySfxVolume(e,1); e.currentTime=0; e.play().catch(()=>{}); }
 function updateMowerSfxVolume(){
-    mowerSfx.volume=(currentLevel===5)?MOWER_SFX_VOLUME_GALLERY:MOWER_SFX_VOLUME_NORMAL;
+    mowerSfx.volume=((currentLevel===5)?MOWER_SFX_VOLUME_GALLERY:MOWER_SFX_VOLUME_NORMAL)*settings.sfxVolume;
 }
 function startMowerSfx(){
     if(!settings.sfx||mowerSfxPlaying)return;
@@ -3470,20 +3539,129 @@ function startGolfSfx(){
 }
 function stopLevelSfx(){ if(sfxTimer){clearTimeout(sfxTimer);sfxTimer=null;} stopMowerSfx(); }
 
-window.openSettings=function(){ document.getElementById('settings-overlay').style.display='flex'; updateSettingsUI(); };
-window.closeSettings=function(){ document.getElementById('settings-overlay').style.display='none'; };
+function pauseGameplayForSettings(){
+    if(!gameStarted||!gameActive)return false;
+    settingsOpenedFromGameplay=true;
+    settingsResumeLevel=currentLevel;
+
+    // gameActive already gates the physics, animation updates, timer tick and
+    // most level-specific delayed sound callbacks.
+    gameActive=false;
+    mowerStats.speed=0;
+    inputs.up=inputs.down=inputs.left=inputs.right=false;
+    inputs.joyX=inputs.joyY=0;
+    stopMowerSfx();
+    hideGameplayJoystick();
+    return true;
+}
+
+function resumeGameplayAfterSettings(){
+    if(!settingsOpenedFromGameplay)return;
+    settingsOpenedFromGameplay=false;
+
+    // Do not resume a stale level if another screen changed state meanwhile.
+    if(!gameStarted||currentLevel!==settingsResumeLevel)return;
+
+    gameActive=true;
+    settingsResumeLevel=0;
+
+    // Re-sync Three.Clock so a long settings visit cannot create a large
+    // first-frame delta on return.
+    clock.getDelta();
+
+    if(settings.timedMode&&currentLevel!==5){
+        if(timerInterval)clearInterval(timerInterval);
+        timerInterval=setInterval(updateTimer,1000);
+    }else{
+        if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+        if(currentLevel!==5){
+            const timerEl=document.getElementById('timer');
+            if(timerEl)timerEl.innerText='∞';
+        }
+    }
+
+    ensureGameplayJoystick();
+
+    // Stadium/golf ambience uses timeout chains which intentionally stop while
+    // gameActive=false; restart those chains cleanly on resume.
+    if(settings.sfx){
+        if(currentLevel===2)startStadiumSfx();
+        else if(currentLevel===3)startGolfSfx();
+    }
+}
+
+window.openGameplaySettings=function(){
+    if(!gameStarted||!gameActive)return;
+    pauseGameplayForSettings();
+    document.getElementById('settings-overlay').style.display='flex';
+    updateSettingsUI();
+};
+
+window.openSettings=function(){
+    // Main-menu settings still work exactly as before. If this is ever called
+    // from live gameplay, use the safe pause path.
+    if(gameStarted&&gameActive)pauseGameplayForSettings();
+    document.getElementById('settings-overlay').style.display='flex';
+    updateSettingsUI();
+};
+
+window.closeSettings=function(){
+    document.getElementById('settings-overlay').style.display='none';
+    resumeGameplayAfterSettings();
+};
+
+window.setVolumeSetting=function(kind,value){
+    const v=Math.max(0,Math.min(1,(Number(value)||0)/100));
+    if(kind==='music')settings.musicVolume=v;
+    else if(kind==='sfx')settings.sfxVolume=v;
+    applyAudioSettings();
+    updateSettingsUI();
+};
+
 window.toggleSetting=function(key){
-    if(key==='music'){settings.music=!settings.music; if(settings.music)bgMusic.play().catch(()=>{}); else bgMusic.pause();}
-    else if(key==='sfx'){settings.sfx=!settings.sfx; if(!settings.sfx)stopMowerSfx();}
-    else if(key==='timer'){settings.timedMode=!settings.timedMode;}
+    if(key==='music'){
+        settings.music=!settings.music;
+        applyAudioSettings();
+        if(settings.music)bgMusic.play().catch(()=>{});
+        else bgMusic.pause();
+    }
+    else if(key==='sfx'){
+        settings.sfx=!settings.sfx;
+        applyAudioSettings();
+        if(!settings.sfx)stopMowerSfx();
+    }
+    else if(key==='timer'){
+        settings.timedMode=!settings.timedMode;
+        if(gameStarted){
+            const timerEl=document.getElementById('timer');
+            if(!settings.timedMode&&timerEl)timerEl.innerText='∞';
+            else if(settings.timedMode&&timerEl){
+                const m=Math.floor(timeLeft/60),s=timeLeft%60;
+                timerEl.innerText=`${m}:${s.toString().padStart(2,'0')}`;
+            }
+        }
+    }
     else if(key==='night'){settings.nightMode=!settings.nightMode;}
     updateSettingsUI();
 };
+
 function updateSettingsUI(){
     [['toggle-music','music'],['toggle-sfx','sfx'],['toggle-timer','timedMode']].forEach(([id,k])=>{
-        const b=document.getElementById(id); const on=settings[k];
+        const b=document.getElementById(id); if(!b)return;
+        const on=settings[k];
         b.textContent=on?'PÅ':'AV'; b.className='toggle-btn'+(on?'':' off');
     });
+
+    const musicSlider=document.getElementById('music-volume');
+    const sfxSlider=document.getElementById('sfx-volume');
+    const musicValue=document.getElementById('music-volume-value');
+    const sfxValue=document.getElementById('sfx-volume-value');
+    const musicPct=Math.round(settings.musicVolume*100);
+    const sfxPct=Math.round(settings.sfxVolume*100);
+    if(musicSlider)musicSlider.value=musicPct;
+    if(sfxSlider)sfxSlider.value=sfxPct;
+    if(musicValue)musicValue.textContent=musicPct+'%';
+    if(sfxValue)sfxValue.textContent=sfxPct+'%';
 
     const nightBtn=document.getElementById('toggle-night');
     if(nightBtn){
@@ -4468,7 +4646,7 @@ function updateNightGhostProximitySound(dt){
         nightGhostSoundActive=true;
         sfxGhost.pause();
         sfxGhost.currentTime=0;
-        sfxGhost.volume=.42;
+        applySfxVolume(sfxGhost,.42);
         try{
             const p=sfxGhost.play();
             if(p&&p.catch)p.catch(()=>{});
@@ -5111,6 +5289,7 @@ function playNextLevel1NeighborSound(n){
     const a=n.audio[index];
 
     try{
+        applySfxVolume(a,1);
         a.currentTime=0;
         const p=a.play();
         if(p&&typeof p.catch==='function')p.catch(()=>{});
@@ -5339,6 +5518,7 @@ function playNextLevel1Granne4Sound(){
         }
         const a=new Audio(`./${g.files[index]}`);
         a.preload='auto';
+        applySfxVolume(a,1);
         g.currentAudio=a;
         const p=a.play();
         if(p&&typeof p.catch==='function')p.catch(()=>{});
@@ -8288,6 +8468,8 @@ window.leaveGallery=function(){
     restoreGalleryMusic();
     galleryMode=false;galleryOpenItem=null;
     gameActive=false;gameStarted=false;
+    settingsOpenedFromGameplay=false;settingsResumeLevel=0;
+    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
     mowerStats.speed=0;
     document.getElementById('gallery-ui').style.display='none';
     document.getElementById('gallery-info').style.display='none';
@@ -8349,7 +8531,7 @@ const LEVEL4_HAMMOCK_BIRD_VOLUMES=[
 const level4HammockBirdAudio=Array.from({length:21},(_,i)=>{
     const a=new Audio(`./bird${i+1}.mp3`);
     a.preload='none';
-    a.volume=LEVEL4_HAMMOCK_BIRD_VOLUMES[i];
+    applySfxVolume(a,LEVEL4_HAMMOCK_BIRD_VOLUMES[i]);
     return a;
 });
 let level4HammockAudioInside=false;
@@ -8420,6 +8602,7 @@ function updateLevel4TrampolineAudio(){
     // Trigger on entry, but never restart more often than once every 2 seconds.
     if(inside&&!level4TrampolineAudioInside&&now-level4TrampolineAudioLastPlay>=LEVEL4_TRAMPOLINE_AUDIO_COOLDOWN_MS){
         try{
+            applySfxVolume(level4TrampolineAudio,1);
             level4TrampolineAudio.currentTime=0;
             const p=level4TrampolineAudio.play();
             level4TrampolineAudioLastPlay=now;
@@ -10200,6 +10383,11 @@ function buildConfirmedLevel(){
     document.getElementById('timer').innerText=settings.timedMode?'01:30':'∞';
 
     gameStarted=true;gameActive=true;
+    settingsOpenedFromGameplay=false;
+    settingsResumeLevel=0;
+    const settingsWheel=document.getElementById('game-settings-wheel');
+    if(settingsWheel)settingsWheel.style.display='flex';
+    applyAudioSettings();
     startJoystickFailsafe();
     if(timerInterval)clearInterval(timerInterval);
     if(settings.timedMode&&currentLevel!==5)timerInterval=setInterval(updateTimer,1000);
@@ -10337,6 +10525,7 @@ window.returnToMainMenuAfterLevel=function(){
     if(timerInterval)clearInterval(timerInterval);
     document.getElementById('hud').style.display='none';
     document.getElementById('hud-buttons').style.display='none';
+    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
     document.getElementById('game-over').style.display='none';
     hideGameplayJoystick();
     openMainMenu();
@@ -10346,7 +10535,9 @@ window.leaveLevel=function(){
     if(currentLevel===5){leaveGallery();return;}
     stopLevelSfx();gameActive=false;gameStarted=false;if(timerInterval)clearInterval(timerInterval);
     hideGameplayJoystick();
-    document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';openLevelSelect();
+    document.getElementById('hud').style.display='none';document.getElementById('hud-buttons').style.display='none';
+    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';
+    openLevelSelect();
 };
 function updateTimer(){if(!gameStarted||!gameActive)return;timeLeft--;const m=Math.floor(timeLeft/60),s=timeLeft%60;document.getElementById('timer').innerText=`0${m}:${s<10?'0':''}${s}`;if(timeLeft<=0)endGame('TIDEN ÄR UTE!');}
 function calculateProgress(){
@@ -10420,7 +10611,8 @@ function calculateProgress(){
     }
 }
 function renderStars(id,n){let h='';for(let i=1;i<=5;i++)h+=i<=n?'<span class="star-earned">★</span>':'★';document.getElementById(id).innerHTML=h;}
-function endGame(title='TIDEN ÄR UTE!'){if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();saveLevelRecord(currentLevel,currentProgress,currentStars);const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
+function endGame(title='TIDEN ÄR UTE!'){
+    const settingsWheel=document.getElementById('game-settings-wheel'); if(settingsWheel)settingsWheel.style.display='none';if(!gameActive)return;gameActive=false;stopLevelSfx();if(timerInterval)clearInterval(timerInterval);calculateProgress();saveLevelRecord(currentLevel,currentProgress,currentStars);const earned=currentProgress*100;totalMoney+=earned;localStorage.setItem('mower_money',totalMoney);document.getElementById('hud-buttons').style.display='none';document.getElementById('game-over').style.display='flex';document.getElementById('go-title').innerText=title;document.getElementById('go-progress').innerText=currentProgress+'%';document.getElementById('go-money').innerText=earned+' KR';document.getElementById('go-total-money').innerText=totalMoney+' KR';renderStars('go-stars',currentStars);document.getElementById('go-msg').innerText=currentStars>=3?'BANAN KLARAD!':'DU BEHÖVER 3 STJÄRNOR.';}
 window.openShop=function(){['main-menu-screen','minigames-screen','game-over','showroom-screen'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('shop-screen').style.display='flex';document.getElementById('shop-wallet').innerText=totalMoney+' KR';};
 
 function animate(){
