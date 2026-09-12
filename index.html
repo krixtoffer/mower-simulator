@@ -1656,6 +1656,34 @@
         }
 
 
+
+        /* ══ v126: BACKKLIPPAREN progressive courses ══ */
+        #hill-course-banner {
+            display:none; position:absolute; top:42px; left:50%; transform:translateX(-50%);
+            z-index:380; pointer-events:none; padding:8px 14px;
+            border:3px solid #ffff00; background:rgba(8,0,30,.86); color:#fff;
+            font-family:'Press Start 2P',monospace; font-size:10px; line-height:1.4;
+            text-align:center; box-shadow:4px 4px 0 #ff00ff; white-space:nowrap;
+        }
+        #hill-complete-overlay {
+            display:none; position:absolute; inset:0; z-index:390;
+            align-items:center; justify-content:center; flex-direction:column;
+            background:rgba(3,0,18,.78); text-align:center; padding:24px; box-sizing:border-box;
+            font-family:'Press Start 2P',monospace;
+        }
+        #hill-complete-overlay.show { display:flex; }
+        #hill-complete-title {
+            color:#ffff00; font-size:clamp(18px,5vw,36px); line-height:1.35;
+            text-shadow:4px 4px #ff00ff; margin-bottom:16px;
+        }
+        #hill-complete-sub {
+            color:#fff; font-size:9px; line-height:1.7; max-width:560px; margin-bottom:20px;
+        }
+        @media(max-width:600px){
+            #hill-course-banner{top:38px;font-size:8px;padding:7px 10px}
+            #hill-complete-sub{font-size:7px}
+        }
+
         /* ── GALLERI ─────────────────────────────────────────────────── */
         .gallery-level-btn{}
         #gallery-ui{
@@ -2128,12 +2156,18 @@
         <span id="arcade-mg-title">MINISPEL</span>
         <span id="arcade-mg-score">0</span>
     </div>
+    <div id="hill-course-banner"></div>
+    <div id="hill-complete-overlay">
+        <div id="hill-complete-title">ALLA BANOR KLARA!</div>
+        <div id="hill-complete-sub">DU HAR KLARAT FANBYN, TREDJEVIKEN, KLIPPORNA OCH MÅNEN.</div>
+        <button class="arcade-btn" style="background:#8b008b;" onclick="MiniGames.close()">← TILL MINISPEL</button>
+    </div>
     <div id="arcade-mg-wrap"><canvas id="arcade-mg-canvas" width="420" height="420"></canvas></div>
     <div id="arcade-mg-bottom">
         <div id="arcade-mg-msg"></div>
         <div id="arcade-mg-buttons">
-            <button class="arcade-btn" style="background:#e74c3c;" onclick="MiniGames.close()">← TILLBAKA</button>
-            <button class="arcade-btn" style="background:#8b008b;" onclick="MiniGames.restart()">↺ IGEN</button>
+            <button id="arcade-back-btn" class="arcade-btn" style="background:#e74c3c;" onclick="MiniGames.close()">← TILLBAKA</button>
+            <button id="arcade-restart-btn" class="arcade-btn" style="background:#8b008b;" onclick="MiniGames.restart()">↺ IGEN</button>
         </div>
         <div id="arcade-mg-joystick" class="mini-joystick-zone" aria-label="Styrspak">
             <div id="arcade-mg-joystick-knob" class="mini-joystick-knob"></div>
@@ -3000,51 +3034,173 @@
     }
 
 
-    // ── BACKKLIPPAREN — endless hill climber ────────────────────────────
-    // v42: faster, lower gravity, more jagged terrain, sparse fuel,
-    // genuine flip risk and separate throttle / air-rotation controls.
-    function hillTerrainY(wx){
-        // Multi-frequency deterministic terrain. Long hills establish rhythm;
-        // short waves and sharp harmonics produce risky lips and troughs.
-        const d=Math.min(1.9,1+wx/7000);
-        const base=318
-            +Math.sin(wx*.0042)*42*d
-            +Math.sin(wx*.0089+1.3)*31*d
-            +Math.sin(wx*.0175+2.1)*19*d
-            +Math.sin(wx*.031+0.4)*10*d;
+    // ── BACKKLIPPAREN — four progressive courses (v126) ───────────────
+    // Each course lasts about two minutes of successful driving. Terrain is
+    // regenerated for each run from randomized phases, while bounded amplitudes
+    // and slopes keep the course challenging without intentionally impossible walls.
+    const HILL_LEVEL_SECONDS=120;
+    const HILL_LEVELS=[
+        {name:'Fanbyn',      kind:'grass', baseAmp:1.00, gravity:56, fuelGap:[1050,1450]},
+        {name:'Tredjeviken', kind:'sand',  baseAmp:1.18, gravity:56, fuelGap:[1020,1420]},
+        {name:'Klipporna',   kind:'lava',  baseAmp:1.34, gravity:56, fuelGap:[980,1380]},
+        {name:'Månen',       kind:'moon',  baseAmp:1.28, gravity:28, fuelGap:[1050,1480]}
+    ];
+    let hillLevelIndex=0;
+    let hillCourse=null;
+    let hillBannerToken=0;
 
-        // Triangular-ish harmonic makes crests less smooth without randomness
-        // changing between frames.
-        const jag=Math.asin(Math.sin(wx*.0122+0.7))*(18/Math.PI)*d;
-        return base+jag;
+    function makeHillCourse(levelIndex){
+        const cfg=HILL_LEVELS[levelIndex]||HILL_LEVELS[0];
+        return {
+            cfg,
+            seed:Math.random()*10000,
+            p1:Math.random()*Math.PI*2,
+            p2:Math.random()*Math.PI*2,
+            p3:Math.random()*Math.PI*2,
+            p4:Math.random()*Math.PI*2,
+            wobble:Math.random()*Math.PI*2
+        };
+    }
+    function hillProgressDifficulty(wx){
+        // Course becomes progressively hillier, but caps before slopes become absurd.
+        return .68+clamp(wx/15000,0,1)*.52;
+    }
+    function hillTerrainY(wx){
+        const c=hillCourse||makeHillCourse(hillLevelIndex);
+        const cfg=c.cfg;
+        const d=cfg.baseAmp*hillProgressDifficulty(wx);
+        let y=318;
+
+        if(cfg.kind==='grass'){
+            y += Math.sin(wx*.0039+c.p1)*35*d;
+            y += Math.sin(wx*.0082+c.p2)*24*d;
+            y += Math.sin(wx*.0158+c.p3)*13*d;
+            y += Math.asin(Math.sin(wx*.0106+c.p4))*(10/Math.PI)*d;
+        }else if(cfg.kind==='sand'){
+            // Broad dunes with smaller ripples: large but forgiving hills.
+            y += Math.sin(wx*.0028+c.p1)*48*d;
+            y += Math.sin(wx*.0062+c.p2)*30*d;
+            y += Math.sin(wx*.0112+c.p3)*13*d;
+            y += Math.sin(wx*.021+c.p4)*5*d;
+        }else if(cfg.kind==='lava'){
+            // Rocky, sharper profile, but bounded by low harmonic amplitudes.
+            y += Math.sin(wx*.0035+c.p1)*42*d;
+            y += Math.sin(wx*.0088+c.p2)*29*d;
+            y += Math.sin(wx*.017+c.p3)*16*d;
+            y += Math.asin(Math.sin(wx*.0128+c.p4))*(17/Math.PI)*d;
+        }else{
+            // Moon: long rolling ridges plus crater-like depressions.
+            y += Math.sin(wx*.0025+c.p1)*42*d;
+            y += Math.sin(wx*.0065+c.p2)*25*d;
+            y += Math.sin(wx*.013+c.p3)*11*d;
+            const crater=Math.sin(wx*.0041+c.p4);
+            y += Math.max(0,crater)*Math.max(0,crater)*18*d;
+        }
+        return clamp(y,205,375);
     }
     function hillSlope(wx){
         const e=2.5;
         return Math.atan2(hillTerrainY(wx+e)-hillTerrainY(wx-e),e*2);
     }
     function ensureHillFuel(){
+        const cfg=(hillCourse&&hillCourse.cfg)||HILL_LEVELS[hillLevelIndex];
         while(state.nextFuelX<state.x+2400){
             const x=state.nextFuelX;
             state.fuels.push({x,got:false});
-            // Deliberately sparse: usually one can every 1100–1550 world units.
-            state.nextFuelX+=rnd(1100,1550);
+            state.nextFuelX+=rnd(cfg.fuelGap[0],cfg.fuelGap[1]);
         }
         state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-500);
     }
+    function showHillCourseBanner(){
+        const el=document.getElementById('hill-course-banner');
+        if(!el)return;
+        const token=++hillBannerToken;
+        el.textContent=`BANA ${hillLevelIndex+1}: ${HILL_LEVELS[hillLevelIndex].name.toUpperCase()}`;
+        el.style.display='block';
+        setTimeout(()=>{if(token===hillBannerToken)el.style.display='none';},4000);
+    }
+    function setHillActionButton(mode){
+        const btn=document.getElementById('arcade-restart-btn');
+        if(!btn)return;
+        if(mode==='next'){
+            btn.textContent='NÄSTA BANA →';
+            btn.onclick=()=>window.MiniGames.nextHillLevel();
+        }else{
+            btn.textContent='↺ IGEN';
+            btn.onclick=()=>window.MiniGames.restart();
+        }
+    }
+    function hideHillFinalOverlay(){
+        document.getElementById('hill-complete-overlay')?.classList.remove('show');
+    }
+    function showHillFinalOverlay(){
+        document.getElementById('hill-complete-overlay')?.classList.add('show');
+    }
+    function completeHillLevel(){
+        if(gameOver)return;
+        gameOver=true;
+        hillInput.gas=hillInput.brake=hillInput.rotL=hillInput.rotR=false;
+        if(hillLevelIndex<HILL_LEVELS.length-1){
+            startCelebration(`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`);
+            msgEl.textContent=`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`;
+            setHillActionButton('next');
+        }else{
+            startCelebration('ALLA BANOR KLARA!');
+            if(state.celebration)state.celebration.t=9;
+            msgEl.textContent='MÅNEN KLAR!';
+            showHillFinalOverlay();
+        }
+    }
     function resetHill(){
         setCanvas(520,420);
+        hideHillFinalOverlay();
+        setHillActionButton('restart');
+        hillCourse=makeHillCourse(hillLevelIndex);
         const startY=hillTerrainY(0)-24;
         state={
             x:0,y:startY,vy:0,vx:92,
             ang:hillSlope(0),angVel:0,
-            fuel:100,fuels:[],nextFuelX:1150,
+            fuel:100,fuels:[],nextFuelX:1050,
             particles:[],bestX:0,
             airborne:false,airRot:0,lastAng:hillSlope(0),
-            flips:0,flipScore:0,groundGrace:0
+            flips:0,flipScore:0,groundGrace:0,bounceCooldown:0,
+            elapsed:0,finishArmed:false,finishX:null
         };
         ensureHillFuel();
-        titleEl.textContent='BACKKLIPPAREN';
+        titleEl.textContent=`BACKKLIPPAREN — ${hillLevelIndex+1}/4`;
         msgEl.textContent='VÄNSTER: ROTERA   HÖGER: GAS/BROMS   VOLT = +1';
+        showHillCourseBanner();
+    }
+    function scoreHillLanding(slope,impactVy){
+        const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
+        const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
+        if(completed>0){
+            state.flips+=completed;
+            state.flipScore+=completed;
+            msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
+            spark(145,240,'#fff36b',24);
+        }
+        if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
+            finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
+            return false;
+        }
+        state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
+        state.ang=slope;
+        state.angVel=0;
+        state.airRot=0;
+
+        // v126: suspension/tyre bounce after a genuine jump landing.
+        // Only good-ish landings bounce; small impacts settle immediately.
+        if(impactVy>34 && Math.abs(diff)<.95 && state.bounceCooldown<=0){
+            state.vy=-Math.min(62,impactVy*.27);
+            state.y-=1.5;
+            state.airborne=true;
+            state.bounceCooldown=.18;
+        }else{
+            state.vy=0;
+            state.airborne=false;
+        }
+        return true;
     }
     function updateHill(dt){
         const gas=hillInput.gas || keys.ArrowUp || keys.w || keys.W;
@@ -3053,8 +3209,19 @@
         const rotR=hillInput.rotR || keys.ArrowRight || keys.d || keys.D;
         const throttle=(gas?1:0)-(brake?1:0);
         const rotate=(rotR?1:0)-(rotL?1:0);
+        const cfg=HILL_LEVELS[hillLevelIndex];
 
-        // Faster drivetrain and reduced drag.
+        state.elapsed+=dt;
+        state.bounceCooldown=Math.max(0,state.bounceCooldown-dt);
+
+        // At two minutes the finish flag appears just ahead, so completion is
+        // reached immediately after the requested successful-driving duration.
+        if(!state.finishArmed && state.elapsed>=HILL_LEVEL_SECONDS){
+            state.finishArmed=true;
+            state.finishX=state.x+Math.max(125,Math.min(220,Math.abs(state.vx)*1.2));
+            msgEl.textContent='MÅLFLAGGAN! 🏁';
+        }
+
         const drive=throttle>=0?128*throttle:92*throttle;
         state.vx+=drive*dt;
         state.vx-=state.vx*0.055*dt;
@@ -3063,26 +3230,23 @@
         const ground=hillTerrainY(state.x);
         const targetY=ground-24;
         const wasAir=state.airborne;
-        const nearGround=state.y>=targetY-3.5 && state.vy>=-32;
+        const nearGround=state.airborne
+            ? (state.y>=targetY-3.5 && state.vy>=0)
+            : (state.y>=targetY-3.5 && state.vy>=-32);
 
         if(nearGround){
+            const impactVy=Math.max(0,state.vy);
             state.y=targetY;
-            state.vy=0;
             state.airborne=false;
             state.groundGrace=.09;
-
             const slope=hillSlope(state.x);
 
-            // Terrain gravity component gives real hill-climb momentum changes.
             state.vx+=Math.sin(slope)*55*dt;
-
-            // On ground, body tries to follow slope but not instantly.
             let da=Math.atan2(Math.sin(slope-state.ang),Math.cos(slope-state.ang));
             state.angVel+=da*11*dt;
             state.angVel*=Math.pow(.12,dt);
             state.ang+=state.angVel*dt;
 
-            // Sharp downhill changes at speed launch the mower.
             const ahead=hillTerrainY(state.x+22)-hillTerrainY(state.x);
             const lip=hillTerrainY(state.x+8)-2*hillTerrainY(state.x)+hillTerrainY(state.x-8);
             if(state.vx>90 && (ahead<-11 || lip>8)){
@@ -3091,88 +3255,53 @@
                 state.groundGrace=0;
                 state.airRot=0;
                 state.lastAng=state.ang;
-            }
-
-            // Landing evaluation only once after actual airtime.
-            if(wasAir){
-                const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
-
-                // Reward completed full rotations before snapping to terrain.
-                const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
-                if(completed>0){
-                    state.flips+=completed;
-                    state.flipScore+=completed;
-                    msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
-                    spark(145,240,'#fff36b',24);
-                }
-
-                // Badly inverted/sideways landings crash.
-                if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
-                    finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
-                    return;
-                }
-
-                state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
-                state.ang=slope;
-                state.angVel=0;
-                state.airRot=0;
+            }else if(wasAir){
+                if(!scoreHillLanding(slope,impactVy))return;
+            }else{
+                state.vy=0;
             }
         }else{
             state.airborne=true;
             state.groundGrace=Math.max(0,state.groundGrace-dt);
 
-            // Lower gravity than v41 = longer jumps.
-            state.vy+=56*dt;
+            // Fanbyn/Tredjeviken/Klipporna retain v125 gravity (56 = half the
+            // pre-v125 original). Moon uses 28 = 25% of that original gravity.
+            state.vy+=cfg.gravity*dt;
             state.y+=state.vy*dt;
 
-            // Air rotation is now the core skill mechanic.
+            // v125 fast air rotation remains unchanged.
             state.angVel+=rotate*11.2*dt;
             state.angVel*=Math.pow(.88,dt);
             state.ang+=state.angVel*dt;
 
-            // Accumulate signed rotation for somersault scoring.
             const delta=Math.atan2(Math.sin(state.ang-state.lastAng),Math.cos(state.ang-state.lastAng));
             state.airRot+=delta;
             state.lastAng=state.ang;
 
-            // Collision with ground.
             if(state.y>=targetY){
+                const impactVy=Math.max(0,state.vy);
                 state.y=targetY;
-                state.vy=0;
-                state.airborne=false;
                 const slope=hillSlope(state.x);
-                const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
-
-                const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
-                if(completed>0){
-                    state.flips+=completed;
-                    state.flipScore+=completed;
-                    msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
-                    spark(145,240,'#fff36b',24);
-                }
-
-                if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
-                    finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
-                    return;
-                }
-                state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
-                state.ang=slope;
-                state.angVel=0;
-                state.airRot=0;
+                if(!scoreHillLanding(slope,impactVy))return;
             }
         }
 
         state.x+=state.vx*dt;
         if(state.x<0){state.x=0;state.vx=Math.max(0,state.vx);}
 
-        // Fuel drains faster now, especially at high throttle/speed.
+        // Crossing the flag after the two-minute survival mark completes the course.
+        if(state.finishArmed && state.x>=state.finishX){
+            completeHillLevel();
+            return;
+        }
+
         state.fuel-=dt*(1.75+(gas?.95:0)+Math.abs(state.vx)/240);
         ensureHillFuel();
-
         for(const f of state.fuels){
             if(f.got)continue;
             const fy=hillTerrainY(f.x)-37;
-            if(Math.abs(f.x-state.x)<34 && Math.abs(fy-state.y)<55){
+            const fuelReach=cfg.kind==='moon'?120:70;
+            if(Math.abs(f.x-state.x)<34 && Math.abs(fy-state.y)<fuelReach){
                 f.got=true;
                 state.fuel=Math.min(100,state.fuel+38);
                 msgEl.textContent='TANKAT! +38%';
@@ -3182,41 +3311,83 @@
 
         updateParticles(dt);
         state.bestX=Math.max(state.bestX,state.x);
-
         if(state.fuel<=0){
             state.fuel=0;
             finish(`SLUT PÅ BRÄNSLE — ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
             return;
         }
 
-        scoreEl.textContent=`${Math.floor(state.bestX/10)} m   ⛽ ${Math.ceil(state.fuel)}%   🔄 ${state.flipScore}`;
+        const remaining=Math.max(0,Math.ceil(HILL_LEVEL_SECONDS-state.elapsed));
+        scoreEl.textContent=`BANA ${hillLevelIndex+1}/4   ⏱ ${remaining}s   ⛽ ${Math.ceil(state.fuel)}%   🔄 ${state.flipScore}`;
+    }
+    function drawHillFlag(camX){
+        if(!state.finishArmed||state.finishX==null)return;
+        const x=state.finishX-camX;
+        if(x<-40||x>560)return;
+        const y=hillTerrainY(state.finishX);
+        ctx.strokeStyle='#e9e9e9';ctx.lineWidth=5;
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-92);ctx.stroke();
+        const fw=44,fh=32;
+        for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+            ctx.fillStyle=(r+c)%2===0?'#ffffff':'#161616';
+            ctx.fillRect(x+c*(fw/4),y-92+r*(fh/4),fw/4,fh/4);
+        }
+        ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';
+        ctx.fillText('MÅL',x+22,y-101);
     }
     function drawHill(ts){
         const w=520,h=420;
         const camX=Math.max(0,state.x-145);
+        const cfg=HILL_LEVELS[hillLevelIndex];
 
-        const sky=ctx.createLinearGradient(0,0,0,h);
-        sky.addColorStop(0,'#78bfe9');
-        sky.addColorStop(1,'#d8ecbb');
+        // Course-specific sky and distant landscape.
+        let sky=ctx.createLinearGradient(0,0,0,h);
+        if(cfg.kind==='grass'){
+            sky.addColorStop(0,'#78bfe9');sky.addColorStop(1,'#d8ecbb');
+        }else if(cfg.kind==='sand'){
+            sky.addColorStop(0,'#63b8dc');sky.addColorStop(1,'#ffe1a0');
+        }else if(cfg.kind==='lava'){
+            sky.addColorStop(0,'#241321');sky.addColorStop(1,'#8b2d20');
+        }else{
+            sky.addColorStop(0,'#02030d');sky.addColorStop(1,'#11152b');
+        }
         ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
 
-        // Distant scenery.
-        ctx.fillStyle='rgba(55,90,64,.28)';
-        ctx.beginPath();ctx.moveTo(0,h);
-        for(let sx=0;sx<=w;sx+=8){
-            const wx=camX+sx*.75;
-            const y=275+Math.sin(wx*.003)*30+Math.sin(wx*.007+1)*14;
-            ctx.lineTo(sx,y);
+        if(cfg.kind==='moon'){
+            // Stable star field tied to screen, intentionally subtle.
+            ctx.fillStyle='rgba(255,255,255,.82)';
+            for(let i=0;i<45;i++){
+                const sx=(i*83+17)%w, sy=(i*47+23)%210;
+                ctx.fillRect(sx,sy,(i%4===0?2:1),(i%4===0?2:1));
+            }
+            ctx.fillStyle='rgba(210,220,235,.20)';
+            ctx.beginPath();ctx.arc(430,80,42,0,Math.PI*2);ctx.fill();
+        }else if(cfg.kind==='lava'){
+            ctx.fillStyle='rgba(255,69,20,.25)';
+            for(let i=0;i<7;i++)ctx.fillRect((i*91+(camX*.08)%70)%w,300+(i%3)*18,56,4);
+        }else{
+            ctx.fillStyle=cfg.kind==='sand'?'rgba(170,117,50,.20)':'rgba(55,90,64,.28)';
+            ctx.beginPath();ctx.moveTo(0,h);
+            for(let sx=0;sx<=w;sx+=8){
+                const wx=camX+sx*.75;
+                const y=275+Math.sin(wx*.003)*30+Math.sin(wx*.007+1)*14;
+                ctx.lineTo(sx,y);
+            }
+            ctx.lineTo(w,h);ctx.closePath();ctx.fill();
         }
-        ctx.lineTo(w,h);ctx.closePath();ctx.fill();
 
-        // Main terrain.
-        ctx.fillStyle='#397536';
+        // Main terrain fill and ridge.
+        const fill=cfg.kind==='grass'?'#397536':cfg.kind==='sand'?'#c89446':cfg.kind==='lava'?'#30282b':'#686b72';
+        const ridge=cfg.kind==='grass'?'#b4df70':cfg.kind==='sand'?'#f2d38a':cfg.kind==='lava'?'#ff5a26':'#c7cbd4';
+        if(cfg.kind==='lava'){
+            // glowing lava beneath the rocky shell
+            ctx.fillStyle='#d83a12';ctx.fillRect(0,320,w,100);
+        }
+        ctx.fillStyle=fill;
         ctx.beginPath();ctx.moveTo(0,h);
         for(let sx=0;sx<=w;sx+=3)ctx.lineTo(sx,hillTerrainY(camX+sx));
         ctx.lineTo(w,h);ctx.closePath();ctx.fill();
-
-        ctx.strokeStyle='#b4df70';ctx.lineWidth=5;
+        ctx.strokeStyle=ridge;ctx.lineWidth=5;
         ctx.beginPath();
         for(let sx=0;sx<=w;sx+=3){
             const y=hillTerrainY(camX+sx);
@@ -3224,60 +3395,67 @@
         }
         ctx.stroke();
 
+        // Extra biome detail.
+        if(cfg.kind==='sand'){
+            ctx.strokeStyle='rgba(110,70,25,.24)';ctx.lineWidth=2;
+            for(let i=0;i<8;i++){
+                const x=((i*113-camX*.22)%620+620)%620-50;
+                const y=hillTerrainY(camX+x)-8;
+                ctx.beginPath();ctx.moveTo(x-12,y);ctx.quadraticCurveTo(x,y-5,x+12,y);ctx.stroke();
+            }
+        }else if(cfg.kind==='moon'){
+            ctx.strokeStyle='rgba(35,37,44,.42)';ctx.lineWidth=2;
+            for(let i=0;i<7;i++){
+                const x=((i*137-camX*.35)%650+650)%650-40;
+                const y=hillTerrainY(camX+x)-3;
+                ctx.beginPath();ctx.ellipse(x,y,15+(i%3)*5,5+(i%2)*2,0,0,Math.PI*2);ctx.stroke();
+            }
+        }
+
         // Fuel cans.
         state.fuels.forEach(f=>{
             if(f.got)return;
-            const sx=f.x-camX;
-            if(sx<-50||sx>w+50)return;
+            const sx=f.x-camX;if(sx<-50||sx>w+50)return;
             const sy=hillTerrainY(f.x)-34;
             ctx.fillStyle='#c92520';ctx.fillRect(sx-11,sy-22,22,26);
             ctx.fillStyle='#f6d34d';ctx.fillRect(sx-7,sy-18,14,6);
             ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+5,sy-28,8,8);
-            ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';
-            ctx.fillText('FUEL',sx,sy-31);
+            ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('FUEL',sx,sy-31);
         });
+
+        drawHillFlag(camX);
 
         // Fuel bar + flip counter.
         ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(12,12,188,25);
-        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';
-        ctx.fillRect(16,16,1.72*state.fuel,17);
+        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';ctx.fillRect(16,16,1.72*state.fuel,17);
         ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,188,25);
-        ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';
-        ctx.fillText('BRÄNSLE',20,30);
-
+        ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';ctx.fillText('BRÄNSLE',20,30);
         ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(386,12,120,25);
-        ctx.fillStyle='#fff36b';ctx.textAlign='center';
-        ctx.fillText(`VOLTER ${state.flipScore}`,446,29);
+        ctx.fillStyle='#fff36b';ctx.textAlign='center';ctx.fillText(`VOLTER ${state.flipScore}`,446,29);
 
-        // Real side-view mower sprite from GitHub root.
         const sx=state.x-camX,sy=state.y;
-        ctx.save();
-        ctx.translate(sx,sy);
-        ctx.rotate(state.ang);
+        ctx.save();ctx.translate(sx,sy);ctx.rotate(state.ang);
         if(hillMowerImage.complete && hillMowerImage.naturalWidth){
-            const drawW=92,drawH=64;
-            ctx.drawImage(hillMowerImage,-drawW*.48,-drawH*.70,drawW,drawH);
+            const drawW=92,drawH=64;ctx.drawImage(hillMowerImage,-drawW*.48,-drawH*.70,drawW,drawH);
         }else{
-            // Safe fallback until PNG resolves.
-            ctx.fillStyle='#f36c21';ctx.fillRect(-34,-20,68,28);
-            ctx.fillStyle='#202020';
-            ctx.beginPath();ctx.arc(-22,10,13,0,Math.PI*2);ctx.fill();
-            ctx.beginPath();ctx.arc(23,10,10,0,Math.PI*2);ctx.fill();
+            ctx.fillStyle='#f36c21';ctx.fillRect(-34,-20,68,28);ctx.fillStyle='#202020';
+            ctx.beginPath();ctx.arc(-22,10,13,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(23,10,10,0,Math.PI*2);ctx.fill();
         }
         ctx.restore();
-
         drawParticles();
     }
 
     function reset(){
         gameOver=false;keys={};last=performance.now();
+        setHillActionButton('restart');
+        hideHillFinalOverlay();
         if(active==='chaos')resetChaos();
         else if(active==='rally')resetRally();
         else if(active==='pattern')resetPattern();
         else if(active==='hill')resetHill();
         else resetPattern();
     }
-    function finish(text){if(gameOver)return;gameOver=true;msgEl.textContent=text+' — tryck IGEN';}
+    function finish(text){if(gameOver)return;gameOver=true;setHillActionButton('restart');msgEl.textContent=text+' — tryck IGEN';}
     function loop(ts){
         if(!active)return;raf=requestAnimationFrame(loop);
         const dt=Math.min(.035,(ts-last)/1000||0);last=ts;
@@ -3365,6 +3543,7 @@
     window.MiniGames={
         open(id){
             active=id;
+            if(id==='hill')hillLevelIndex=0;
             document.getElementById('minigames-screen').style.display='none';
             document.getElementById('arcade-minigame-overlay').style.display='flex';
             setupMiniJoystick();setupHillControls();miniJoyX=miniJoyY=0;
@@ -3373,8 +3552,16 @@
             reset();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
         },
         restart(){miniJoyX=miniJoyY=0;if(active)reset();},
+        nextHillLevel(){
+            if(active!=='hill')return;
+            if(hillLevelIndex<HILL_LEVELS.length-1){
+                hillLevelIndex++;
+                miniJoyX=miniJoyY=0;
+                reset();
+            }
+        },
         close(){
-            cancelAnimationFrame(raf);raf=0;setHillControlsVisible(false);active=null;keys={};miniJoyX=miniJoyY=0;
+            cancelAnimationFrame(raf);raf=0;setHillControlsVisible(false);hideHillFinalOverlay();hillBannerToken++;document.getElementById('hill-course-banner')?.style.setProperty('display','none');active=null;keys={};miniJoyX=miniJoyY=0;
             window.removeEventListener('keydown',keyDown);window.removeEventListener('keyup',keyUp);
             document.getElementById('arcade-minigame-overlay').style.display='none';
             openMinigames();
