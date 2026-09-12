@@ -1684,6 +1684,39 @@
             #hill-complete-sub{font-size:7px}
         }
 
+
+        /* ══ v128: expanded minigames / highscores / result panels ══ */
+        #minigame-highscores-overlay {
+            position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+            z-index:360;background:rgba(5,10,8,.94);padding:14px;box-sizing:border-box;
+        }
+        #minigame-highscores-panel {
+            width:min(620px,96vw);max-height:90dvh;overflow:auto;padding:22px;box-sizing:border-box;
+            background:#fff9dc;border:4px solid #18351f;box-shadow:7px 7px 0 #49684a;
+            color:#18351f;font-family:'Press Start 2P',monospace;
+        }
+        #minigame-highscores-panel h2{font-size:17px;text-align:center;margin:0 0 16px;color:#8b008b}
+        .mini-hs-row{display:flex;justify-content:space-between;gap:12px;padding:8px 4px;border-bottom:2px dotted #78906e;font-size:8px;line-height:1.45}
+        .mini-hs-row span:last-child{color:#8b008b;text-align:right}
+        #mini-result-overlay{
+            position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:380;
+            background:rgba(5,0,20,.78);padding:14px;box-sizing:border-box;
+        }
+        #mini-result-overlay.show{display:flex}
+        #mini-result-card{
+            width:min(510px,94vw);padding:22px;text-align:center;background:#fff9dc;color:#18351f;
+            border:4px solid #18351f;box-shadow:7px 7px 0 #8b008b;font-family:'Press Start 2P',monospace;
+        }
+        #mini-result-title{font-size:16px;color:#8b008b;line-height:1.45;margin-bottom:12px}
+        #mini-result-body{font-size:8px;line-height:1.8;white-space:pre-line;margin-bottom:14px}
+        #mini-result-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+        #mini-result-actions .arcade-btn{font-size:7px;padding:9px 11px}
+        @media(max-width:600px){
+            #minigame-highscores-panel{padding:14px;border-width:3px}
+            #minigame-highscores-panel h2{font-size:12px}.mini-hs-row{font-size:6px}
+            #mini-result-card{padding:14px;border-width:3px}#mini-result-title{font-size:11px}#mini-result-body{font-size:6.5px}
+        }
+
         /* ── GALLERI ─────────────────────────────────────────────────── */
         .gallery-level-btn{}
         #gallery-ui{
@@ -2151,6 +2184,27 @@
 </div>
 </div>
 
+
+<div id="minigame-highscores-overlay">
+    <div id="minigame-highscores-panel">
+        <h2>HIGHSCORE</h2>
+        <div id="minigame-highscores-list"></div>
+        <button class="arcade-btn" style="background:#e74c3c;width:100%;margin-top:14px;" onclick="closeMiniHighscores()">← TILLBAKA</button>
+    </div>
+</div>
+
+<div id="mini-result-overlay">
+    <div id="mini-result-card">
+        <div id="mini-result-title">RESULTAT</div>
+        <div id="mini-result-body"></div>
+        <div id="mini-result-actions">
+            <button id="mini-result-back" class="arcade-btn" style="background:#e74c3c;">← TILL MINISPEL</button>
+            <button id="mini-result-replay" class="arcade-btn" style="background:#8b008b;">↺ IGEN</button>
+            <button id="mini-result-next" class="arcade-btn" style="background:#27ae60;display:none;">NÄSTA BANA →</button>
+        </div>
+    </div>
+</div>
+
 <div id="arcade-minigame-overlay">
     <div id="arcade-mg-top">
         <span id="arcade-mg-title">MINISPEL</span>
@@ -2284,7 +2338,8 @@
             <span class="mg-arrow">▶</span>
         </button>
 
-        <button class="arcade-btn" style="background:#e74c3c;width:100%;margin-top:10px;" onclick="closeMinigames()">← TILLBAKA</button>
+        <button class="arcade-btn" style="background:#f1c40f;color:#18351f;width:100%;margin-top:10px;" onclick="openMiniHighscores()">★ HIGHSCORE</button>
+        <button class="arcade-btn" style="background:#e74c3c;width:100%;margin-top:7px;" onclick="closeMinigames()">← TILLBAKA</button>
     </div>
 </div>
 
@@ -2361,295 +2416,140 @@
 
 <div id="joystick-zone"><div id="joystick-knob"></div></div>
 
+<script>
+// v128: one tiny persistent score store shared by all isolated minigames.
+(function(){
+    const KEY='mowerSimulatorMinigameHighscoresV128';
+    function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){return {};}}
+    function save(data){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}}
+    window.MiniScoreStore={
+        get(id){const d=load();return Number(d[id]||0);},
+        setBest(id,value){value=Math.max(0,Math.round(Number(value)||0));const d=load();const old=Number(d[id]||0);if(value>old){d[id]=value;save(d);return true;}return false;},
+        all(){return load();}
+    };
+    window.openMiniHighscores=function(){
+        const d=load(), list=document.getElementById('minigame-highscores-list');
+        if(!list)return;
+        const rows=[
+            ['GRÄSLABYRINTH',d.maze||0],['KLIPPKAOS',d.chaos||0],['TRÄDGÅRDSRALLY',d.rally||0],
+            ['MÖNSTERKLIPP 1',d.pattern1||0],['MÖNSTERKLIPP 2',d.pattern2||0],['MÖNSTERKLIPP 3',d.pattern3||0],['MÖNSTERKLIPP 4',d.pattern4||0],
+            ['BACKKLIPPAREN — FANBYN',d.hill1||0],['BACKKLIPPAREN — TREDJEVIKEN',d.hill2||0],
+            ['BACKKLIPPAREN — KLIPPORNA',d.hill3||0],['BACKKLIPPAREN — MÅNEN',d.hill4||0]
+        ];
+        list.innerHTML=rows.map(r=>`<div class="mini-hs-row"><span>${r[0]}</span><span>${r[1]} P</span></div>`).join('');
+        document.getElementById('minigames-screen').style.display='none';
+        document.getElementById('minigame-highscores-overlay').style.display='flex';
+    };
+    window.closeMiniHighscores=function(){
+        document.getElementById('minigame-highscores-overlay').style.display='none';
+        document.getElementById('minigames-screen').style.display='flex';
+    };
+})();
+</script>
+
 <!-- ══ MAZE SCRIPT — pure vanilla JS, no Three.js, in regular script tag ══ -->
 <script>
-// All maze code lives here, completely isolated
+// v128 GRÄSLABYRINTH: three-stage expedition, persistent high score.
 (function(){
     'use strict';
-
-    // ── maze generation using recursive backtracker ──
-    const COLS = 11, ROWS = 11;
-    const NUM_STARS = 10;
-    let mazeGrid = [];   // 2D array: true = wall
-    let player = {col:0, row:0};
-    let exitCol = 0, exitRow = 0;
-    let stars = [];      // [{col,row,collected}]
-    let starsCollected = 0;
-    let finished = false;
-    let mazeActive = false;
-    let mazeRafId = null;
-    let mazeKeys = {};
-    let moveTimer = 0;
-    const MOVE_INTERVAL = 130; // ms between moves
-    let lastMazeTime = 0;
-    let mazeMowerSprite=null;
-    let mazeJoyX=0, mazeJoyY=0;
+    const STAGES=[
+        {cols:11,rows:11,stars:6,name:'HÄCKEN'},
+        {cols:13,rows:13,stars:8,name:'LUNDEN'},
+        {cols:15,rows:15,stars:10,name:'DJUPSKOGEN'}
+    ];
+    let stageIndex=0,COLS=11,ROWS=11,NUM_STARS=6;
+    let mazeGrid=[],player={col:0,row:0},exitCol=0,exitRow=0,stars=[],starsCollected=0,totalStars=0;
+    let finished=false,mazeActive=false,mazeRafId=null,mazeKeys={},moveTimer=0,lastMazeTime=0;
+    const MOVE_INTERVAL=118;
+    let mazeMowerSprite=null,mazeJoyX=0,mazeJoyY=0,stageStart=0,totalScore=0;
 
     function getMazeMowerSprite(){
         if(mazeMowerSprite)return mazeMowerSprite;
         const c=document.createElement('canvas');c.width=c.height=64;
         const x=c.getContext('2d');x.imageSmoothingEnabled=false;
-
-        // Detailed top-down ride-on mower sprite: tyres, orange deck/body,
-        // seat, steering wheel, engine cover and front cutting deck.
-        x.fillStyle='#151515';
-        x.fillRect(6,10,9,16); x.fillRect(49,10,9,16);
-        x.fillRect(5,39,10,17); x.fillRect(49,39,10,17);
-
-        x.fillStyle='#8f1f13'; x.fillRect(14,8,36,44);
-        x.fillStyle='#df4a18'; x.fillRect(17,10,30,23);
-        x.fillStyle='#f06a22'; x.fillRect(21,12,22,13);
-
-        // Cutting deck at the front.
-        x.fillStyle='#a9afb0'; x.fillRect(9,3,46,7);
-        x.fillStyle='#d0d4d4'; x.fillRect(14,4,36,3);
-        x.fillStyle='#5f6666'; x.fillRect(18,1,28,3);
-
-        // Engine vents.
-        x.fillStyle='#6b1b13';
-        for(let i=0;i<4;i++)x.fillRect(23+i*5,17,2,8);
-
-        // Seat.
-        x.fillStyle='#202020'; x.fillRect(20,35,24,16);
-        x.fillStyle='#353535'; x.fillRect(23,37,18,9);
-
-        // Steering wheel and column.
-        x.strokeStyle='#e5e5d8';x.lineWidth=3;
-        x.beginPath();x.arc(32,32,7,0,Math.PI*2);x.stroke();
-        x.fillStyle='#d9ddd9';x.fillRect(30,27,4,10);
-
-        // Rear hitch/bumper.
-        x.fillStyle='#737879'; x.fillRect(22,52,20,5);
-
-        // Tiny highlights.
-        x.fillStyle='#ffb35c'; x.fillRect(18,11,4,4);x.fillRect(42,11,4,4);
-
+        x.fillStyle='#151515';x.fillRect(6,10,9,16);x.fillRect(49,10,9,16);x.fillRect(5,39,10,17);x.fillRect(49,39,10,17);
+        x.fillStyle='#8f1f13';x.fillRect(14,8,36,44);x.fillStyle='#df4a18';x.fillRect(17,10,30,23);x.fillStyle='#f06a22';x.fillRect(21,12,22,13);
+        x.fillStyle='#a9afb0';x.fillRect(9,3,46,7);x.fillStyle='#d0d4d4';x.fillRect(14,4,36,3);x.fillStyle='#5f6666';x.fillRect(18,1,28,3);
+        x.fillStyle='#202020';x.fillRect(20,35,24,16);x.fillStyle='#353535';x.fillRect(23,37,18,9);
+        x.strokeStyle='#e5e5d8';x.lineWidth=3;x.beginPath();x.arc(32,32,7,0,Math.PI*2);x.stroke();x.fillStyle='#d9ddd9';x.fillRect(30,27,4,10);
+        x.fillStyle='#737879';x.fillRect(22,52,20,5);x.fillStyle='#ffb35c';x.fillRect(18,11,4,4);x.fillRect(42,11,4,4);
         mazeMowerSprite=c;return c;
     }
-    // Generate a random maze using recursive backtracker
+    function configureStage(){
+        const cfg=STAGES[stageIndex];COLS=cfg.cols;ROWS=cfg.rows;NUM_STARS=cfg.stars;
+    }
     function generateMaze(){
-        // Start with all walls
-        mazeGrid = [];
-        for(let r=0;r<ROWS;r++){
-            mazeGrid[r]=[];
-            for(let c=0;c<COLS;c++) mazeGrid[r][c]=true; // wall
-        }
-        // Carve paths (cells at odd indices are rooms, even are walls between)
-        // We work on a logical grid of (COLS-1)/2 x (ROWS-1)/2 rooms
-        const rCols = Math.floor(COLS/2), rRows = Math.floor(ROWS/2);
-        const visited = [];
-        for(let r=0;r<rRows;r++){visited[r]=[];for(let c=0;c<rCols;c++)visited[r][c]=false;}
+        configureStage();mazeGrid=Array.from({length:ROWS},()=>Array(COLS).fill(true));
+        const rCols=Math.floor(COLS/2),rRows=Math.floor(ROWS/2),visited=Array.from({length:rRows},()=>Array(rCols).fill(false));
         function carve(c,r){
-            visited[r][c]=true;
-            mazeGrid[r*2+1][c*2+1]=false; // carve room
-            const dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
-            for(const [dc,dr] of dirs){
-                const nc=c+dc, nr=r+dr;
-                if(nc>=0&&nc<rCols&&nr>=0&&nr<rRows&&!visited[nr][nc]){
-                    // carve wall between
-                    mazeGrid[r*2+1+dr][c*2+1+dc]=false;
-                    carve(nc,nr);
-                }
-            }
+            visited[r][c]=true;mazeGrid[r*2+1][c*2+1]=false;
+            const dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-.5);
+            for(const [dc,dr] of dirs){const nc=c+dc,nr=r+dr;if(nc>=0&&nc<rCols&&nr>=0&&nr<rRows&&!visited[nr][nc]){mazeGrid[r*2+1+dr][c*2+1+dc]=false;carve(nc,nr);}}
         }
-        carve(0,0);
-        // Start top-left room, exit bottom-right room
-        player={col:1,row:1};
-        exitCol=COLS-2; exitRow=ROWS-2;
+        carve(0,0);player={col:1,row:1};exitCol=COLS-2;exitRow=ROWS-2;
     }
-
-    // Place 10 stars on random open cells (not start, not exit)
     function placeStars(){
-        stars=[];
-        const open=[];
-        for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-            if(!mazeGrid[r][c]&&!(c===1&&r===1)&&!(c===exitCol&&r===exitRow)) open.push({col:c,row:r});
-        }
-        // shuffle
+        stars=[];const open=[];
+        for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(!mazeGrid[r][c]&&!(c===1&&r===1)&&!(c===exitCol&&r===exitRow))open.push({col:c,row:r});
         for(let i=open.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[open[i],open[j]]=[open[j],open[i]];}
-        for(let i=0;i<Math.min(NUM_STARS,open.length);i++) stars.push({col:open[i].col,row:open[i].row,collected:false});
-        starsCollected=0;
+        for(let i=0;i<Math.min(NUM_STARS,open.length);i++)stars.push({...open[i],collected:false});starsCollected=0;
     }
-
     function updateCounter(){
-        document.getElementById('maze-counter').textContent='⭐ '+starsCollected+'/'+stars.length;
+        const best=window.MiniScoreStore?.get('maze')||0;
+        document.getElementById('maze-counter').textContent=`BANA ${stageIndex+1}/3  ⭐ ${starsCollected}/${stars.length}  HS ${best}`;
     }
-
-    // ── drawing ──
     function drawMaze(){
-        const canvas=document.getElementById('maze-canvas');
-        if(!canvas)return;
-        const wrap=document.getElementById('maze-canvas-wrap');
-        const maxW=wrap.clientWidth||300, maxH=wrap.clientHeight||300;
-        const cellPx=Math.max(18,Math.min(Math.floor(maxW/COLS),Math.floor(maxH/ROWS)));
-        const W=COLS*cellPx, H=ROWS*cellPx;
-        if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
-        const ctx=canvas.getContext('2d');
-        ctx.clearRect(0,0,W,H);
-
-        // Draw cells
-        for(let r=0;r<ROWS;r++){
-            for(let c=0;c<COLS;c++){
-                if(mazeGrid[r][c]){
-                    ctx.fillStyle='#1a0055';
-                    ctx.fillRect(c*cellPx,r*cellPx,cellPx,cellPx);
-                    // inner highlight
-                    ctx.fillStyle='#2a006a';
-                    ctx.fillRect(c*cellPx+1,r*cellPx+1,cellPx-2,1);
-                    ctx.fillRect(c*cellPx+1,r*cellPx+1,1,cellPx-2);
-                } else {
-                    ctx.fillStyle='#1e4620';
-                    ctx.fillRect(c*cellPx,r*cellPx,cellPx,cellPx);
-                    // grass texture dots
-                    ctx.fillStyle='#2d5a2d';
-                    ctx.fillRect(c*cellPx+Math.floor(cellPx*0.3),r*cellPx+Math.floor(cellPx*0.3),2,2);
-                }
-            }
+        const canvas=document.getElementById('maze-canvas'),wrap=document.getElementById('maze-canvas-wrap');if(!canvas||!wrap)return;
+        const maxW=wrap.clientWidth||300,maxH=wrap.clientHeight||300,cellPx=Math.max(14,Math.min(Math.floor(maxW/COLS),Math.floor(maxH/ROWS)));
+        const W=COLS*cellPx,H=ROWS*cellPx;if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+        const ctx=canvas.getContext('2d');ctx.clearRect(0,0,W,H);
+        for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+            if(mazeGrid[r][c]){ctx.fillStyle=stageIndex===2?'#251837':'#1a0055';ctx.fillRect(c*cellPx,r*cellPx,cellPx,cellPx);ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(c*cellPx+1,r*cellPx+1,cellPx-2,1);}
+            else{ctx.fillStyle=stageIndex===1?'#244f25':stageIndex===2?'#193d25':'#1e4620';ctx.fillRect(c*cellPx,r*cellPx,cellPx,cellPx);ctx.fillStyle='#2d5a2d';ctx.fillRect(c*cellPx+cellPx*.3,r*cellPx+cellPx*.3,2,2);}
         }
-
-        // Draw exit (pulsing)
-        const pulse=(Math.sin(Date.now()*0.004)+1)*0.5;
-        ctx.fillStyle=`rgba(0,${Math.floor(180+75*pulse)},${Math.floor(180+75*pulse)},1)`;
-        const ep=cellPx*0.15;
-        ctx.fillRect(exitCol*cellPx+ep,exitRow*cellPx+ep,cellPx-ep*2,cellPx-ep*2);
-        ctx.fillStyle='#ffffff';
-        ctx.font=`bold ${Math.max(8,cellPx*0.5)}px monospace`;
-        ctx.textAlign='center';
-        ctx.textBaseline='middle';
-        ctx.fillText('🏁',exitCol*cellPx+cellPx/2,exitRow*cellPx+cellPx/2);
-
-        // Draw stars
-        ctx.font=`${Math.max(8,cellPx*0.55)}px sans-serif`;
-        ctx.textAlign='center';
-        ctx.textBaseline='middle';
-        stars.forEach(s=>{
-            if(!s.collected){
-                ctx.fillText('⭐',s.col*cellPx+cellPx/2,s.row*cellPx+cellPx/2);
-            }
-        });
-
-        // Draw player as one reusable top-down mower sprite.
-        const px=player.col*cellPx, py=player.row*cellPx;
-        ctx.imageSmoothingEnabled=false;
-        ctx.drawImage(getMazeMowerSprite(),px+cellPx*.05,py+cellPx*.05,cellPx*.90,cellPx*.90);
+        const pulse=(Math.sin(Date.now()*.004)+1)*.5,ep=cellPx*.15;ctx.fillStyle=`rgba(0,${180+75*pulse|0},${180+75*pulse|0},1)`;ctx.fillRect(exitCol*cellPx+ep,exitRow*cellPx+ep,cellPx-ep*2,cellPx-ep*2);
+        ctx.font=`${Math.max(8,cellPx*.52)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText('🏁',exitCol*cellPx+cellPx/2,exitRow*cellPx+cellPx/2);
+        stars.forEach(s=>{if(!s.collected)ctx.fillText('⭐',s.col*cellPx+cellPx/2,s.row*cellPx+cellPx/2);});
+        ctx.imageSmoothingEnabled=false;ctx.drawImage(getMazeMowerSprite(),player.col*cellPx+cellPx*.05,player.row*cellPx+cellPx*.05,cellPx*.9,cellPx*.9);
     }
-
-    // ── move logic ──
-    function tryMove(dc,dr){
-        if(finished)return;
-        const nc=player.col+dc, nr=player.row+dr;
-        if(nc<0||nc>=COLS||nr<0||nr>=ROWS)return;
-        if(mazeGrid[nr][nc])return;
-        player.col=nc; player.row=nr;
-        // collect star
-        const s=stars.find(s=>s.col===nc&&s.row===nr&&!s.collected);
-        if(s){s.collected=true;starsCollected++;updateCounter();}
-        // check exit
-        if(nc===exitCol&&nr===exitRow){
-            if(starsCollected===stars.length){
-                finished=true;
-                document.getElementById('maze-msg').innerHTML='🎉 GRATTIS! Alla stjärnor insamlade! 🎉';
-            } else {
-                document.getElementById('maze-msg').textContent='Samla alla ⭐ innan du når målet! ('+starsCollected+'/'+stars.length+')';
-            }
-        } else {
-            document.getElementById('maze-msg').textContent='';
-        }
-    }
-
-    // ── animation loop ──
-    function mazeLoop(ts){
-        if(!mazeActive)return;
-        mazeRafId=requestAnimationFrame(mazeLoop);
-        const elapsed=ts-lastMazeTime;
-        if(elapsed>=MOVE_INTERVAL){
-            lastMazeTime=ts;
-            if(!finished){
-                const ax=Math.abs(mazeJoyX),ay=Math.abs(mazeJoyY);
-                if(ay>.30&&ay>=ax) tryMove(0,mazeJoyY<0?-1:1);
-                else if(ax>.30)    tryMove(mazeJoyX<0?-1:1,0);
-                else if(mazeKeys['ArrowUp']||mazeKeys['w']||mazeKeys['W'])       tryMove(0,-1);
-                else if(mazeKeys['ArrowDown']||mazeKeys['s']||mazeKeys['S'])    tryMove(0,1);
-                else if(mazeKeys['ArrowLeft']||mazeKeys['a']||mazeKeys['A'])    tryMove(-1,0);
-                else if(mazeKeys['ArrowRight']||mazeKeys['d']||mazeKeys['D'])   tryMove(1,0);
-            }
-        }
-        drawMaze();
-    }
-
-    function onMazeKey(e){
-        mazeKeys[e.key]=true;
-        // prevent page scroll in maze
-        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
-    }
-    function offMazeKey(e){ mazeKeys[e.key]=false; }
-
-    function setupMazeJoystick(){
-        const zone=document.getElementById('maze-joystick');
-        const knob=document.getElementById('maze-joystick-knob');
-        if(!zone||!knob||zone.dataset.ready)return;
-        zone.dataset.ready='1';
-        let active=false,pointerId=null,cx=0,cy=0,mr=1;
-
-        function update(e){
-            let dx=e.clientX-cx,dy=e.clientY-cy;
-            const d=Math.hypot(dx,dy);
-            if(d>mr){dx=dx/d*mr;dy=dy/d*mr;}
-            knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
-            mazeJoyX=dx/mr;mazeJoyY=dy/mr;
-        }
-        function reset(){
-            active=false;pointerId=null;
-            mazeJoyX=mazeJoyY=0;
-            knob.style.transform='translate(-50%,-50%)';
-        }
-        zone.addEventListener('pointerdown',e=>{
-            e.preventDefault();active=true;pointerId=e.pointerId;zone.setPointerCapture?.(e.pointerId);
-            const r=zone.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;
-            mr=r.width/2-knob.offsetWidth/2;update(e);
-        });
-        zone.addEventListener('pointermove',e=>{if(active&&e.pointerId===pointerId){e.preventDefault();update(e);}});
-        zone.addEventListener('pointerup',reset);
-        zone.addEventListener('pointercancel',reset);
-    }
-
-    window.startMaze=function(){
-        generateMaze();
-        placeStars();
-        finished=false;
-        mazeKeys={};
-        document.getElementById('maze-msg').textContent='Samla alla ⭐ och nå målet 🏁!';
+    function finishRun(){
+        finished=true;mazeActive=false;
+        const timeBonus=Math.max(0,Math.round(9000-(performance.now()-stageStart)/20));
+        totalScore+=timeBonus;
+        const isHigh=window.MiniScoreStore?.setBest('maze',totalScore);
+        document.getElementById('maze-msg').textContent=`🎉 ALLA 3 LABYRINTER KLARA! ${totalScore} P${isHigh?' — NYTT HIGHSCORE!':''}`;
         updateCounter();
-        if(mazeRafId){cancelAnimationFrame(mazeRafId);mazeRafId=null;}
-        mazeActive=true;
-        lastMazeTime=performance.now();
-        requestAnimationFrame(ts=>{lastMazeTime=ts;mazeLoop(ts);});
-    };
-
-    window.openMaze=function(){
-        ['start-screen','main-menu-screen','level-select-screen','minigames-screen',
-         'level-intro-screen','shop-screen','showroom-screen',
-         'game-over','settings-overlay','jukebox-overlay'].forEach(id=>{
-            const el=document.getElementById(id);
-            if(el)el.style.display='none';
-        });
-        document.getElementById('maze-overlay').style.display='flex';
-        setupMazeJoystick();
-        mazeJoyX=mazeJoyY=0;
-        window.addEventListener('keydown',onMazeKey);
-        window.addEventListener('keyup',offMazeKey);
-        startMaze();
-    };
-
-    window.closeMaze=function(){
-        mazeActive=false;
-        if(mazeRafId){cancelAnimationFrame(mazeRafId);mazeRafId=null;}
-        window.removeEventListener('keydown',onMazeKey);
-        window.removeEventListener('keyup',offMazeKey);
-        document.getElementById('maze-overlay').style.display='none';
-        // Return to the isolated minigames submenu.
-        if(typeof openMinigames==='function') openMinigames();
-    };
+    }
+    function advanceStage(){
+        const stageTime=(performance.now()-stageStart)/1000;
+        totalScore+=stars.length*250+Math.max(0,Math.round(1800-stageTime*25));totalStars+=stars.length;
+        if(stageIndex>=STAGES.length-1){finishRun();return;}
+        stageIndex++;generateMaze();placeStars();stageStart=performance.now();finished=false;
+        document.getElementById('maze-msg').textContent=`BANA ${stageIndex+1}: ${STAGES[stageIndex].name} — samla alla ⭐`;
+        updateCounter();
+    }
+    function tryMove(dc,dr){
+        if(finished)return;const nc=player.col+dc,nr=player.row+dr;if(nc<0||nc>=COLS||nr<0||nr>=ROWS||mazeGrid[nr][nc])return;
+        player.col=nc;player.row=nr;const s=stars.find(q=>q.col===nc&&q.row===nr&&!q.collected);if(s){s.collected=true;starsCollected++;totalScore+=100;updateCounter();}
+        if(nc===exitCol&&nr===exitRow){if(starsCollected===stars.length)advanceStage();else document.getElementById('maze-msg').textContent=`Målet är låst — ${starsCollected}/${stars.length} ⭐`;}
+        else document.getElementById('maze-msg').textContent='';
+    }
+    function mazeLoop(ts){
+        if(!mazeActive)return;mazeRafId=requestAnimationFrame(mazeLoop);if(ts-lastMazeTime>=MOVE_INTERVAL){lastMazeTime=ts;if(!finished){const ax=Math.abs(mazeJoyX),ay=Math.abs(mazeJoyY);if(ay>.30&&ay>=ax)tryMove(0,mazeJoyY<0?-1:1);else if(ax>.30)tryMove(mazeJoyX<0?-1:1,0);else if(mazeKeys.ArrowUp||mazeKeys.w||mazeKeys.W)tryMove(0,-1);else if(mazeKeys.ArrowDown||mazeKeys.s||mazeKeys.S)tryMove(0,1);else if(mazeKeys.ArrowLeft||mazeKeys.a||mazeKeys.A)tryMove(-1,0);else if(mazeKeys.ArrowRight||mazeKeys.d||mazeKeys.D)tryMove(1,0);}}drawMaze();
+    }
+    function onMazeKey(e){mazeKeys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();}
+    function offMazeKey(e){mazeKeys[e.key]=false;}
+    function setupMazeJoystick(){
+        const zone=document.getElementById('maze-joystick'),knob=document.getElementById('maze-joystick-knob');if(!zone||!knob||zone.dataset.ready)return;zone.dataset.ready='1';
+        let active=false,pointerId=null,cx=0,cy=0,mr=1;
+        function update(e){let dx=e.clientX-cx,dy=e.clientY-cy,d=Math.hypot(dx,dy);if(d>mr){dx=dx/d*mr;dy=dy/d*mr;}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;mazeJoyX=dx/mr;mazeJoyY=dy/mr;}
+        function reset(){active=false;pointerId=null;mazeJoyX=mazeJoyY=0;knob.style.transform='translate(-50%,-50%)';}
+        zone.addEventListener('pointerdown',e=>{e.preventDefault();active=true;pointerId=e.pointerId;zone.setPointerCapture?.(e.pointerId);const r=zone.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;mr=r.width/2-knob.offsetWidth/2;update(e);});
+        zone.addEventListener('pointermove',e=>{if(active&&e.pointerId===pointerId){e.preventDefault();update(e);}});zone.addEventListener('pointerup',reset);zone.addEventListener('pointercancel',reset);
+    }
+    window.startMaze=function(){stageIndex=0;totalScore=0;totalStars=0;generateMaze();placeStars();finished=false;mazeKeys={};stageStart=performance.now();document.getElementById('maze-msg').textContent='BANA 1: HÄCKEN — samla alla ⭐ och hitta ut!';updateCounter();if(mazeRafId){cancelAnimationFrame(mazeRafId);mazeRafId=null;}mazeActive=true;lastMazeTime=performance.now();requestAnimationFrame(ts=>{lastMazeTime=ts;mazeLoop(ts);});};
+    window.openMaze=function(){['start-screen','main-menu-screen','level-select-screen','minigames-screen','level-intro-screen','shop-screen','showroom-screen','game-over','settings-overlay','jukebox-overlay','minigame-highscores-overlay'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});document.getElementById('maze-overlay').style.display='flex';setupMazeJoystick();mazeJoyX=mazeJoyY=0;window.addEventListener('keydown',onMazeKey);window.addEventListener('keyup',offMazeKey);startMaze();};
+    window.closeMaze=function(){mazeActive=false;if(mazeRafId){cancelAnimationFrame(mazeRafId);mazeRafId=null;}window.removeEventListener('keydown',onMazeKey);window.removeEventListener('keyup',offMazeKey);document.getElementById('maze-overlay').style.display='none';if(typeof openMinigames==='function')openMinigames();};
 })();
 </script>
 
@@ -2669,6 +2569,8 @@
         menuIds.forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
         const maze=document.getElementById('maze-overlay');if(maze)maze.style.display='none';
         const arcade=document.getElementById('arcade-minigame-overlay');if(arcade)arcade.style.display='none';
+        document.getElementById('mini-result-overlay')?.classList.remove('show');
+        const hs=document.getElementById('minigame-highscores-overlay');if(hs)hs.style.display='none';
         document.getElementById('minigames-screen').style.display='flex';
     };
     window.closeMinigames=function(){
@@ -2813,6 +2715,18 @@
         ctx.restore();
     }
 
+    function hideMiniResult(){document.getElementById('mini-result-overlay')?.classList.remove('show');}
+    function showMiniResult(title,body,opts={}){
+        const ov=document.getElementById('mini-result-overlay'),t=document.getElementById('mini-result-title'),b=document.getElementById('mini-result-body');
+        const back=document.getElementById('mini-result-back'),replay=document.getElementById('mini-result-replay'),next=document.getElementById('mini-result-next');
+        if(!ov||!t||!b)return;
+        t.textContent=title;b.textContent=body;
+        back.onclick=()=>window.MiniGames.close();
+        replay.style.display=opts.replay===false?'none':'';replay.textContent=opts.replayLabel||'↺ IGEN';replay.onclick=()=>{hideMiniResult();(opts.onReplay||(()=>window.MiniGames.restart()))();};
+        if(opts.onNext){next.style.display='';next.textContent=opts.nextLabel||'NÄSTA BANA →';next.onclick=()=>{hideMiniResult();opts.onNext();};}else next.style.display='none';
+        ov.classList.add('show');
+    }
+
     function addRockBang(x,y){
         if(!state.rockFx)state.rockFx=[];
         state.rockFx.push({x,y,t:.62,max:.62});
@@ -2920,533 +2834,184 @@
         }
     }
 
-    // ── TRÄDGÅRDSRALLY ──────────────────────────────────────────────────
+    // ── TRÄDGÅRDSRALLY — 30 gates, gerbils and bonus stars ────────
     function resetRally(){
-        setCanvas(420,500);
-        const gates=[];
-        for(let i=0;i<14;i++)gates.push({y:440-i*115,x:rnd(90,330),w:rnd(90,135),passed:false});
-        const beds=[];
-        for(let i=0;i<20;i++)beds.push({x:rnd(35,385),y:rnd(-1250,420),w:rnd(35,70),h:rnd(24,45)});
-        state={p:{x:210,y:400,vx:0,ang:0},gates,beds,scroll:0,speed:110,time:52,gate:0,particles:[],finished:false,goalY:440-14*115-190,goalCrossed:false};
-        titleEl.textContent='TRÄDGÅRDSRALLY';msgEl.textContent='PASSERA ALLA 14 GRINDAR';
+        setCanvas(420,500);hideMiniResult();
+        const gates=[];for(let i=0;i<30;i++)gates.push({y:440-i*108,x:rnd(85,335),w:rnd(90,132),passed:false,inside:false});
+        state={p:{x:210,y:400,vx:0},gates,scroll:0,speed:122,gate:0,particles:[],finished:false,
+               goalY:440-30*108-155,goalCrossed:false,gerbils:[],stars:[],gerbilT:1.2,starT:3.2,hits:0,starsGot:0};
+        titleEl.textContent='TRÄDGÅRDSRALLY';msgEl.textContent='30 GRINDAR — UNDVIK GERBILER, TA STJÄRNOR';scoreEl.textContent='GRIND 0/30   POÄNG 30';
+    }
+    function spawnGerbil(){state.gerbils.push({x:rnd(28,392),y:-24,vy:rnd(105,155),vx:rnd(-24,24),phase:rnd(0,6.28),hit:false});}
+    function spawnRallyStar(){state.stars.push({x:rnd(34,386),y:-20,vy:rnd(90,125),got:false,phase:rnd(0,6.28)});}
+    function rallyScore(){return Math.max(0,30-state.hits)+state.starsGot;}
+    function completeRally(){
+        if(gameOver)return;gameOver=true;state.finished=true;startCelebration('MÅL!');if(state.celebration)state.celebration.t=5;
+        const sc=rallyScore(),isHigh=window.MiniScoreStore?.setBest('rally',sc),best=Math.max(sc,window.MiniScoreStore?.get('rally')||0);
+        msgEl.textContent='MÅL!';
+        setTimeout(()=>{
+            if(active==='rally'&&gameOver)showMiniResult('TRÄDGÅRDSRALLY KLART!',`POÄNG: ${sc}\nGERBILER TRÄFFADE: ${state.hits}\nBONUSSTJÄRNOR: ${state.starsGot}\nHIGHSCORE: ${best}${isHigh?'\nNYTT HIGHSCORE!':''}`);
+        },1400);
     }
     function updateRally(dt){
-        const v=inputVector(),p=state.p;
-        state.speed=clamp(state.speed+v.y*-42*dt,90,175);
-        p.vx=lerp(p.vx,v.x*210,Math.min(1,dt*7));p.x=clamp(p.x+p.vx*dt,24,396);
-        state.scroll+=state.speed*dt;state.time-=dt;
-        state.gates.forEach((g,i)=>{
-            const sy=g.y+state.scroll;
-            if(!g.passed&&sy>385&&sy<430){
-                if(Math.abs(p.x-g.x)<g.w/2){g.passed=true;state.gate++;spark(p.x,392,'#ffe85f',14);msgEl.textContent='GRIND '+state.gate+'/14';}
-                else {state.time-=2;g.passed=true;state.gate++;msgEl.textContent='MISS! -2 SEK';}
-            }
-        });
-        for(const b of state.beds){
-            const sy=b.y+state.scroll;
-            if(sy>350&&sy<440&&Math.abs(p.x-b.x)<b.w/2+16){
-                state.time-=dt*5;p.vx+=(p.x<b.x?-1:1)*70*dt;spark(p.x,390,'#ff8bc4',2);
-            }
-        }
-        updateParticles(dt);
-        const goalScreenY=state.goalY+state.scroll;
-        if(state.gate>=14&&!state.goalCrossed&&goalScreenY>=395){
-            state.goalCrossed=true;
-            startCelebration('MÅL!');
-            finish('MÅL! '+Math.max(0,state.time).toFixed(1)+'s KVAR');
-        } else if(state.time<=0)finish('TIDEN ÄR UTE');
-        scoreEl.textContent=`GRIND ${state.gate}/14   ${Math.max(0,state.time).toFixed(1)}s`;
+        const v=inputVector(),p=state.p;p.vx=lerp(p.vx,v.x*220,Math.min(1,dt*7));p.x=clamp(p.x+p.vx*dt,24,396);state.scroll+=state.speed*dt;
+        state.gates.forEach(g=>{const sy=g.y+state.scroll;if(!g.passed&&sy>386&&sy<432){g.inside=Math.abs(p.x-g.x)<g.w/2;if(sy>=418){g.passed=true;state.gate++;if(g.inside){spark(p.x,392,'#ffe85f',10);msgEl.textContent=`GRIND ${state.gate}/30`;}else msgEl.textContent='GRIND MISSAD!';}}});
+        state.gerbilT-=dt;if(state.gerbilT<=0){state.gerbilT=rnd(1.15,2.0);spawnGerbil();}
+        state.starT-=dt;if(state.starT<=0){state.starT=rnd(3.3,5.2);spawnRallyStar();}
+        for(const g of state.gerbils){g.phase+=dt*4;g.x+=Math.sin(g.phase)*20*dt+g.vx*dt;g.y+=g.vy*dt;g.x=clamp(g.x,18,402);if(!g.hit&&dist(p.x,400,g.x,g.y)<24){g.hit=true;state.hits++;spark(g.x,g.y,'#c78b55',15);msgEl.textContent='GERBIL! -1 POÄNG';}}
+        for(const q of state.stars){q.phase+=dt*5;q.y+=q.vy*dt;q.x+=Math.sin(q.phase)*10*dt;if(!q.got&&dist(p.x,400,q.x,q.y)<24){q.got=true;state.starsGot++;spark(q.x,q.y,'#fff36b',20);msgEl.textContent='⭐ +1 POÄNG';}}
+        state.gerbils=state.gerbils.filter(g=>g.y<540&&!g.hit);state.stars=state.stars.filter(q=>q.y<540&&!q.got);updateParticles(dt);
+        const goalScreenY=state.goalY+state.scroll;if(state.gate>=30&&!state.goalCrossed&&goalScreenY>=395){state.goalCrossed=true;completeRally();return;}
+        scoreEl.textContent=`GRIND ${state.gate}/30   🐹 ${state.hits}   ⭐ ${state.starsGot}   POÄNG ${rallyScore()}`;
+    }
+    function drawGerbil(g){
+        ctx.save();ctx.translate(g.x,g.y);ctx.fillStyle='#8a5a35';ctx.beginPath();ctx.ellipse(0,0,13,9,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#a87548';ctx.beginPath();ctx.arc(9,-5,6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#d6a06d';ctx.beginPath();ctx.arc(11,-10,3,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.fillRect(12,-6,2,2);ctx.strokeStyle='#6d4228';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-12,2);ctx.quadraticCurveTo(-22,8,-25,1);ctx.stroke();ctx.restore();
     }
     function drawRally(ts){
-        grassBackground(420,500,state.scroll*.25);
-        // moving cut stripes
-        ctx.fillStyle='rgba(180,220,100,.10)';
-        for(let y=((state.scroll*.6)%70)-70;y<500;y+=70)ctx.fillRect(0,y,420,25);
-        state.beds.forEach(b=>{const y=b.y+state.scroll;if(y<-60||y>550)return;ctx.fillStyle='#6f4b31';ctx.fillRect(b.x-b.w/2,y-b.h/2,b.w,b.h);ctx.fillStyle='#ffcf55';for(let x=b.x-b.w/2+8;x<b.x+b.w/2;x+=15){ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();}});
-        state.gates.forEach((g,i)=>{const y=g.y+state.scroll;if(y<-30||y>530)return;ctx.fillStyle=g.passed?'#5c8458':'#f4f0d2';ctx.fillRect(g.x-g.w/2-5,y-5,10,28);ctx.fillRect(g.x+g.w/2-5,y-5,10,28);ctx.strokeStyle=g.passed?'#6c9b66':'#ffe85f';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(g.x-g.w/2,y);ctx.lineTo(g.x+g.w/2,y);ctx.stroke();ctx.setLineDash([]);});
-        const gy=state.goalY+state.scroll;
-        if(gy>-25&&gy<525){
-            const cell=20;
-            for(let x=0;x<420;x+=cell){
-                ctx.fillStyle=(Math.floor(x/cell)%2===0)?'#ffffff':'#111111';
-                ctx.fillRect(x,gy-7,cell,7);
-                ctx.fillStyle=(Math.floor(x/cell)%2===0)?'#111111':'#ffffff';
-                ctx.fillRect(x,gy,cell,7);
-            }
-            ctx.fillStyle='#ffff55';ctx.font='bold 13px monospace';ctx.textAlign='center';ctx.fillText('MÅL',210,gy-13);
-        }
-        drawParticles();drawMower(state.p.x,400,44,0);
-        ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(0,455,420,45);
+        grassBackground(420,500,state.scroll*.25);ctx.fillStyle='rgba(180,220,100,.10)';for(let y=((state.scroll*.6)%70)-70;y<500;y+=70)ctx.fillRect(0,y,420,25);
+        state.gates.forEach(g=>{const y=g.y+state.scroll;if(y<-30||y>530)return;ctx.fillStyle=g.passed?'#5c8458':'#f4f0d2';ctx.fillRect(g.x-g.w/2-5,y-5,10,28);ctx.fillRect(g.x+g.w/2-5,y-5,10,28);ctx.strokeStyle=g.passed?'#6c9b66':'#ffe85f';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(g.x-g.w/2,y);ctx.lineTo(g.x+g.w/2,y);ctx.stroke();ctx.setLineDash([]);});
+        state.gerbils.forEach(drawGerbil);ctx.font='22px sans-serif';ctx.textAlign='center';state.stars.forEach(q=>ctx.fillText('⭐',q.x,q.y));
+        const gy=state.goalY+state.scroll;if(gy>-25&&gy<525){const cell=20;for(let x=0;x<420;x+=cell){ctx.fillStyle=(x/cell|0)%2===0?'#fff':'#111';ctx.fillRect(x,gy-7,cell,7);ctx.fillStyle=(x/cell|0)%2===0?'#111':'#fff';ctx.fillRect(x,gy,cell,7);}ctx.fillStyle='#ffff55';ctx.font='bold 13px monospace';ctx.fillText('MÅL',210,gy-13);}
+        drawParticles();drawMower(state.p.x,400,44,0);ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(0,455,420,45);
     }
 
-    // ── MÖNSTERKLIPP ────────────────────────────────────────────────────
+    // ── MÖNSTERKLIPP — four shape courses with per-course records ──
+    const PATTERN_LEVELS=['SPIRALEN','STJÄRNAN','HJÄRTAT','ÅTTAN'];
+    let patternLevelIndex=0;
+    function samplePolyline(vertices,perEdge=7,closed=true){const out=[];const count=closed?vertices.length:vertices.length-1;for(let i=0;i<count;i++){const a=vertices[i],b=vertices[(i+1)%vertices.length];for(let k=0;k<perEdge;k++){const t=k/perEdge;out.push({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t)});}}if(!closed)out.push(vertices[vertices.length-1]);return out;}
+    function makePatternPoints(level){
+        const pts=[],cx=240,cy=210;
+        if(level===0){for(let i=0;i<42;i++){const a=i*.48,r=24+i*4.1;pts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});}}
+        else if(level===1){const v=[];for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2===0?158:68;v.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});}return samplePolyline(v,6,true);}
+        else if(level===2){for(let i=0;i<54;i++){const t=i/(53)*Math.PI*2,x=16*Math.pow(Math.sin(t),3),y=13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);pts.push({x:cx+x*9.0,y:218-y*8.0});}}
+        else{for(let i=0;i<58;i++){const t=i/(57)*Math.PI*2,den=1+Math.sin(t)*Math.sin(t);pts.push({x:cx+155*Math.cos(t)/den,y:cy+125*Math.sin(t)*Math.cos(t)/den});}}
+        return pts;
+    }
     function resetPattern(){
-        setCanvas(480,420);
-        const pts=[];
-        const cx=240,cy=210;
-        for(let i=0;i<34;i++){
-            const a=i*.52,r=35+i*4.5;
-            pts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});
-        }
-        state={p:{x:pts[0].x,y:pts[0].y,vx:0,vy:0,ang:0},pts,index:1,time:34,combo:0,score:0,particles:[],trail:[]};
-        titleEl.textContent='MÖNSTERKLIPP';msgEl.textContent='FÖLJ DEN LYSANDE BANAN';
+        setCanvas(480,420);hideMiniResult();const pts=makePatternPoints(patternLevelIndex),times=[42,46,50,52];
+        state={p:{x:pts[0].x,y:pts[0].y,vx:0,vy:0,ang:0},pts,index:1,time:times[patternLevelIndex],combo:0,score:0,particles:[],trail:[]};
+        titleEl.textContent=`MÖNSTERKLIPP — ${patternLevelIndex+1}/4`;msgEl.textContent=PATTERN_LEVELS[patternLevelIndex];
+    }
+    function completePattern(){
+        if(gameOver)return;gameOver=true;startCelebration('MÖNSTER KLART!');const key='pattern'+(patternLevelIndex+1),isHigh=window.MiniScoreStore?.setBest(key,state.score),best=Math.max(state.score,window.MiniScoreStore?.get(key)||0);
+        const opts={onReplay:()=>reset()};if(patternLevelIndex<PATTERN_LEVELS.length-1)opts.onNext=()=>{patternLevelIndex++;reset();};
+        showMiniResult(`${PATTERN_LEVELS[patternLevelIndex]} KLAR!`,`POÄNG: ${state.score}\nHIGHSCORE: ${best}${isHigh?'\nNYTT HIGHSCORE!':''}`,opts);
     }
     function updatePattern(dt){
-        const v=inputVector(),p=state.p;
-        p.vx=lerp(p.vx,v.x*175,Math.min(1,dt*7));p.vy=lerp(p.vy,v.y*175,Math.min(1,dt*7));
-        if(Math.abs(v.x)+Math.abs(v.y)>.1)p.ang=Math.atan2(v.y,v.x)+Math.PI/2;
-        p.x=clamp(p.x+p.vx*dt,16,464);p.y=clamp(p.y+p.vy*dt,16,404);
-        state.time-=dt;
-        state.trail.push({x:p.x,y:p.y});if(state.trail.length>180)state.trail.shift();
-
-        const target=state.pts[state.index];
-        if(target&&dist(p.x,p.y,target.x,target.y)<22){
-            state.index++;state.combo++;state.score+=100+state.combo*20;
-            spark(target.x,target.y,'#fff36b',12);
-            if(state.index>=state.pts.length){
-                startCelebration('MÖNSTER KLART!');
-                finish('MÖNSTER KLART! '+state.score+' POÄNG');
-            }
-        } else if(target){
-            // lose combo only when clearly far away from the active path
-            const prev=state.pts[Math.max(0,state.index-1)];
-            const d=Math.min(dist(p.x,p.y,target.x,target.y),dist(p.x,p.y,prev.x,prev.y));
-            if(d>72)state.combo=0;
-        }
-        updateParticles(dt);
-        if(state.time<=0)finish('TIDEN ÄR UTE');
-        scoreEl.textContent=`${state.score}  x${Math.max(1,state.combo)}  ${Math.max(0,state.time).toFixed(1)}s`;
+        const v=inputVector(),p=state.p;p.vx=lerp(p.vx,v.x*175,Math.min(1,dt*7));p.vy=lerp(p.vy,v.y*175,Math.min(1,dt*7));if(Math.abs(v.x)+Math.abs(v.y)>.1)p.ang=Math.atan2(v.y,v.x)+Math.PI/2;
+        p.x=clamp(p.x+p.vx*dt,16,464);p.y=clamp(p.y+p.vy*dt,16,404);state.time-=dt;state.trail.push({x:p.x,y:p.y});if(state.trail.length>220)state.trail.shift();
+        const target=state.pts[state.index];if(target&&dist(p.x,p.y,target.x,target.y)<22){state.index++;state.combo++;state.score+=100+state.combo*20;spark(target.x,target.y,'#fff36b',12);if(state.index>=state.pts.length){completePattern();return;}}
+        else if(target){const prev=state.pts[Math.max(0,state.index-1)],d=Math.min(dist(p.x,p.y,target.x,target.y),dist(p.x,p.y,prev.x,prev.y));if(d>72)state.combo=0;}
+        updateParticles(dt);if(state.time<=0){window.MiniScoreStore?.setBest('pattern'+(patternLevelIndex+1),state.score);finish('TIDEN ÄR UTE');return;}
+        const best=window.MiniScoreStore?.get('pattern'+(patternLevelIndex+1))||0;scoreEl.textContent=`${state.score}  x${Math.max(1,state.combo)}  ${Math.max(0,state.time).toFixed(1)}s  HS ${best}`;
     }
     function drawPattern(ts){
-        grassBackground(480,420,ts*.012);
-        // route
-        ctx.lineWidth=16;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='rgba(255,244,103,.18)';
-        ctx.beginPath();ctx.moveTo(state.pts[0].x,state.pts[0].y);for(let i=1;i<state.pts.length;i++)ctx.lineTo(state.pts[i].x,state.pts[i].y);ctx.stroke();
-        // completed mower trail
+        grassBackground(480,420,ts*.012);ctx.lineWidth=16;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='rgba(255,244,103,.18)';ctx.beginPath();ctx.moveTo(state.pts[0].x,state.pts[0].y);for(let i=1;i<state.pts.length;i++)ctx.lineTo(state.pts[i].x,state.pts[i].y);ctx.stroke();
         if(state.trail.length>1){ctx.lineWidth=24;ctx.strokeStyle='rgba(188,220,101,.32)';ctx.beginPath();ctx.moveTo(state.trail[0].x,state.trail[0].y);for(const q of state.trail)ctx.lineTo(q.x,q.y);ctx.stroke();}
-        // future checkpoints
-        for(let i=state.index;i<Math.min(state.pts.length,state.index+8);i++){
-            const q=state.pts[i],pulse=1+Math.sin(performance.now()*.008+i)*.12;
-            ctx.fillStyle=i===state.index?'#fff36b':'rgba(255,243,107,.40)';
-            ctx.beginPath();ctx.arc(q.x,q.y,(i===state.index?9:5)*pulse,0,Math.PI*2);ctx.fill();
-        }
+        for(let i=state.index;i<Math.min(state.pts.length,state.index+8);i++){const q=state.pts[i],pulse=1+Math.sin(performance.now()*.008+i)*.12;ctx.fillStyle=i===state.index?'#fff36b':'rgba(255,243,107,.40)';ctx.beginPath();ctx.arc(q.x,q.y,(i===state.index?9:5)*pulse,0,Math.PI*2);ctx.fill();}
         drawParticles();drawMower(state.p.x,state.p.y,42,state.p.ang);
     }
 
-
-    // ── BACKKLIPPAREN — four progressive courses (v126) ───────────────
-    // Each course lasts about two minutes of successful driving. Terrain is
-    // regenerated for each run from randomized phases, while bounded amplitudes
-    // and slopes keep the course challenging without intentionally impossible walls.
+    // ── BACKKLIPPAREN — four courses, trick scoring and records ─────
     const HILL_LEVEL_SECONDS=90;
     const HILL_LEVELS=[
-        {name:'Fanbyn',      kind:'grass', baseAmp:1.00, gravity:56, fuelGap:[1050,1450]},
-        {name:'Tredjeviken', kind:'sand',  baseAmp:1.18, gravity:56, fuelGap:[1020,1420]},
-        {name:'Klipporna',   kind:'lava',  baseAmp:1.34, gravity:56, fuelGap:[980,1380]},
-        {name:'Månen',       kind:'moon',  baseAmp:1.28, gravity:28, fuelGap:[1050,1480]}
+        {name:'Fanbyn',      kind:'grass', baseAmp:1.06, gravity:56, fuelGap:[1050,1450],maxSpeed:215,drive:128},
+        {name:'Tredjeviken', kind:'sand',  baseAmp:1.24, gravity:56, fuelGap:[1020,1420],maxSpeed:218,drive:130},
+        {name:'Klipporna',   kind:'lava',  baseAmp:1.42, gravity:56, fuelGap:[980,1380], maxSpeed:222,drive:132},
+        {name:'Månen',       kind:'moon',  baseAmp:1.62, gravity:28, fuelGap:[1020,1450],maxSpeed:268,drive:158}
     ];
-    let hillLevelIndex=0;
-    let hillCourse=null;
-    let hillBannerToken=0;
+    let hillLevelIndex=0,hillCourse=null,hillBannerToken=0;
 
-    function makeHillCourse(levelIndex){
-        const cfg=HILL_LEVELS[levelIndex]||HILL_LEVELS[0];
-        return {
-            cfg,
-            seed:Math.random()*10000,
-            p1:Math.random()*Math.PI*2,
-            p2:Math.random()*Math.PI*2,
-            p3:Math.random()*Math.PI*2,
-            p4:Math.random()*Math.PI*2,
-            wobble:Math.random()*Math.PI*2
-        };
-    }
-    function hillProgressDifficulty(wx){
-        // Course becomes progressively hillier, but caps before slopes become absurd.
-        return .68+clamp(wx/15000,0,1)*.52;
-    }
+    function makeHillCourse(levelIndex){const cfg=HILL_LEVELS[levelIndex]||HILL_LEVELS[0];return{cfg,seed:Math.random()*10000,p1:Math.random()*6.283,p2:Math.random()*6.283,p3:Math.random()*6.283,p4:Math.random()*6.283,p5:Math.random()*6.283};}
+    function hillProgressDifficulty(wx){return .68+clamp(wx/15000,0,1)*.52;}
     function hillTerrainY(wx){
-        const c=hillCourse||makeHillCourse(hillLevelIndex);
-        const cfg=c.cfg;
-        const d=cfg.baseAmp*hillProgressDifficulty(wx);
-        let y=318;
-
-        if(cfg.kind==='grass'){
-            y += Math.sin(wx*.0039+c.p1)*35*d;
-            y += Math.sin(wx*.0082+c.p2)*24*d;
-            y += Math.sin(wx*.0158+c.p3)*13*d;
-            y += Math.asin(Math.sin(wx*.0106+c.p4))*(10/Math.PI)*d;
-        }else if(cfg.kind==='sand'){
-            // Broad dunes with smaller ripples: large but forgiving hills.
-            y += Math.sin(wx*.0028+c.p1)*48*d;
-            y += Math.sin(wx*.0062+c.p2)*30*d;
-            y += Math.sin(wx*.0112+c.p3)*13*d;
-            y += Math.sin(wx*.021+c.p4)*5*d;
-        }else if(cfg.kind==='lava'){
-            // Rocky, sharper profile, but bounded by low harmonic amplitudes.
-            y += Math.sin(wx*.0035+c.p1)*42*d;
-            y += Math.sin(wx*.0088+c.p2)*29*d;
-            y += Math.sin(wx*.017+c.p3)*16*d;
-            y += Math.asin(Math.sin(wx*.0128+c.p4))*(17/Math.PI)*d;
-        }else{
-            // Moon: long rolling ridges plus crater-like depressions.
-            y += Math.sin(wx*.0025+c.p1)*42*d;
-            y += Math.sin(wx*.0065+c.p2)*25*d;
-            y += Math.sin(wx*.013+c.p3)*11*d;
-            const crater=Math.sin(wx*.0041+c.p4);
-            y += Math.max(0,crater)*Math.max(0,crater)*18*d;
-        }
-        return clamp(y,205,375);
+        const c=hillCourse||makeHillCourse(hillLevelIndex),cfg=c.cfg,d=cfg.baseAmp*hillProgressDifficulty(wx);let y=318;
+        if(cfg.kind==='grass'){y+=Math.sin(wx*.0039+c.p1)*34*d+Math.sin(wx*.0082+c.p2)*23*d+Math.sin(wx*.0158+c.p3)*13*d+Math.sin(wx*.029+c.p5)*4.5*d;}
+        else if(cfg.kind==='sand'){y+=Math.sin(wx*.0028+c.p1)*47*d+Math.sin(wx*.0062+c.p2)*29*d+Math.sin(wx*.0112+c.p3)*14*d+Math.sin(wx*.024+c.p5)*6*d;}
+        else if(cfg.kind==='lava'){y+=Math.sin(wx*.0035+c.p1)*41*d+Math.sin(wx*.0088+c.p2)*28*d+Math.sin(wx*.017+c.p3)*17*d+Math.asin(Math.sin(wx*.0128+c.p4))*(18/Math.PI)*d+Math.sin(wx*.034+c.p5)*6.5*d;}
+        else{y+=Math.sin(wx*.0026+c.p1)*53*d+Math.sin(wx*.0067+c.p2)*34*d+Math.sin(wx*.0135+c.p3)*17*d+Math.sin(wx*.027+c.p5)*7*d;const crater=Math.sin(wx*.0044+c.p4);y+=Math.max(0,crater)*Math.max(0,crater)*24*d;}
+        return clamp(y,190,382);
     }
-    function hillSlope(wx){
-        const e=2.5;
-        return Math.atan2(hillTerrainY(wx+e)-hillTerrainY(wx-e),e*2);
-    }
-    function ensureHillFuel(){
-        const cfg=(hillCourse&&hillCourse.cfg)||HILL_LEVELS[hillLevelIndex];
-        while(state.nextFuelX<state.x+2400){
-            const x=state.nextFuelX;
-            state.fuels.push({x,got:false});
-            state.nextFuelX+=rnd(cfg.fuelGap[0],cfg.fuelGap[1]);
-        }
-        state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-500);
-    }
-    function showHillCourseBanner(){
-        const el=document.getElementById('hill-course-banner');
-        if(!el)return;
-        const token=++hillBannerToken;
-        el.textContent=`BANA ${hillLevelIndex+1}: ${HILL_LEVELS[hillLevelIndex].name.toUpperCase()}`;
-        el.style.display='block';
-        setTimeout(()=>{if(token===hillBannerToken)el.style.display='none';},4000);
-    }
-    function setHillActionButton(mode){
-        const btn=document.getElementById('arcade-restart-btn');
-        if(!btn)return;
-        if(mode==='next'){
-            btn.textContent='NÄSTA BANA →';
-            btn.onclick=()=>window.MiniGames.nextHillLevel();
-        }else{
-            btn.textContent='↺ IGEN';
-            btn.onclick=()=>window.MiniGames.restart();
-        }
-    }
-    function hideHillFinalOverlay(){
-        document.getElementById('hill-complete-overlay')?.classList.remove('show');
-    }
-    function showHillFinalOverlay(){
-        document.getElementById('hill-complete-overlay')?.classList.add('show');
-    }
+    function hillSlope(wx){const e=2.5;return Math.atan2(hillTerrainY(wx+e)-hillTerrainY(wx-e),e*2);}
+    function ensureHillFuel(){const cfg=(hillCourse&&hillCourse.cfg)||HILL_LEVELS[hillLevelIndex];while(state.nextFuelX<state.x+2400){const x=state.nextFuelX;state.fuels.push({x,got:false});state.nextFuelX+=rnd(cfg.fuelGap[0],cfg.fuelGap[1]);}state.fuels=state.fuels.filter(f=>!f.got&&f.x>state.x-500);}
+    function showHillCourseBanner(){const el=document.getElementById('hill-course-banner');if(!el)return;const token=++hillBannerToken;el.textContent=`BANA ${hillLevelIndex+1}: ${HILL_LEVELS[hillLevelIndex].name.toUpperCase()}`;el.style.display='block';setTimeout(()=>{if(token===hillBannerToken)el.style.display='none';},4000);}
+    function setHillActionButton(mode){const btn=document.getElementById('arcade-restart-btn');if(!btn)return;btn.textContent='↺ IGEN';btn.onclick=()=>window.MiniGames.restart();}
+    function hideHillFinalOverlay(){document.getElementById('hill-complete-overlay')?.classList.remove('show');}
+    function showHillFinalOverlay(){document.getElementById('hill-complete-overlay')?.classList.add('show');}
+    function hillBest(){return window.MiniScoreStore?.get('hill'+(hillLevelIndex+1))||0;}
     function completeHillLevel(){
-        if(gameOver)return;
-        gameOver=true;
-        hillInput.gas=hillInput.brake=hillInput.rotL=hillInput.rotR=false;
-        if(hillLevelIndex<HILL_LEVELS.length-1){
-            startCelebration(`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`);
-            msgEl.textContent=`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`;
-            setHillActionButton('next');
-        }else{
-            startCelebration('ALLA BANOR KLARA!');
-            if(state.celebration)state.celebration.t=9;
-            msgEl.textContent='MÅNEN KLAR!';
-            showHillFinalOverlay();
-        }
+        if(gameOver)return;gameOver=true;hillInput.gas=hillInput.brake=hillInput.rotL=hillInput.rotR=false;
+        const key='hill'+(hillLevelIndex+1),isHigh=window.MiniScoreStore?.setBest(key,state.score),best=Math.max(state.score,window.MiniScoreStore?.get(key)||0);
+        startCelebration(`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`);if(state.celebration)state.celebration.t=5;
+        const opts={onReplay:()=>reset()};if(hillLevelIndex<HILL_LEVELS.length-1)opts.onNext=()=>{hillLevelIndex++;reset();};
+        showMiniResult(hillLevelIndex===HILL_LEVELS.length-1?'ALLA BANOR KLARA!':`${HILL_LEVELS[hillLevelIndex].name.toUpperCase()} KLAR!`,
+            `POÄNG: ${state.score}\nVOLTER: ${state.flips}\nLUFTTID: ${state.totalAir.toFixed(1)} s\nHIGHSCORE: ${best}${isHigh?'\nNYTT HIGHSCORE!':''}`,opts);
     }
     function resetHill(){
-        setCanvas(520,420);
-        hideHillFinalOverlay();
-        setHillActionButton('restart');
-        hillCourse=makeHillCourse(hillLevelIndex);
-        const startY=hillTerrainY(0)-24;
-        state={
-            x:0,y:startY,vy:0,vx:92,
-            ang:hillSlope(0),angVel:0,
-            fuel:100,fuels:[],nextFuelX:1050,
-            particles:[],bestX:0,
-            airborne:false,airRot:0,lastAng:hillSlope(0),
-            flips:0,flipScore:0,groundGrace:0,bounceCooldown:0,
-            elapsed:0,finishArmed:false,finishX:null
-        };
-        ensureHillFuel();
-        titleEl.textContent=`BACKKLIPPAREN — ${hillLevelIndex+1}/4`;
-        msgEl.textContent='VÄNSTER: ROTERA   HÖGER: GAS/BROMS   VOLT = +1';
-        showHillCourseBanner();
+        setCanvas(520,420);hideMiniResult();hideHillFinalOverlay();setHillActionButton('restart');hillCourse=makeHillCourse(hillLevelIndex);const startY=hillTerrainY(0)-24;
+        state={x:0,y:startY,vy:0,vx:hillLevelIndex===3?112:92,ang:hillSlope(0),angVel:0,fuel:100,fuels:[],nextFuelX:1050,particles:[],bestX:0,
+            airborne:false,airRot:0,lastAng:hillSlope(0),flips:0,score:0,flipMilestone:0,airTime:0,totalAir:0,groundGrace:0,bounceCooldown:0,
+            elapsed:0,finishArmed:false,finishX:null,flipPopups:[]};
+        ensureHillFuel();titleEl.textContent=`BACKKLIPPAREN — ${hillLevelIndex+1}/4`;msgEl.textContent='VOLT = POÄNG   LUFTTID = 300 P/SEK';showHillCourseBanner();
+    }
+    function addFlipPopup(text){state.flipPopups.push({text,t:1.1});}
+    function registerAirRotation(){
+        const n=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
+        while(state.flipMilestone<n){state.flipMilestone++;const pts=1000*state.flipMilestone;state.flips++;state.score+=pts;addFlipPopup(`★ VOLT x${state.flipMilestone} +${pts}`);spark(145,220,'#fff36b',28);msgEl.textContent=`VOLT x${state.flipMilestone}! +${pts}`;}
     }
     function scoreHillLanding(slope,impactVy){
         const diff=Math.atan2(Math.sin(state.ang-slope),Math.cos(state.ang-slope));
-        const completed=Math.floor(Math.abs(state.airRot)/(Math.PI*2));
-        if(completed>0){
-            state.flips+=completed;
-            state.flipScore+=completed;
-            msgEl.textContent=`VOLT! +${completed}  TOTALT ${state.flipScore}`;
-            spark(145,240,'#fff36b',24);
-        }
-        if(Math.abs(diff)>1.25 && Math.abs(state.vx)>42){
-            finish(`KRASCH! ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
-            return false;
-        }
-        state.vx*=Math.max(.35,1-Math.abs(diff)*.30);
-        state.ang=slope;
-        state.angVel=0;
-        state.airRot=0;
-
-        // v126: suspension/tyre bounce after a genuine jump landing.
-        // Only good-ish landings bounce; small impacts settle immediately.
-        if(impactVy>34 && Math.abs(diff)<.95 && state.bounceCooldown<=0){
-            state.vy=-Math.min(62,impactVy*.27);
-            state.y-=1.5;
-            state.airborne=true;
-            state.bounceCooldown=.18;
-        }else{
-            state.vy=0;
-            state.airborne=false;
-        }
+        if(state.airTime>.35){const airPts=Math.round(state.airTime*300);state.score+=airPts;state.totalAir+=state.airTime;msgEl.textContent=`LUFTTID ${state.airTime.toFixed(1)}s +${airPts}`;}
+        if(Math.abs(diff)>1.35&&Math.abs(state.vx)>45){window.MiniScoreStore?.setBest('hill'+(hillLevelIndex+1),state.score);finish(`KRASCH! ${state.score} P`);return false;}
+        state.vx*=Math.max(.48,1-Math.abs(diff)*.20);
+        // Keep the chassis orientation and let the ground spring settle it instead of snapping to slope.
+        state.angVel*=.35;state.airRot=0;state.flipMilestone=0;state.airTime=0;
+        const restitution=clamp(.09+impactVy/520,.10,.20),bounce=impactVy*restitution;
+        if(impactVy>24&&Math.abs(diff)<1.05&&bounce>4&&state.bounceCooldown<=0){state.vy=-Math.min(34,bounce);state.y-=1.2;state.airborne=true;state.bounceCooldown=.16;}
+        else{state.vy=0;state.airborne=false;}
         return true;
     }
     function updateHill(dt){
-        const gas=hillInput.gas || keys.ArrowUp || keys.w || keys.W;
-        const brake=hillInput.brake || keys.ArrowDown || keys.s || keys.S;
-        const rotL=hillInput.rotL || keys.ArrowLeft || keys.a || keys.A;
-        const rotR=hillInput.rotR || keys.ArrowRight || keys.d || keys.D;
-        const throttle=(gas?1:0)-(brake?1:0);
-        const rotate=(rotR?1:0)-(rotL?1:0);
-        const cfg=HILL_LEVELS[hillLevelIndex];
-
-        state.elapsed+=dt;
-        state.bounceCooldown=Math.max(0,state.bounceCooldown-dt);
-
-        // At two minutes the finish flag appears just ahead, so completion is
-        // reached immediately after the requested successful-driving duration.
-        if(!state.finishArmed && state.elapsed>=HILL_LEVEL_SECONDS){
-            state.finishArmed=true;
-            state.finishX=state.x+Math.max(125,Math.min(220,Math.abs(state.vx)*1.2));
-            msgEl.textContent='MÅLFLAGGAN! 🏁';
-        }
-
-        const drive=throttle>=0?128*throttle:92*throttle;
-        state.vx+=drive*dt;
-        state.vx-=state.vx*0.055*dt;
-        state.vx=clamp(state.vx,-45,215);
-
-        const ground=hillTerrainY(state.x);
-        const targetY=ground-24;
-        const wasAir=state.airborne;
-        const nearGround=state.airborne
-            ? (state.y>=targetY-3.5 && state.vy>=0)
-            : (state.y>=targetY-3.5 && state.vy>=-32);
-
+        const gas=hillInput.gas||keys.ArrowUp||keys.w||keys.W,brake=hillInput.brake||keys.ArrowDown||keys.s||keys.S,rotL=hillInput.rotL||keys.ArrowLeft||keys.a||keys.A,rotR=hillInput.rotR||keys.ArrowRight||keys.d||keys.D;
+        const throttle=(gas?1:0)-(brake?1:0),rotate=(rotR?1:0)-(rotL?1:0),cfg=HILL_LEVELS[hillLevelIndex];state.elapsed+=dt;state.bounceCooldown=Math.max(0,state.bounceCooldown-dt);
+        state.flipPopups.forEach(p=>p.t-=dt);state.flipPopups=state.flipPopups.filter(p=>p.t>0);
+        if(!state.finishArmed&&state.elapsed>=HILL_LEVEL_SECONDS){state.finishArmed=true;state.finishX=state.x+Math.max(125,Math.min(220,Math.abs(state.vx)*1.2));msgEl.textContent='MÅLFLAGGAN! 🏁';}
+        state.vx+=((throttle>=0?cfg.drive*throttle:92*throttle))*dt;state.vx-=state.vx*.055*dt;state.vx=clamp(state.vx,-45,cfg.maxSpeed);
+        const ground=hillTerrainY(state.x),targetY=ground-24,wasAir=state.airborne,nearGround=state.airborne?(state.y>=targetY-2.0&&state.vy>=0):(state.y>=targetY-2.5&&state.vy>=-28);
         if(nearGround){
-            const impactVy=Math.max(0,state.vy);
-            state.y=targetY;
-            state.airborne=false;
-            state.groundGrace=.09;
-            const slope=hillSlope(state.x);
-
-            state.vx+=Math.sin(slope)*55*dt;
-            let da=Math.atan2(Math.sin(slope-state.ang),Math.cos(slope-state.ang));
-            state.angVel+=da*11*dt;
-            state.angVel*=Math.pow(.12,dt);
-            state.ang+=state.angVel*dt;
-
-            const ahead=hillTerrainY(state.x+22)-hillTerrainY(state.x);
-            const lip=hillTerrainY(state.x+8)-2*hillTerrainY(state.x)+hillTerrainY(state.x-8);
-            if(state.vx>90 && (ahead<-11 || lip>8)){
-                state.vy=-Math.min(118,30+state.vx*.46);
-                state.airborne=true;
-                state.groundGrace=0;
-                state.airRot=0;
-                state.lastAng=state.ang;
-            }else if(wasAir){
-                if(!scoreHillLanding(slope,impactVy))return;
-            }else{
-                state.vy=0;
-            }
+            const impactVy=Math.max(0,state.vy),slope=hillSlope(state.x);state.y=Math.min(state.y,targetY);state.airborne=false;state.groundGrace=.08;
+            state.vx+=Math.sin(slope)*55*dt;let da=Math.atan2(Math.sin(slope-state.ang),Math.cos(slope-state.ang));state.angVel+=da*8.2*dt;state.angVel*=Math.pow(.06,dt);state.ang+=state.angVel*dt;
+            const ahead=hillTerrainY(state.x+22)-hillTerrainY(state.x),lip=hillTerrainY(state.x+8)-2*hillTerrainY(state.x)+hillTerrainY(state.x-8);
+            if(state.vx>88&&(ahead<-10||lip>7.2)){state.vy=-Math.min(cfg.kind==='moon'?136:116,28+state.vx*.45);state.airborne=true;state.groundGrace=0;state.airRot=0;state.flipMilestone=0;state.airTime=0;state.lastAng=state.ang;}
+            else if(wasAir){if(!scoreHillLanding(slope,impactVy))return;}else state.vy=0;
         }else{
-            state.airborne=true;
-            state.groundGrace=Math.max(0,state.groundGrace-dt);
-
-            // Fanbyn/Tredjeviken/Klipporna retain v125 gravity (56 = half the
-            // pre-v125 original). Moon uses 28 = 25% of that original gravity.
-            state.vy+=cfg.gravity*dt;
-            state.y+=state.vy*dt;
-
-            // v125 fast air rotation remains unchanged.
-            state.angVel+=rotate*11.2*dt;
-            state.angVel*=Math.pow(.88,dt);
-            state.ang+=state.angVel*dt;
-
-            const delta=Math.atan2(Math.sin(state.ang-state.lastAng),Math.cos(state.ang-state.lastAng));
-            state.airRot+=delta;
-            state.lastAng=state.ang;
-
-            if(state.y>=targetY){
-                const impactVy=Math.max(0,state.vy);
-                state.y=targetY;
-                const slope=hillSlope(state.x);
-                if(!scoreHillLanding(slope,impactVy))return;
-            }
+            state.airborne=true;state.airTime+=dt;state.groundGrace=Math.max(0,state.groundGrace-dt);state.vy+=cfg.gravity*dt;state.y+=state.vy*dt;
+            // v128: controllable but less twitchy than v125/v127.
+            state.angVel+=rotate*7.0*dt;state.angVel*=Math.pow(.86,dt);state.ang+=state.angVel*dt;
+            const delta=Math.atan2(Math.sin(state.ang-state.lastAng),Math.cos(state.ang-state.lastAng));state.airRot+=delta;state.lastAng=state.ang;registerAirRotation();
+            if(state.y>=targetY){const impactVy=Math.max(0,state.vy);state.y=targetY;if(!scoreHillLanding(hillSlope(state.x),impactVy))return;}
         }
-
-        state.x+=state.vx*dt;
-        if(state.x<0){state.x=0;state.vx=Math.max(0,state.vx);}
-
-        // Crossing the flag after the two-minute survival mark completes the course.
-        if(state.finishArmed && state.x>=state.finishX){
-            completeHillLevel();
-            return;
-        }
-
-        state.fuel-=dt*(1.75+(gas?.95:0)+Math.abs(state.vx)/240);
-        ensureHillFuel();
-        for(const f of state.fuels){
-            if(f.got)continue;
-            const fy=hillTerrainY(f.x)-37;
-            const fuelReach=cfg.kind==='moon'?120:70;
-            if(Math.abs(f.x-state.x)<34 && Math.abs(fy-state.y)<fuelReach){
-                f.got=true;
-                state.fuel=Math.min(100,state.fuel+38);
-                msgEl.textContent='TANKAT! +38%';
-                spark(145,240,'#ffdf55',20);
-            }
-        }
-
-        updateParticles(dt);
-        state.bestX=Math.max(state.bestX,state.x);
-        if(state.fuel<=0){
-            state.fuel=0;
-            finish(`SLUT PÅ BRÄNSLE — ${Math.floor(state.bestX/10)} m   VOLTER ${state.flipScore}`);
-            return;
-        }
-
-        const remaining=Math.max(0,Math.ceil(HILL_LEVEL_SECONDS-state.elapsed));
-        scoreEl.textContent=`BANA ${hillLevelIndex+1}/4   ⏱ ${remaining}s   ⛽ ${Math.ceil(state.fuel)}%   🔄 ${state.flipScore}`;
+        state.x+=state.vx*dt;if(state.x<0){state.x=0;state.vx=Math.max(0,state.vx);}if(state.finishArmed&&state.x>=state.finishX){completeHillLevel();return;}
+        state.fuel-=dt*(1.75+(gas?.95:0)+Math.abs(state.vx)/240);ensureHillFuel();for(const f of state.fuels){if(f.got)continue;const fy=hillTerrainY(f.x)-37,fuelReach=cfg.kind==='moon'?125:70;if(Math.abs(f.x-state.x)<34&&Math.abs(fy-state.y)<fuelReach){f.got=true;state.fuel=Math.min(100,state.fuel+38);msgEl.textContent='TANKAT! +38%';spark(145,240,'#ffdf55',20);}}
+        updateParticles(dt);state.bestX=Math.max(state.bestX,state.x);if(state.fuel<=0){state.fuel=0;window.MiniScoreStore?.setBest('hill'+(hillLevelIndex+1),state.score);finish(`SLUT PÅ BRÄNSLE — ${state.score} P`);return;}
+        const remaining=Math.max(0,Math.ceil(HILL_LEVEL_SECONDS-state.elapsed));scoreEl.textContent=`BANA ${hillLevelIndex+1}/4  ⏱ ${remaining}s  ⛽ ${Math.ceil(state.fuel)}%  ★ ${state.score}  HS ${hillBest()}`;
     }
-    function drawHillFlag(camX){
-        if(!state.finishArmed||state.finishX==null)return;
-        const x=state.finishX-camX;
-        if(x<-40||x>560)return;
-        const y=hillTerrainY(state.finishX);
-        ctx.strokeStyle='#e9e9e9';ctx.lineWidth=5;
-        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-92);ctx.stroke();
-        const fw=44,fh=32;
-        for(let r=0;r<4;r++)for(let c=0;c<4;c++){
-            ctx.fillStyle=(r+c)%2===0?'#ffffff':'#161616';
-            ctx.fillRect(x+c*(fw/4),y-92+r*(fh/4),fw/4,fh/4);
-        }
-        ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';
-        ctx.fillText('MÅL',x+22,y-101);
-    }
+    function drawHillFlag(camX){if(!state.finishArmed||state.finishX==null)return;const x=state.finishX-camX;if(x<-40||x>560)return;const y=hillTerrainY(state.finishX);ctx.strokeStyle='#e9e9e9';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-92);ctx.stroke();const fw=44,fh=32;for(let r=0;r<4;r++)for(let c=0;c<4;c++){ctx.fillStyle=(r+c)%2===0?'#fff':'#161616';ctx.fillRect(x+c*fw/4,y-92+r*fh/4,fw/4,fh/4);}ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('MÅL',x+22,y-101);}
     function drawHill(ts){
-        const w=520,h=420;
-        const camX=Math.max(0,state.x-145);
-        const cfg=HILL_LEVELS[hillLevelIndex];
-
-        // Course-specific sky and distant landscape.
-        let sky=ctx.createLinearGradient(0,0,0,h);
-        if(cfg.kind==='grass'){
-            sky.addColorStop(0,'#78bfe9');sky.addColorStop(1,'#d8ecbb');
-        }else if(cfg.kind==='sand'){
-            sky.addColorStop(0,'#63b8dc');sky.addColorStop(1,'#ffe1a0');
-        }else if(cfg.kind==='lava'){
-            sky.addColorStop(0,'#241321');sky.addColorStop(1,'#8b2d20');
-        }else{
-            sky.addColorStop(0,'#02030d');sky.addColorStop(1,'#11152b');
-        }
-        ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
-
-        if(cfg.kind==='moon'){
-            // Stable star field tied to screen, intentionally subtle.
-            ctx.fillStyle='rgba(255,255,255,.82)';
-            for(let i=0;i<45;i++){
-                const sx=(i*83+17)%w, sy=(i*47+23)%210;
-                ctx.fillRect(sx,sy,(i%4===0?2:1),(i%4===0?2:1));
-            }
-            ctx.fillStyle='rgba(210,220,235,.20)';
-            ctx.beginPath();ctx.arc(430,80,42,0,Math.PI*2);ctx.fill();
-        }else if(cfg.kind==='lava'){
-            ctx.fillStyle='rgba(255,69,20,.25)';
-            for(let i=0;i<7;i++)ctx.fillRect((i*91+(camX*.08)%70)%w,300+(i%3)*18,56,4);
-        }else{
-            ctx.fillStyle=cfg.kind==='sand'?'rgba(170,117,50,.20)':'rgba(55,90,64,.28)';
-            ctx.beginPath();ctx.moveTo(0,h);
-            for(let sx=0;sx<=w;sx+=8){
-                const wx=camX+sx*.75;
-                const y=275+Math.sin(wx*.003)*30+Math.sin(wx*.007+1)*14;
-                ctx.lineTo(sx,y);
-            }
-            ctx.lineTo(w,h);ctx.closePath();ctx.fill();
-        }
-
-        // Main terrain fill and ridge.
-        const fill=cfg.kind==='grass'?'#397536':cfg.kind==='sand'?'#c89446':cfg.kind==='lava'?'#30282b':'#686b72';
-        const ridge=cfg.kind==='grass'?'#b4df70':cfg.kind==='sand'?'#f2d38a':cfg.kind==='lava'?'#ff5a26':'#c7cbd4';
-        if(cfg.kind==='lava'){
-            // glowing lava beneath the rocky shell
-            ctx.fillStyle='#d83a12';ctx.fillRect(0,320,w,100);
-        }
-        ctx.fillStyle=fill;
-        ctx.beginPath();ctx.moveTo(0,h);
-        for(let sx=0;sx<=w;sx+=3)ctx.lineTo(sx,hillTerrainY(camX+sx));
-        ctx.lineTo(w,h);ctx.closePath();ctx.fill();
-        ctx.strokeStyle=ridge;ctx.lineWidth=5;
-        ctx.beginPath();
-        for(let sx=0;sx<=w;sx+=3){
-            const y=hillTerrainY(camX+sx);
-            sx===0?ctx.moveTo(sx,y):ctx.lineTo(sx,y);
-        }
-        ctx.stroke();
-
-        // Extra biome detail.
-        if(cfg.kind==='sand'){
-            ctx.strokeStyle='rgba(110,70,25,.24)';ctx.lineWidth=2;
-            for(let i=0;i<8;i++){
-                const x=((i*113-camX*.22)%620+620)%620-50;
-                const y=hillTerrainY(camX+x)-8;
-                ctx.beginPath();ctx.moveTo(x-12,y);ctx.quadraticCurveTo(x,y-5,x+12,y);ctx.stroke();
-            }
-        }else if(cfg.kind==='moon'){
-            ctx.strokeStyle='rgba(35,37,44,.42)';ctx.lineWidth=2;
-            for(let i=0;i<7;i++){
-                const x=((i*137-camX*.35)%650+650)%650-40;
-                const y=hillTerrainY(camX+x)-3;
-                ctx.beginPath();ctx.ellipse(x,y,15+(i%3)*5,5+(i%2)*2,0,0,Math.PI*2);ctx.stroke();
-            }
-        }
-
-        // Fuel cans.
-        state.fuels.forEach(f=>{
-            if(f.got)return;
-            const sx=f.x-camX;if(sx<-50||sx>w+50)return;
-            const sy=hillTerrainY(f.x)-34;
-            ctx.fillStyle='#c92520';ctx.fillRect(sx-11,sy-22,22,26);
-            ctx.fillStyle='#f6d34d';ctx.fillRect(sx-7,sy-18,14,6);
-            ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+5,sy-28,8,8);
-            ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('FUEL',sx,sy-31);
-        });
-
-        drawHillFlag(camX);
-
-        // Fuel bar + flip counter.
-        ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(12,12,188,25);
-        ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';ctx.fillRect(16,16,1.72*state.fuel,17);
-        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,188,25);
-        ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';ctx.fillText('BRÄNSLE',20,30);
-        ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(386,12,120,25);
-        ctx.fillStyle='#fff36b';ctx.textAlign='center';ctx.fillText(`VOLTER ${state.flipScore}`,446,29);
-
-        const sx=state.x-camX,sy=state.y;
-        ctx.save();ctx.translate(sx,sy);ctx.rotate(state.ang);
-        if(hillMowerImage.complete && hillMowerImage.naturalWidth){
-            const drawW=92,drawH=64;ctx.drawImage(hillMowerImage,-drawW*.48,-drawH*.70,drawW,drawH);
-        }else{
-            ctx.fillStyle='#f36c21';ctx.fillRect(-34,-20,68,28);ctx.fillStyle='#202020';
-            ctx.beginPath();ctx.arc(-22,10,13,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(23,10,10,0,Math.PI*2);ctx.fill();
-        }
-        ctx.restore();
-        drawParticles();
+        const w=520,h=420,camX=Math.max(0,state.x-145),cfg=HILL_LEVELS[hillLevelIndex];let sky=ctx.createLinearGradient(0,0,0,h);
+        if(cfg.kind==='grass'){sky.addColorStop(0,'#78bfe9');sky.addColorStop(1,'#d8ecbb');}else if(cfg.kind==='sand'){sky.addColorStop(0,'#63b8dc');sky.addColorStop(1,'#ffe1a0');}else if(cfg.kind==='lava'){sky.addColorStop(0,'#241321');sky.addColorStop(1,'#8b2d20');}else{sky.addColorStop(0,'#02030d');sky.addColorStop(1,'#11152b');}ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
+        if(cfg.kind==='moon'){ctx.fillStyle='rgba(255,255,255,.82)';for(let i=0;i<45;i++){const sx=(i*83+17)%w,sy=(i*47+23)%210;ctx.fillRect(sx,sy,i%4===0?2:1,i%4===0?2:1);}ctx.fillStyle='rgba(210,220,235,.20)';ctx.beginPath();ctx.arc(430,80,42,0,Math.PI*2);ctx.fill();}
+        else if(cfg.kind==='lava'){ctx.fillStyle='rgba(255,69,20,.25)';for(let i=0;i<7;i++)ctx.fillRect((i*91+(camX*.08)%70)%w,300+(i%3)*18,56,4);}else{ctx.fillStyle=cfg.kind==='sand'?'rgba(170,117,50,.20)':'rgba(55,90,64,.28)';ctx.beginPath();ctx.moveTo(0,h);for(let sx=0;sx<=w;sx+=8){const wx=camX+sx*.75;ctx.lineTo(sx,275+Math.sin(wx*.003)*30+Math.sin(wx*.007+1)*14);}ctx.lineTo(w,h);ctx.closePath();ctx.fill();}
+        const fill=cfg.kind==='grass'?'#397536':cfg.kind==='sand'?'#c89446':cfg.kind==='lava'?'#30282b':'#686b72',ridge=cfg.kind==='grass'?'#b4df70':cfg.kind==='sand'?'#f2d38a':cfg.kind==='lava'?'#ff5a26':'#c7cbd4';if(cfg.kind==='lava'){ctx.fillStyle='#d83a12';ctx.fillRect(0,320,w,100);}ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(0,h);for(let sx=0;sx<=w;sx+=3)ctx.lineTo(sx,hillTerrainY(camX+sx));ctx.lineTo(w,h);ctx.closePath();ctx.fill();ctx.strokeStyle=ridge;ctx.lineWidth=5;ctx.beginPath();for(let sx=0;sx<=w;sx+=3){const y=hillTerrainY(camX+sx);sx===0?ctx.moveTo(sx,y):ctx.lineTo(sx,y);}ctx.stroke();
+        if(cfg.kind==='moon'){ctx.strokeStyle='rgba(35,37,44,.42)';ctx.lineWidth=2;for(let i=0;i<8;i++){const x=((i*137-camX*.35)%650+650)%650-40,y=hillTerrainY(camX+x)-3;ctx.beginPath();ctx.ellipse(x,y,15+(i%3)*5,5+(i%2)*2,0,0,Math.PI*2);ctx.stroke();}}
+        state.fuels.forEach(f=>{if(f.got)return;const sx=f.x-camX;if(sx<-50||sx>w+50)return;const sy=hillTerrainY(f.x)-34;ctx.fillStyle='#c92520';ctx.fillRect(sx-11,sy-22,22,26);ctx.fillStyle='#f6d34d';ctx.fillRect(sx-7,sy-18,14,6);ctx.fillStyle='#1c1c1c';ctx.fillRect(sx+5,sy-28,8,8);ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText('FUEL',sx,sy-31);});drawHillFlag(camX);
+        ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(12,12,188,25);ctx.fillStyle=state.fuel>30?'#55d85f':'#ed5555';ctx.fillRect(16,16,1.72*state.fuel,17);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(12,12,188,25);ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='left';ctx.fillText('BRÄNSLE',20,30);ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(345,12,161,25);ctx.fillStyle='#fff36b';ctx.textAlign='center';ctx.fillText(`${state.score} P`,425,29);
+        const sx=state.x-camX,sy=state.y;ctx.save();ctx.translate(sx,sy);ctx.rotate(state.ang);if(hillMowerImage.complete&&hillMowerImage.naturalWidth){ctx.drawImage(hillMowerImage,-44,-45,92,64);}else{ctx.fillStyle='#f36c21';ctx.fillRect(-34,-20,68,28);}ctx.restore();
+        state.flipPopups.forEach((p,i)=>{ctx.save();ctx.globalAlpha=clamp(p.t,0,1);ctx.fillStyle='#fff36b';ctx.strokeStyle='#000';ctx.lineWidth=4;ctx.font='bold 17px monospace';ctx.textAlign='center';ctx.strokeText(p.text,sx,sy-58-i*18);ctx.fillText(p.text,sx,sy-58-i*18);ctx.restore();});drawParticles();
     }
 
     function reset(){
-        gameOver=false;keys={};last=performance.now();
+        gameOver=false;keys={};last=performance.now();hideMiniResult();
         setHillActionButton('restart');
         hideHillFinalOverlay();
         if(active==='chaos')resetChaos();
@@ -3455,7 +3020,7 @@
         else if(active==='hill')resetHill();
         else resetPattern();
     }
-    function finish(text){if(gameOver)return;gameOver=true;setHillActionButton('restart');msgEl.textContent=text+' — tryck IGEN';}
+    function finish(text){if(gameOver)return;gameOver=true;setHillActionButton('restart');if(active==='chaos'&&state)window.MiniScoreStore?.setBest('chaos',state.score||0);msgEl.textContent=text+' — tryck IGEN';}
     function loop(ts){
         if(!active)return;raf=requestAnimationFrame(loop);
         const dt=Math.min(.035,(ts-last)/1000||0);last=ts;
@@ -3544,6 +3109,7 @@
         open(id){
             active=id;
             if(id==='hill')hillLevelIndex=0;
+            if(id==='pattern')patternLevelIndex=0;
             document.getElementById('minigames-screen').style.display='none';
             document.getElementById('arcade-minigame-overlay').style.display='flex';
             setupMiniJoystick();setupHillControls();miniJoyX=miniJoyY=0;
@@ -3561,7 +3127,7 @@
             }
         },
         close(){
-            cancelAnimationFrame(raf);raf=0;setHillControlsVisible(false);hideHillFinalOverlay();hillBannerToken++;document.getElementById('hill-course-banner')?.style.setProperty('display','none');active=null;keys={};miniJoyX=miniJoyY=0;
+            cancelAnimationFrame(raf);raf=0;setHillControlsVisible(false);hideHillFinalOverlay();hideMiniResult();hillBannerToken++;document.getElementById('hill-course-banner')?.style.setProperty('display','none');active=null;keys={};miniJoyX=miniJoyY=0;
             window.removeEventListener('keydown',keyDown);window.removeEventListener('keyup',keyUp);
             document.getElementById('arcade-minigame-overlay').style.display='none';
             openMinigames();
